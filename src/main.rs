@@ -1,9 +1,4 @@
-mod constants;
-mod cli;
-mod downloader;
-mod models;
-mod errors;
-
+use sppd_cli::{cli, downloader, errors};
 use errors::AppResult;
 
 fn main() -> AppResult<()> {
