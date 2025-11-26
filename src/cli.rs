@@ -2,11 +2,12 @@ use clap::{Command, Arg, ArgAction};
 use std::collections::HashMap;
 use crate::models::ProcurementType;
 use crate::constants::{APP_VERSION, APP_AUTHOR, APP_ABOUT, PERIOD_HELP_TEXT};
+use crate::errors::AppResult;
 
 pub fn cli(
     minor_contracts_links: HashMap<String, String>,
     public_tenders_links: HashMap<String, String>,
-) -> Result<(), Box<dyn std::error::Error>> {
+) -> AppResult<()> {
     let start_help = format!("Start {}", PERIOD_HELP_TEXT);
     let end_help = format!("End {}", PERIOD_HELP_TEXT);
 

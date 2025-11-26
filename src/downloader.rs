@@ -1,18 +1,19 @@
 use crate::constants::{MINOR_CONTRACTS, PUBLIC_TENDERS, ZIP_LINK_SELECTOR, PERIOD_REGEX_PATTERN};
+use crate::errors::{AppError, AppResult};
 use reqwest;
 use scraper::{Html, Selector};
 use std::collections::HashMap;
 use std::str::FromStr;
 use url::Url;
 
-pub fn fetch_all_links() -> Result<(HashMap<String, String>, HashMap<String, String>), Box<dyn std::error::Error>> {
+pub fn fetch_all_links() -> AppResult<(HashMap<String, String>, HashMap<String, String>)> {
     let minor_links = fetch_zip(MINOR_CONTRACTS)?;
     let public_links = fetch_zip(PUBLIC_TENDERS)?;
     Ok((minor_links, public_links))
 }
 
 
-pub fn fetch_zip(input_url: &str) -> Result<HashMap<String, String>, Box<dyn std::error::Error>> {
+pub fn fetch_zip(input_url: &str) -> AppResult<HashMap<String, String>> {
     // parse the base URL
     let base_url = Url::parse(input_url)?;
 
@@ -24,7 +25,7 @@ pub fn fetch_zip(input_url: &str) -> Result<HashMap<String, String>, Box<dyn std
 
     // selector to find all links ending with .zip
     let selector = Selector::parse(ZIP_LINK_SELECTOR)
-        .map_err(|_| "Failed to parse ZIP link selector".to_string())?;
+        .map_err(|_| AppError::SelectorError(format!("Failed to parse selector '{}'", ZIP_LINK_SELECTOR)))?;
 
     let mut links: HashMap<String, String> = HashMap::new();
     let re = regex::Regex::new(PERIOD_REGEX_PATTERN)?;
@@ -48,7 +49,7 @@ pub fn filter_periods_by_range(
     links: &HashMap<String, String>,
     start_period: Option<&str>,
     end_period: Option<&str>,
-) -> Result<HashMap<String, String>, Box<dyn std::error::Error>> {
+) -> AppResult<HashMap<String, String>> {
     let mut filtered = HashMap::new();
 
     let start_period_num = start_period.and_then(|s| u32::from_str(s).ok());
@@ -64,11 +65,13 @@ pub fn filter_periods_by_range(
         .join(", ");
 
     // Validate that specified periods exist in links
-    let validate_period = |period: Option<&str>| -> Result<(), Box<dyn std::error::Error>> {
+    let validate_period = |period: Option<&str>| -> AppResult<()> {
         if let Some(p) = period {
             if !links.contains_key(p) {
-                let error_msg = format!("Period '{}' is not available. Available periods: {}", p, available_str);
-                return Err(error_msg.into());
+                return Err(AppError::PeriodValidationError {
+                    period: p.to_string(),
+                    available: available_str.clone(),
+                });
             }
         }
         Ok(())
