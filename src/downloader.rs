@@ -1,4 +1,4 @@
-use crate::config::*;
+use crate::constants::{MINOR_CONTRACTS, PUBLIC_TENDERS, ZIP_LINK_SELECTOR, PERIOD_REGEX_PATTERN};
 use reqwest;
 use scraper::{Html, Selector};
 use std::collections::HashMap;
@@ -23,10 +23,11 @@ pub fn fetch_zip(input_url: &str) -> Result<HashMap<String, String>, Box<dyn std
     let document = Html::parse_document(&response);
 
     // selector to find all links ending with .zip
-    let selector = Selector::parse(r#"a[href$=".zip"]"#).unwrap();
+    let selector = Selector::parse(ZIP_LINK_SELECTOR)
+        .map_err(|_| "Failed to parse ZIP link selector".to_string())?;
 
     let mut links: HashMap<String, String> = HashMap::new();
-    let re = regex::Regex::new(r"_(\d+)\.zip$")?;
+    let re = regex::Regex::new(PERIOD_REGEX_PATTERN)?;
 
     for url in document
         .select(&selector)
@@ -63,25 +64,18 @@ pub fn filter_periods_by_range(
         .join(", ");
 
     // Validate that specified periods exist in links
-    if let Some(start) = start_period {
-        if !links.contains_key(start) {
-            return Err(format!(
-                "Period '{}' is not available. Available periods: {}",
-                start, available_str
-            )
-            .into());
+    let validate_period = |period: Option<&str>| -> Result<(), Box<dyn std::error::Error>> {
+        if let Some(p) = period {
+            if !links.contains_key(p) {
+                let error_msg = format!("Period '{}' is not available. Available periods: {}", p, available_str);
+                return Err(error_msg.into());
+            }
         }
-    }
+        Ok(())
+    };
 
-    if let Some(end) = end_period {
-        if !links.contains_key(end) {
-            return Err(format!(
-                "Period '{}' is not available. Available periods: {}",
-                end, available_str
-            )
-            .into());
-        }
-    }
+    validate_period(start_period)?;
+    validate_period(end_period)?;
 
     for (period, url) in links {
         if let Ok(period_num) = u32::from_str(period) {

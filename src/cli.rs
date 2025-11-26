@@ -1,15 +1,19 @@
 use clap::{Command, Arg, ArgAction};
 use std::collections::HashMap;
 use crate::models::ProcurementType;
+use crate::constants::{APP_VERSION, APP_AUTHOR, APP_ABOUT, PERIOD_HELP_TEXT};
 
 pub fn cli(
     minor_contracts_links: HashMap<String, String>,
     public_tenders_links: HashMap<String, String>,
 ) -> Result<(), Box<dyn std::error::Error>> {
+    let start_help = format!("Start {}", PERIOD_HELP_TEXT);
+    let end_help = format!("End {}", PERIOD_HELP_TEXT);
+
     let matches = Command::new("sppd-cli")
-        .version("0.1")
-        .author("Alvaro Carranza <alvarocarranzacarrion@gmail.com>")
-        .about("Downloads and parses Spanish Public Procurement Data (SPPD)")
+        .version(APP_VERSION)
+        .author(APP_AUTHOR)
+        .about(APP_ABOUT)
         .subcommand(
             Command::new("download")
                 .about("Download procurement data")
@@ -25,14 +29,14 @@ pub fn cli(
                     Arg::new("start")
                         .short('s')
                         .long("start")
-                        .help("Start period (YYYY or YYYYMM format, e.g., 202301)")
+                        .help(start_help.as_str())
                         .action(ArgAction::Set),
                 )
                 .arg(
                     Arg::new("end")
                         .short('e')
                         .long("end")
-                        .help("End period (YYYY or YYYYMM format, e.g., 202312)")
+                        .help(end_help.as_str())
                         .action(ArgAction::Set),
                 ),
         )
@@ -72,12 +76,7 @@ fn print_download_info(
     start_period: Option<&str>,
     end_period: Option<&str>,
 ) {
-    let type_str = match proc_type {
-        ProcurementType::MinorContracts => "Minor Contracts",
-        ProcurementType::PublicTenders => "Public Tenders",
-    };
-
-    println!("\n📥 Downloading: {}", type_str);
+    println!("\n📥 Downloading: {}", proc_type.display_name());
     if let Some(start) = start_period {
         println!("   Start period: {}", start);
     }
