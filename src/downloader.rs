@@ -4,6 +4,8 @@ use reqwest;
 use scraper::{Html, Selector};
 use std::collections::HashMap;
 use std::str::FromStr;
+use std::path::Path;
+use std::fs;
 use url::Url;
 
 pub fn fetch_all_links() -> AppResult<(HashMap<String, String>, HashMap<String, String>)> {
@@ -96,4 +98,35 @@ pub fn filter_periods_by_range(
     }
 
     Ok(filtered)
+}
+
+pub fn download_files(filtered_links: &HashMap<String, String>) -> AppResult<()> {
+    let download_dir = Path::new("data/zip");
+
+    // Create directory if it doesn't exist
+    if !download_dir.exists() {
+        fs::create_dir_all(download_dir)
+            .map_err(|e| AppError::IoError(format!("Failed to create directory: {}", e)))?
+    }
+
+    for (period, url) in filtered_links {
+        let filename = format!("{}.zip", period);
+        let file_path = download_dir.join(&filename);
+
+        println!("Downloading: {} -> {}", url, file_path.display());
+
+        let response = reqwest::blocking::get(url)?
+            .error_for_status()?;
+
+        let mut file = fs::File::create(&file_path)
+            .map_err(|e| AppError::IoError(format!("Failed to create file {}: {}", file_path.display(), e)))?;
+
+        let content = response.bytes()?;
+        std::io::copy(&mut content.as_ref(), &mut file)
+            .map_err(|e| AppError::IoError(format!("Failed to write file: {}", e)))?;
+
+        println!("✓ Downloaded: {}", filename);
+    }
+
+    Ok(())
 }
