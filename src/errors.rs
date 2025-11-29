@@ -17,6 +17,8 @@ pub enum AppError {
     PeriodValidationError { period: String, available: String },
     /// Invalid input format
     InvalidInput(String),
+    /// IO operation failed
+    IoError(String),
 }
 
 impl fmt::Display for AppError {
@@ -31,6 +33,7 @@ impl fmt::Display for AppError {
                 write!(f, "Period '{}' is not available. Available periods: {}", period, available)
             }
             AppError::InvalidInput(msg) => write!(f, "Invalid input: {}", msg),
+            AppError::IoError(msg) => write!(f, "IO error: {}", msg),
         }
     }
 }
