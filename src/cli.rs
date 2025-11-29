@@ -3,6 +3,8 @@ use std::collections::HashMap;
 use crate::models::ProcurementType;
 use crate::constants::{APP_VERSION, APP_AUTHOR, APP_ABOUT, PERIOD_HELP_TEXT};
 use crate::errors::AppResult;
+use crate::downloader::download_files;
+use crate::downloader::filter_periods_by_range;
 
 pub fn cli(
     minor_contracts_links: HashMap<String, String>,
@@ -60,13 +62,11 @@ pub fn cli(
         let end_period = matches.get_one::<String>("end").map(|s| s.as_str());
 
         let filtered_links =
-            crate::downloader::filter_periods_by_range(links, start_period, end_period)?;
+            filter_periods_by_range(links, start_period, end_period)?;
 
         print_download_info(&proc_type, start_period, end_period);
 
-        for (period, url) in filtered_links {
-            println!("Period: {}, URL: {}", period, url);
-        }
+        download_files(&filtered_links)?;
     }
 
     Ok(())
