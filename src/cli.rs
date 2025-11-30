@@ -2,8 +2,8 @@ use clap::{Command, Arg, ArgAction};
 use std::collections::HashMap;
 use crate::models::ProcurementType;
 use crate::constants::{APP_VERSION, APP_AUTHOR, APP_ABOUT, PERIOD_HELP_TEXT};
-use crate::errors::AppResult;
-use crate::downloader::filter_periods_by_range;
+use crate::errors::{AppResult, AppError};
+use crate::downloader::{filter_periods_by_range, download_files};
 
 pub fn cli(
     minor_contracts_links: HashMap<String, String>,
@@ -67,8 +67,8 @@ pub fn cli(
 
         // Run the async downloader using a Tokio runtime so callers of `cli` remain sync.
         let rt = tokio::runtime::Runtime::new()
-            .map_err(|e| crate::errors::AppError::IoError(e.to_string()))?;
-        rt.block_on(crate::downloader::download_files(&filtered_links))?;
+            .map_err(|e| AppError::IoError(e.to_string()))?;
+        rt.block_on(download_files(&filtered_links))?;
     }
 
     Ok(())
