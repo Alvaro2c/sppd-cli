@@ -3,7 +3,6 @@ use std::collections::HashMap;
 use crate::models::ProcurementType;
 use crate::constants::{APP_VERSION, APP_AUTHOR, APP_ABOUT, PERIOD_HELP_TEXT};
 use crate::errors::AppResult;
-use crate::downloader::download_files;
 use crate::downloader::filter_periods_by_range;
 
 pub fn cli(
@@ -66,7 +65,10 @@ pub fn cli(
 
         print_download_info(&proc_type, start_period, end_period);
 
-        download_files(&filtered_links)?;
+        // Run the async downloader using a Tokio runtime so callers of `cli` remain sync.
+        let rt = tokio::runtime::Runtime::new()
+            .map_err(|e| crate::errors::AppError::IoError(e.to_string()))?;
+        rt.block_on(crate::downloader::download_files(&filtered_links))?;
     }
 
     Ok(())
