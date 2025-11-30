@@ -5,7 +5,8 @@ edition = "2021"
 
 [dependencies]
 clap = "3.0"
-reqwest = { version = "0.11", features = ["blocking"] }
+reqwest = { version = "0.11", features = ["blocking", "stream", "rustls-tls"] }
 scraper = "0.12"
 url = "2"
 regex = "1"
+tokio = { version = "1", features = ["rt", "rt-multi-thread", "fs"] }
