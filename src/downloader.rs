@@ -1,4 +1,5 @@
 use crate::constants::{MINOR_CONTRACTS, PUBLIC_TENDERS, ZIP_LINK_SELECTOR, PERIOD_REGEX_PATTERN};
+use crate::models::ProcurementType;
 use crate::errors::{AppError, AppResult};
 use reqwest;
 use scraper::{Html, Selector};
@@ -102,8 +103,11 @@ pub fn filter_periods_by_range(
     Ok(filtered)
 }
 
-pub async fn download_files(filtered_links: &HashMap<String, String>) -> AppResult<()> {
-    let download_dir = Path::new("data/zip");
+pub async fn download_files(filtered_links: &HashMap<String, String>, proc_type: &ProcurementType) -> AppResult<()> {
+    let download_dir = match proc_type {
+        ProcurementType::MinorContracts => Path::new("tmp/mc"),
+        ProcurementType::PublicTenders => Path::new("tmp/pt"),
+    };
 
     // Create directory if it doesn't exist
     if !download_dir.exists() {
