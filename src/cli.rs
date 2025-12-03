@@ -68,7 +68,7 @@ pub fn cli(
         // Run the async downloader using a Tokio runtime so callers of `cli` remain sync.
         let rt = tokio::runtime::Runtime::new()
             .map_err(|e| AppError::IoError(e.to_string()))?;
-        rt.block_on(download_files(&filtered_links))?;
+        rt.block_on(download_files(&filtered_links, &proc_type))?;
     }
 
     Ok(())
