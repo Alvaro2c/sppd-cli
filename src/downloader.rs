@@ -105,8 +105,8 @@ pub fn filter_periods_by_range(
 
 pub async fn download_files(filtered_links: &HashMap<String, String>, proc_type: &ProcurementType) -> AppResult<()> {
     let download_dir = match proc_type {
-        ProcurementType::MinorContracts => Path::new("tmp/mc"),
-        ProcurementType::PublicTenders => Path::new("tmp/pt"),
+        ProcurementType::MinorContracts => Path::new("data/tmp/mc"),
+        ProcurementType::PublicTenders => Path::new("data/tmp/pt"),
     };
 
     // Create directory if it doesn't exist
