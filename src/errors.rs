@@ -71,7 +71,6 @@ impl From<std::num::ParseIntError> for AppError {
 // Custom type alias for Results in this application
 pub type AppResult<T> = Result<T, AppError>;
 
-
 #[cfg(test)]
 mod tests {
     use super::AppError;

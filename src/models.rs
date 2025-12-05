@@ -30,7 +30,6 @@ impl From<&str> for ProcurementType {
     }
 }
 
-
 #[cfg(test)]
 mod tests {
     use super::ProcurementType;
