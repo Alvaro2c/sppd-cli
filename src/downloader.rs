@@ -121,20 +121,43 @@ pub async fn download_files(filtered_links: &HashMap<String, String>, proc_type:
     for (period, url) in filtered_links {
         let filename = format!("{}.zip", period);
         let file_path = download_dir.join(&filename);
+        // Skip download if final file already exists
+        if file_path.exists() {
+            println!("Skipping existing: {}", file_path.display());
+            continue;
+        }
+
+        // Temporary partial file (atomic rename after complete)
+        let tmp_path = download_dir.join(format!("{}.zip.part", period));
+
+        // Remove stale tmp file if present (best-effort)
+        if tmp_path.exists() {
+            if let Err(e) = fs::remove_file(&tmp_path).await {
+                eprintln!("Warning: failed to remove stale temp file {}: {}", tmp_path.display(), e);
+            }
+        }
 
         println!("Downloading: {} -> {}", url, file_path.display());
 
         let mut response = client.get(url).send().await?.error_for_status()?;
 
-        let mut file = File::create(&file_path)
+        let mut file = File::create(&tmp_path)
             .await
-            .map_err(|e| AppError::IoError(format!("Failed to create file {}: {}", file_path.display(), e)))?;
+            .map_err(|e| AppError::IoError(format!("Failed to create temp file {}: {}", tmp_path.display(), e)))?;
 
         while let Some(chunk) = response.chunk().await? {
             file.write_all(&chunk).await.map_err(|e| {
-                AppError::IoError(format!("Failed to write to file {}: {}", file_path.display(), e))
+                AppError::IoError(format!("Failed to write to temp file {}: {}", tmp_path.display(), e))
             })?;
         }
+
+        // Ensure the file is closed before renaming
+        drop(file);
+
+        // Atomically move the temp file to the final destination
+        fs::rename(&tmp_path, &file_path)
+            .await
+            .map_err(|e| AppError::IoError(format!("Failed to rename temp file {} to {}: {}", tmp_path.display(), file_path.display(), e)))?;
 
         println!("✓ Downloaded: {}", filename);
     }
