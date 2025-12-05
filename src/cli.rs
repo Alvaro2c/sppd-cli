@@ -1,9 +1,9 @@
-use clap::{Command, Arg, ArgAction};
-use std::collections::BTreeMap;
+use crate::constants::{APP_ABOUT, APP_AUTHOR, APP_VERSION, PERIOD_HELP_TEXT};
+use crate::downloader::{download_files, filter_periods_by_range};
+use crate::errors::{AppError, AppResult};
 use crate::models::ProcurementType;
-use crate::constants::{APP_VERSION, APP_AUTHOR, APP_ABOUT, PERIOD_HELP_TEXT};
-use crate::errors::{AppResult, AppError};
-use crate::downloader::{filter_periods_by_range, download_files};
+use clap::{Arg, ArgAction, Command};
+use std::collections::BTreeMap;
 
 pub fn cli(
     minor_contracts_links: &BTreeMap<String, String>,
@@ -60,14 +60,12 @@ pub fn cli(
         let start_period = matches.get_one::<String>("start").map(|s| s.as_str());
         let end_period = matches.get_one::<String>("end").map(|s| s.as_str());
 
-        let filtered_links =
-            filter_periods_by_range(links, start_period, end_period)?;
+        let filtered_links = filter_periods_by_range(links, start_period, end_period)?;
 
         print_download_info(&proc_type, start_period, end_period);
 
         // Run the async downloader using a Tokio runtime so callers of `cli` remain sync.
-        let rt = tokio::runtime::Runtime::new()
-            .map_err(|e| AppError::IoError(e.to_string()))?;
+        let rt = tokio::runtime::Runtime::new().map_err(|e| AppError::IoError(e.to_string()))?;
         rt.block_on(download_files(&filtered_links, &proc_type))?;
     }
 

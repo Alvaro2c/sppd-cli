@@ -1,16 +1,16 @@
 // Library module definitions for testing and reusability
-pub mod constants;
 pub mod cli;
+pub mod constants;
 pub mod downloader;
-pub mod models;
 pub mod errors;
+pub mod models;
 
 #[cfg(test)]
 mod tests {
-    use std::collections::BTreeMap;
-    use crate::models::ProcurementType;
     use crate::downloader::filter_periods_by_range;
     use crate::errors::AppError;
+    use crate::models::ProcurementType;
+    use std::collections::BTreeMap;
 
     // ===== ProcurementType Tests =====
 
@@ -78,11 +78,26 @@ mod tests {
 
     fn create_test_links() -> BTreeMap<String, String> {
         let mut links = BTreeMap::new();
-        links.insert("202301".to_string(), "https://example.com/202301.zip".to_string());
-        links.insert("202302".to_string(), "https://example.com/202302.zip".to_string());
-        links.insert("202303".to_string(), "https://example.com/202303.zip".to_string());
-        links.insert("202304".to_string(), "https://example.com/202304.zip".to_string());
-        links.insert("202305".to_string(), "https://example.com/202305.zip".to_string());
+        links.insert(
+            "202301".to_string(),
+            "https://example.com/202301.zip".to_string(),
+        );
+        links.insert(
+            "202302".to_string(),
+            "https://example.com/202302.zip".to_string(),
+        );
+        links.insert(
+            "202303".to_string(),
+            "https://example.com/202303.zip".to_string(),
+        );
+        links.insert(
+            "202304".to_string(),
+            "https://example.com/202304.zip".to_string(),
+        );
+        links.insert(
+            "202305".to_string(),
+            "https://example.com/202305.zip".to_string(),
+        );
         links
     }
 
@@ -284,8 +299,14 @@ mod tests {
     #[test]
     fn test_filter_with_non_numeric_periods() {
         let mut links = BTreeMap::new();
-        links.insert("invalid".to_string(), "https://example.com/invalid.zip".to_string());
-        links.insert("202301".to_string(), "https://example.com/202301.zip".to_string());
+        links.insert(
+            "invalid".to_string(),
+            "https://example.com/invalid.zip".to_string(),
+        );
+        links.insert(
+            "202301".to_string(),
+            "https://example.com/202301.zip".to_string(),
+        );
 
         let result = filter_periods_by_range(&links, None, None);
         assert!(result.is_ok());

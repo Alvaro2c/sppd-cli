@@ -1,11 +1,11 @@
-use crate::constants::{MINOR_CONTRACTS, PUBLIC_TENDERS, ZIP_LINK_SELECTOR, PERIOD_REGEX_PATTERN};
-use crate::models::ProcurementType;
+use crate::constants::{MINOR_CONTRACTS, PERIOD_REGEX_PATTERN, PUBLIC_TENDERS, ZIP_LINK_SELECTOR};
 use crate::errors::{AppError, AppResult};
+use crate::models::ProcurementType;
 use reqwest;
 use scraper::{Html, Selector};
 use std::collections::BTreeMap;
-use std::str::FromStr;
 use std::path::Path;
+use std::str::FromStr;
 use tokio::fs;
 use tokio::fs::File;
 use tokio::io::AsyncWriteExt;
@@ -14,14 +14,17 @@ use url::Url;
 /// Fetch all available zip links for both sources using a shared `reqwest::Client`.
 pub async fn fetch_all_links() -> AppResult<(BTreeMap<String, String>, BTreeMap<String, String>)> {
     let client = reqwest::Client::new();
+    // Sequential fetch: simple and reliable for two landing pages.
     let minor_links = fetch_zip(&client, MINOR_CONTRACTS).await?;
     let public_links = fetch_zip(&client, PUBLIC_TENDERS).await?;
     Ok((minor_links, public_links))
 }
 
-
 /// Fetch zip links from a single page asynchronously using the provided client.
-pub async fn fetch_zip(client: &reqwest::Client, input_url: &str) -> AppResult<BTreeMap<String, String>> {
+pub async fn fetch_zip(
+    client: &reqwest::Client,
+    input_url: &str,
+) -> AppResult<BTreeMap<String, String>> {
     // parse the base URL
     let base_url = Url::parse(input_url)?;
 
@@ -37,8 +40,9 @@ pub async fn fetch_zip(client: &reqwest::Client, input_url: &str) -> AppResult<B
     let document = Html::parse_document(&response);
 
     // selector to find all links ending with .zip
-    let selector = Selector::parse(ZIP_LINK_SELECTOR)
-        .map_err(|_| AppError::SelectorError(format!("Failed to parse selector '{}'", ZIP_LINK_SELECTOR)))?;
+    let selector = Selector::parse(ZIP_LINK_SELECTOR).map_err(|_| {
+        AppError::SelectorError(format!("Failed to parse selector '{}'", ZIP_LINK_SELECTOR))
+    })?;
 
     let mut links: BTreeMap<String, String> = BTreeMap::new();
     let re = regex::Regex::new(PERIOD_REGEX_PATTERN)?;
@@ -107,7 +111,10 @@ pub fn filter_periods_by_range(
     Ok(filtered)
 }
 
-pub async fn download_files(filtered_links: &BTreeMap<String, String>, proc_type: &ProcurementType) -> AppResult<()> {
+pub async fn download_files(
+    filtered_links: &BTreeMap<String, String>,
+    proc_type: &ProcurementType,
+) -> AppResult<()> {
     let download_dir = match proc_type {
         ProcurementType::MinorContracts => Path::new("data/tmp/mc"),
         ProcurementType::PublicTenders => Path::new("data/tmp/pt"),
@@ -137,7 +144,11 @@ pub async fn download_files(filtered_links: &BTreeMap<String, String>, proc_type
         // Remove stale tmp file if present (best-effort)
         if tmp_path.exists() {
             if let Err(e) = fs::remove_file(&tmp_path).await {
-                eprintln!("Warning: failed to remove stale temp file {}: {}", tmp_path.display(), e);
+                eprintln!(
+                    "Warning: failed to remove stale temp file {}: {}",
+                    tmp_path.display(),
+                    e
+                );
             }
         }
 
@@ -145,13 +156,21 @@ pub async fn download_files(filtered_links: &BTreeMap<String, String>, proc_type
 
         let mut response = client.get(url).send().await?.error_for_status()?;
 
-        let mut file = File::create(&tmp_path)
-            .await
-            .map_err(|e| AppError::IoError(format!("Failed to create temp file {}: {}", tmp_path.display(), e)))?;
+        let mut file = File::create(&tmp_path).await.map_err(|e| {
+            AppError::IoError(format!(
+                "Failed to create temp file {}: {}",
+                tmp_path.display(),
+                e
+            ))
+        })?;
 
         while let Some(chunk) = response.chunk().await? {
             file.write_all(&chunk).await.map_err(|e| {
-                AppError::IoError(format!("Failed to write to temp file {}: {}", tmp_path.display(), e))
+                AppError::IoError(format!(
+                    "Failed to write to temp file {}: {}",
+                    tmp_path.display(),
+                    e
+                ))
             })?;
         }
 
@@ -159,9 +178,14 @@ pub async fn download_files(filtered_links: &BTreeMap<String, String>, proc_type
         drop(file);
 
         // Atomically move the temp file to the final destination
-        fs::rename(&tmp_path, &file_path)
-            .await
-            .map_err(|e| AppError::IoError(format!("Failed to rename temp file {} to {}: {}", tmp_path.display(), file_path.display(), e)))?;
+        fs::rename(&tmp_path, &file_path).await.map_err(|e| {
+            AppError::IoError(format!(
+                "Failed to rename temp file {} to {}: {}",
+                tmp_path.display(),
+                file_path.display(),
+                e
+            ))
+        })?;
 
         println!("✓ Downloaded: {}", filename);
     }

@@ -30,7 +30,11 @@ impl fmt::Display for AppError {
             AppError::RegexError(msg) => write!(f, "Regex error: {}", msg),
             AppError::SelectorError(msg) => write!(f, "CSS selector error: {}", msg),
             AppError::PeriodValidationError { period, available } => {
-                write!(f, "Period '{}' is not available. Available periods: {}", period, available)
+                write!(
+                    f,
+                    "Period '{}' is not available. Available periods: {}",
+                    period, available
+                )
             }
             AppError::InvalidInput(msg) => write!(f, "Invalid input: {}", msg),
             AppError::IoError(msg) => write!(f, "IO error: {}", msg),
