@@ -16,16 +16,15 @@ impl ProcurementType {
 
 impl From<&str> for ProcurementType {
     fn from(value: &str) -> Self {
-        let lower = value.to_lowercase();
+        // Trim whitespace and compare case-insensitively
+        let lower = value.trim().to_lowercase();
+
         if MINOR_CONTRACTS_ALIASES.contains(&lower.as_str()) {
             Self::MinorContracts
         } else if PUBLIC_TENDERS_ALIASES.contains(&lower.as_str()) {
             Self::PublicTenders
         } else {
-            eprintln!(
-                "Unknown procurement type '{}', defaulting to 'public-tenders'",
-                value
-            );
+            // Default silently to PublicTenders; callers can decide to log if needed.
             Self::PublicTenders
         }
     }
