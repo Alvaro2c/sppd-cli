@@ -6,8 +6,8 @@ use crate::errors::{AppResult, AppError};
 use crate::downloader::{filter_periods_by_range, download_files};
 
 pub fn cli(
-    minor_contracts_links: HashMap<String, String>,
-    public_tenders_links: HashMap<String, String>,
+    minor_contracts_links: &HashMap<String, String>,
+    public_tenders_links: &HashMap<String, String>,
 ) -> AppResult<()> {
     let start_help = format!("Start {}", PERIOD_HELP_TEXT);
     let end_help = format!("End {}", PERIOD_HELP_TEXT);
@@ -53,8 +53,8 @@ pub fn cli(
         );
 
         let links = match proc_type {
-            ProcurementType::MinorContracts => &minor_contracts_links,
-            ProcurementType::PublicTenders => &public_tenders_links,
+            ProcurementType::MinorContracts => minor_contracts_links,
+            ProcurementType::PublicTenders => public_tenders_links,
         };
 
         let start_period = matches.get_one::<String>("start").map(|s| s.as_str());
