@@ -70,3 +70,61 @@ impl From<std::num::ParseIntError> for AppError {
 
 // Custom type alias for Results in this application
 pub type AppResult<T> = Result<T, AppError>;
+
+
+#[cfg(test)]
+mod tests {
+    use super::AppError;
+
+    #[test]
+    fn test_period_validation_error_display() {
+        let err = AppError::PeriodValidationError {
+            period: "202301".to_string(),
+            available: "202302, 202303".to_string(),
+        };
+
+        let error_msg = err.to_string();
+        assert!(error_msg.contains("202301"));
+        assert!(error_msg.contains("202302"));
+        assert!(error_msg.contains("202303"));
+    }
+
+    #[test]
+    fn test_network_error_display() {
+        let err = AppError::NetworkError("Connection timeout".to_string());
+        assert!(err.to_string().contains("Network error"));
+        assert!(err.to_string().contains("Connection timeout"));
+    }
+
+    #[test]
+    fn test_url_error_display() {
+        let err = AppError::UrlError("Invalid URL format".to_string());
+        assert!(err.to_string().contains("Invalid URL"));
+        assert!(err.to_string().contains("Invalid URL format"));
+    }
+
+    #[test]
+    fn test_regex_error_display() {
+        let err = AppError::RegexError("Invalid regex".to_string());
+        assert!(err.to_string().contains("Regex error"));
+    }
+
+    #[test]
+    fn test_selector_error_display() {
+        let err = AppError::SelectorError("Invalid selector".to_string());
+        assert!(err.to_string().contains("CSS selector error"));
+    }
+
+    #[test]
+    fn test_invalid_input_error_display() {
+        let err = AppError::InvalidInput("Not a number".to_string());
+        assert!(err.to_string().contains("Invalid input"));
+    }
+
+    #[test]
+    fn test_app_error_implements_error_trait() {
+        use std::error::Error;
+        let err: Box<dyn Error> = Box::new(AppError::NetworkError("test".to_string()));
+        assert!(!err.to_string().is_empty());
+    }
+}
