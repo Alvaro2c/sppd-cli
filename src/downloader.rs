@@ -60,14 +60,10 @@ pub fn filter_periods_by_range(
     let start_period_num = start_period.and_then(|s| u32::from_str(s).ok());
     let end_period_num = end_period.and_then(|s| u32::from_str(s).ok());
 
-    // Get sorted list of available periods
-    let mut available_periods: Vec<_> = links.keys().collect();
+    // Get sorted list of available periods as owned Strings (deterministic order)
+    let mut available_periods: Vec<String> = links.keys().cloned().collect();
     available_periods.sort();
-    let available_str = available_periods
-        .iter()
-        .map(|p| p.as_str())
-        .collect::<Vec<_>>()
-        .join(", ");
+    let available_str = available_periods.join(", ");
 
     // Validate that specified periods exist in links
     let validate_period = |period: Option<&str>| -> AppResult<()> {
@@ -85,7 +81,7 @@ pub fn filter_periods_by_range(
     validate_period(start_period)?;
     validate_period(end_period)?;
 
-    for (period, url) in links {
+    for (period, url) in links.iter() {
         if let Ok(period_num) = u32::from_str(period) {
             let in_range = match (start_period_num, end_period_num) {
                 (Some(start), Some(end)) => period_num >= start && period_num <= end,
@@ -95,7 +91,7 @@ pub fn filter_periods_by_range(
             };
 
             if in_range {
-                filtered.insert(period.clone(), url.clone());
+                filtered.insert(period.to_owned(), url.to_owned());
             }
         }
     }
