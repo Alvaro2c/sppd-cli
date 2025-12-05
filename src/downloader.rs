@@ -3,7 +3,7 @@ use crate::models::ProcurementType;
 use crate::errors::{AppError, AppResult};
 use reqwest;
 use scraper::{Html, Selector};
-use std::collections::HashMap;
+use std::collections::BTreeMap;
 use std::str::FromStr;
 use std::path::Path;
 use tokio::fs;
@@ -11,14 +11,14 @@ use tokio::fs::File;
 use tokio::io::AsyncWriteExt;
 use url::Url;
 
-pub fn fetch_all_links() -> AppResult<(HashMap<String, String>, HashMap<String, String>)> {
+pub fn fetch_all_links() -> AppResult<(BTreeMap<String, String>, BTreeMap<String, String>)> {
     let minor_links = fetch_zip(MINOR_CONTRACTS)?;
     let public_links = fetch_zip(PUBLIC_TENDERS)?;
     Ok((minor_links, public_links))
 }
 
 
-pub fn fetch_zip(input_url: &str) -> AppResult<HashMap<String, String>> {
+pub fn fetch_zip(input_url: &str) -> AppResult<BTreeMap<String, String>> {
     // parse the base URL
     let base_url = Url::parse(input_url)?;
 
@@ -32,7 +32,7 @@ pub fn fetch_zip(input_url: &str) -> AppResult<HashMap<String, String>> {
     let selector = Selector::parse(ZIP_LINK_SELECTOR)
         .map_err(|_| AppError::SelectorError(format!("Failed to parse selector '{}'", ZIP_LINK_SELECTOR)))?;
 
-    let mut links: HashMap<String, String> = HashMap::new();
+    let mut links: BTreeMap<String, String> = BTreeMap::new();
     let re = regex::Regex::new(PERIOD_REGEX_PATTERN)?;
 
     for url in document
@@ -51,18 +51,18 @@ pub fn fetch_zip(input_url: &str) -> AppResult<HashMap<String, String>> {
 }
 
 pub fn filter_periods_by_range(
-    links: &HashMap<String, String>,
+    links: &BTreeMap<String, String>,
     start_period: Option<&str>,
     end_period: Option<&str>,
-) -> AppResult<HashMap<String, String>> {
-    let mut filtered = HashMap::new();
+) -> AppResult<BTreeMap<String, String>> {
+    let mut filtered = BTreeMap::new();
 
     let start_period_num = start_period.and_then(|s| u32::from_str(s).ok());
     let end_period_num = end_period.and_then(|s| u32::from_str(s).ok());
 
     // Get sorted list of available periods as owned Strings (deterministic order)
-    let mut available_periods: Vec<String> = links.keys().cloned().collect();
-    available_periods.sort();
+    // BTreeMap keys are already ordered deterministically
+    let available_periods: Vec<String> = links.keys().cloned().collect();
     let available_str = available_periods.join(", ");
 
     // Validate that specified periods exist in links
@@ -99,7 +99,7 @@ pub fn filter_periods_by_range(
     Ok(filtered)
 }
 
-pub async fn download_files(filtered_links: &HashMap<String, String>, proc_type: &ProcurementType) -> AppResult<()> {
+pub async fn download_files(filtered_links: &BTreeMap<String, String>, proc_type: &ProcurementType) -> AppResult<()> {
     let download_dir = match proc_type {
         ProcurementType::MinorContracts => Path::new("data/tmp/mc"),
         ProcurementType::PublicTenders => Path::new("data/tmp/pt"),

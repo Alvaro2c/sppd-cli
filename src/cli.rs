@@ -1,13 +1,13 @@
 use clap::{Command, Arg, ArgAction};
-use std::collections::HashMap;
+use std::collections::BTreeMap;
 use crate::models::ProcurementType;
 use crate::constants::{APP_VERSION, APP_AUTHOR, APP_ABOUT, PERIOD_HELP_TEXT};
 use crate::errors::{AppResult, AppError};
 use crate::downloader::{filter_periods_by_range, download_files};
 
 pub fn cli(
-    minor_contracts_links: &HashMap<String, String>,
-    public_tenders_links: &HashMap<String, String>,
+    minor_contracts_links: &BTreeMap<String, String>,
+    public_tenders_links: &BTreeMap<String, String>,
 ) -> AppResult<()> {
     let start_help = format!("Start {}", PERIOD_HELP_TEXT);
     let end_help = format!("End {}", PERIOD_HELP_TEXT);

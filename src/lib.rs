@@ -7,7 +7,7 @@ pub mod errors;
 
 #[cfg(test)]
 mod tests {
-    use std::collections::HashMap;
+    use std::collections::BTreeMap;
     use crate::models::ProcurementType;
     use crate::downloader::filter_periods_by_range;
     use crate::errors::AppError;
@@ -76,8 +76,8 @@ mod tests {
 
     // ===== Period Filtering Tests =====
 
-    fn create_test_links() -> HashMap<String, String> {
-        let mut links = HashMap::new();
+    fn create_test_links() -> BTreeMap<String, String> {
+        let mut links = BTreeMap::new();
         links.insert("202301".to_string(), "https://example.com/202301.zip".to_string());
         links.insert("202302".to_string(), "https://example.com/202302.zip".to_string());
         links.insert("202303".to_string(), "https://example.com/202303.zip".to_string());
@@ -202,7 +202,7 @@ mod tests {
 
     #[test]
     fn test_filter_empty_hash_map() {
-        let links = HashMap::new();
+        let links = BTreeMap::new();
         let result = filter_periods_by_range(&links, None, None);
 
         assert!(result.is_ok());
@@ -212,7 +212,7 @@ mod tests {
 
     #[test]
     fn test_filter_preserves_urls() {
-        let mut links = HashMap::new();
+        let mut links = BTreeMap::new();
         let url1 = "https://example.com/202301.zip".to_string();
         let url2 = "https://example.com/202302.zip".to_string();
         links.insert("202301".to_string(), url1.clone());
@@ -283,7 +283,7 @@ mod tests {
 
     #[test]
     fn test_filter_with_non_numeric_periods() {
-        let mut links = HashMap::new();
+        let mut links = BTreeMap::new();
         links.insert("invalid".to_string(), "https://example.com/invalid.zip".to_string());
         links.insert("202301".to_string(), "https://example.com/202301.zip".to_string());
 
