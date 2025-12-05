@@ -11,21 +11,29 @@ use tokio::fs::File;
 use tokio::io::AsyncWriteExt;
 use url::Url;
 
-pub fn fetch_all_links() -> AppResult<(BTreeMap<String, String>, BTreeMap<String, String>)> {
-    let minor_links = fetch_zip(MINOR_CONTRACTS)?;
-    let public_links = fetch_zip(PUBLIC_TENDERS)?;
+/// Fetch all available zip links for both sources using a shared `reqwest::Client`.
+pub async fn fetch_all_links() -> AppResult<(BTreeMap<String, String>, BTreeMap<String, String>)> {
+    let client = reqwest::Client::new();
+    let minor_links = fetch_zip(&client, MINOR_CONTRACTS).await?;
+    let public_links = fetch_zip(&client, PUBLIC_TENDERS).await?;
     Ok((minor_links, public_links))
 }
 
 
-pub fn fetch_zip(input_url: &str) -> AppResult<BTreeMap<String, String>> {
+/// Fetch zip links from a single page asynchronously using the provided client.
+pub async fn fetch_zip(client: &reqwest::Client, input_url: &str) -> AppResult<BTreeMap<String, String>> {
     // parse the base URL
     let base_url = Url::parse(input_url)?;
 
     // fetch the page content
-    let response = reqwest::blocking::get(base_url.as_str())?
+    let response = client
+        .get(base_url.as_str())
+        .send()
+        .await?
         .error_for_status()?
-        .text()?;
+        .text()
+        .await?;
+
     let document = Html::parse_document(&response);
 
     // selector to find all links ending with .zip
