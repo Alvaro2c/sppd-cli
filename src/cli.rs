@@ -86,3 +86,109 @@ fn print_download_info(
     }
     println!();
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use clap::Command;
+
+    #[test]
+    fn test_command_parsing_defaults() {
+        let cmd = Command::new("sppd-cli").subcommand(
+            Command::new("download").arg(
+                clap::Arg::new("type")
+                    .short('t')
+                    .long("type")
+                    .default_value("public-tenders"),
+            ),
+        );
+
+        let matches = cmd
+            .try_get_matches_from(vec!["sppd-cli", "download"])
+            .unwrap();
+        let sub = matches.subcommand_matches("download").unwrap();
+        let t = sub
+            .get_one::<String>("type")
+            .map(|s| s.as_str())
+            .unwrap_or("public-tenders");
+        let proc_type = ProcurementType::from(t);
+        assert!(matches!(proc_type, ProcurementType::PublicTenders));
+    }
+
+    #[test]
+    fn test_type_aliases_mapping() {
+        let cases = vec![
+            ("mc", ProcurementType::MinorContracts),
+            ("min", ProcurementType::MinorContracts),
+            ("pt", ProcurementType::PublicTenders),
+            ("pub", ProcurementType::PublicTenders),
+        ];
+
+        for (alias, expected) in cases {
+            let cmd = Command::new("sppd-cli").subcommand(
+                Command::new("download").arg(
+                    clap::Arg::new("type")
+                        .short('t')
+                        .long("type")
+                        .default_value("public-tenders"),
+                ),
+            );
+            let matches = cmd
+                .try_get_matches_from(vec!["sppd-cli", "download", "-t", alias])
+                .unwrap();
+            let sub = matches.subcommand_matches("download").unwrap();
+            let t = sub
+                .get_one::<String>("type")
+                .map(|s| s.as_str())
+                .unwrap_or("public-tenders");
+            let proc_type = ProcurementType::from(t);
+            match expected {
+                ProcurementType::MinorContracts => {
+                    assert!(matches!(proc_type, ProcurementType::MinorContracts))
+                }
+                ProcurementType::PublicTenders => {
+                    assert!(matches!(proc_type, ProcurementType::PublicTenders))
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn test_start_end_extraction() {
+        let cmd = Command::new("sppd-cli").subcommand(
+            Command::new("download")
+                .arg(
+                    clap::Arg::new("start")
+                        .short('s')
+                        .long("start")
+                        .action(ArgAction::Set),
+                )
+                .arg(
+                    clap::Arg::new("end")
+                        .short('e')
+                        .long("end")
+                        .action(ArgAction::Set),
+                ),
+        );
+
+        let matches = cmd
+            .try_get_matches_from(vec!["sppd-cli", "download", "-s", "202301", "-e", "202302"])
+            .unwrap();
+        let sub = matches.subcommand_matches("download").unwrap();
+        let start = sub.get_one::<String>("start").map(|s| s.as_str());
+        let end = sub.get_one::<String>("end").map(|s| s.as_str());
+        assert_eq!(start, Some("202301"));
+        assert_eq!(end, Some("202302"));
+    }
+
+    #[test]
+    fn test_print_download_info_runs() {
+        // Ensure the function runs without panic for various inputs
+        print_download_info(
+            &ProcurementType::MinorContracts,
+            Some("202301"),
+            Some("202302"),
+        );
+        print_download_info(&ProcurementType::PublicTenders, None, None);
+    }
+}
