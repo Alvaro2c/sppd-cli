@@ -41,7 +41,7 @@ pub async fn fetch_zip(
 
     // selector to find all links ending with .zip
     let selector = Selector::parse(ZIP_LINK_SELECTOR).map_err(|_| {
-        AppError::SelectorError(format!("Failed to parse selector '{}'", ZIP_LINK_SELECTOR))
+        AppError::SelectorError(format!("Failed to parse selector '{ZIP_LINK_SELECTOR}'"))
     })?;
 
     let mut links: BTreeMap<String, String> = BTreeMap::new();
@@ -52,7 +52,7 @@ pub async fn fetch_zip(
         .filter_map(|el| el.value().attr("href"))
         .filter_map(|href| base_url.join(href).ok())
     {
-        if let Some(filename) = url.path_segments().and_then(|s| s.last()) {
+        if let Some(filename) = url.path_segments().and_then(|mut s| s.next_back()) {
             if let Some(m) = re.captures(filename).and_then(|c| c.get(1)) {
                 links.insert(m.as_str().to_string(), url.to_string());
             }
@@ -124,13 +124,13 @@ pub async fn download_files(
     if !download_dir.exists() {
         fs::create_dir_all(download_dir)
             .await
-            .map_err(|e| AppError::IoError(format!("Failed to create directory: {}", e)))?;
+            .map_err(|e| AppError::IoError(format!("Failed to create directory: {e}")))?;
     }
 
     let client = reqwest::Client::new();
 
     for (period, url) in filtered_links {
-        let filename = format!("{}.zip", period);
+        let filename = format!("{period}.zip");
         let file_path = download_dir.join(&filename);
         // Skip download if final file already exists
         if file_path.exists() {
@@ -139,7 +139,7 @@ pub async fn download_files(
         }
 
         // Temporary partial file (atomic rename after complete)
-        let tmp_path = download_dir.join(format!("{}.zip.part", period));
+        let tmp_path = download_dir.join(format!("{period}.zip.part"));
 
         // Remove stale tmp file if present (best-effort)
         if tmp_path.exists() {
@@ -187,7 +187,7 @@ pub async fn download_files(
             ))
         })?;
 
-        println!("✓ Downloaded: {}", filename);
+        println!("✓ Downloaded: {filename}");
     }
 
     Ok(())

@@ -9,8 +9,8 @@ pub fn cli(
     minor_contracts_links: &BTreeMap<String, String>,
     public_tenders_links: &BTreeMap<String, String>,
 ) -> AppResult<()> {
-    let start_help = format!("Start {}", PERIOD_HELP_TEXT);
-    let end_help = format!("End {}", PERIOD_HELP_TEXT);
+    let start_help = format!("Start {PERIOD_HELP_TEXT}");
+    let end_help = format!("End {PERIOD_HELP_TEXT}");
 
     let matches = Command::new("sppd-cli")
         .version(APP_VERSION)
@@ -79,10 +79,10 @@ fn print_download_info(
 ) {
     println!("\n📥 Downloading: {}", proc_type.display_name());
     if let Some(start) = start_period {
-        println!("   Start period: {}", start);
+        println!("   Start period: {start}");
     }
     if let Some(end) = end_period {
-        println!("   End period: {}", end);
+        println!("   End period: {end}");
     }
     println!();
 }

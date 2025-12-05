@@ -24,20 +24,19 @@ pub enum AppError {
 impl fmt::Display for AppError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            AppError::NetworkError(msg) => write!(f, "Network error: {}", msg),
-            AppError::ParseError(msg) => write!(f, "Parse error: {}", msg),
-            AppError::UrlError(msg) => write!(f, "Invalid URL: {}", msg),
-            AppError::RegexError(msg) => write!(f, "Regex error: {}", msg),
-            AppError::SelectorError(msg) => write!(f, "CSS selector error: {}", msg),
+            AppError::NetworkError(msg) => write!(f, "Network error: {msg}"),
+            AppError::ParseError(msg) => write!(f, "Parse error: {msg}"),
+            AppError::UrlError(msg) => write!(f, "Invalid URL: {msg}"),
+            AppError::RegexError(msg) => write!(f, "Regex error: {msg}"),
+            AppError::SelectorError(msg) => write!(f, "CSS selector error: {msg}"),
             AppError::PeriodValidationError { period, available } => {
                 write!(
                     f,
-                    "Period '{}' is not available. Available periods: {}",
-                    period, available
+                    "Period '{period}' is not available. Available periods: {available}"
                 )
             }
-            AppError::InvalidInput(msg) => write!(f, "Invalid input: {}", msg),
-            AppError::IoError(msg) => write!(f, "IO error: {}", msg),
+            AppError::InvalidInput(msg) => write!(f, "Invalid input: {msg}"),
+            AppError::IoError(msg) => write!(f, "IO error: {msg}"),
         }
     }
 }
