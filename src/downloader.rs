@@ -37,9 +37,13 @@ pub async fn fetch_zip(
         .text()
         .await?;
 
-    let document = Html::parse_document(&response);
+    parse_zip_links(&response, &base_url)
+}
 
-    // selector to find all links ending with .zip
+/// Parse HTML response and extract `.zip` links keyed by detected period string.
+pub fn parse_zip_links(html: &str, base_url: &Url) -> AppResult<BTreeMap<String, String>> {
+    let document = Html::parse_document(html);
+
     let selector = Selector::parse(ZIP_LINK_SELECTOR).map_err(|_| {
         AppError::SelectorError(format!("Failed to parse selector '{ZIP_LINK_SELECTOR}'"))
     })?;
@@ -195,8 +199,9 @@ pub async fn download_files(
 
 #[cfg(test)]
 mod tests {
-    use super::filter_periods_by_range;
+    use super::{filter_periods_by_range, parse_zip_links};
     use crate::errors::AppError;
+    use url::Url;
     use std::collections::BTreeMap;
 
     fn create_test_links() -> BTreeMap<String, String> {
@@ -393,5 +398,27 @@ mod tests {
         assert!(result.is_ok());
         let filtered = result.unwrap();
         assert_eq!(filtered.len(), 0);
+    }
+
+    #[test]
+    fn test_parse_zip_links_basic() {
+        let html = r#"
+            <html>
+            <body>
+              <a href="files/data_202301.zip">202301</a>
+              <a href="/downloads/data_202302.zip">202302</a>
+              <a href="https://other.example.com/attachments/data_202303.zip">202303</a>
+              <a href="not_a_zip.txt">skip</a>
+            </body>
+            </html>
+        "#;
+
+        let base = Url::parse("https://example.com/path/").expect("base url");
+        let result = parse_zip_links(html, &base).expect("parse succeeds");
+
+        // Should contain the three detected periods with absolute URLs
+        assert_eq!(result.get("202301").unwrap(), "https://example.com/path/files/data_202301.zip");
+        assert_eq!(result.get("202302").unwrap(), "https://example.com/downloads/data_202302.zip");
+        assert_eq!(result.get("202303").unwrap(), "https://other.example.com/attachments/data_202303.zip");
     }
 }
