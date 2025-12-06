@@ -201,8 +201,8 @@ pub async fn download_files(
 mod tests {
     use super::{filter_periods_by_range, parse_zip_links};
     use crate::errors::AppError;
-    use url::Url;
     use std::collections::BTreeMap;
+    use url::Url;
 
     fn create_test_links() -> BTreeMap<String, String> {
         let mut links = BTreeMap::new();
@@ -417,9 +417,18 @@ mod tests {
         let result = parse_zip_links(html, &base).expect("parse succeeds");
 
         // Should contain the three detected periods with absolute URLs
-        assert_eq!(result.get("202301").unwrap(), "https://example.com/path/files/data_202301.zip");
-        assert_eq!(result.get("202302").unwrap(), "https://example.com/downloads/data_202302.zip");
-        assert_eq!(result.get("202303").unwrap(), "https://other.example.com/attachments/data_202303.zip");
+        assert_eq!(
+            result.get("202301").unwrap(),
+            "https://example.com/path/files/data_202301.zip"
+        );
+        assert_eq!(
+            result.get("202302").unwrap(),
+            "https://example.com/downloads/data_202302.zip"
+        );
+        assert_eq!(
+            result.get("202303").unwrap(),
+            "https://other.example.com/attachments/data_202303.zip"
+        );
     }
 
     #[test]
@@ -448,7 +457,10 @@ mod tests {
         let base = Url::parse("https://example.com/").expect("base url");
         let result = parse_zip_links(html, &base).expect("parse succeeds");
         // Expect to capture the last numeric group (202301)
-        assert_eq!(result.get("202301").unwrap(), "https://example.com/files/prefix_2023_202301.zip");
+        assert_eq!(
+            result.get("202301").unwrap(),
+            "https://example.com/files/prefix_2023_202301.zip"
+        );
     }
 
     #[test]
@@ -463,7 +475,10 @@ mod tests {
         let base = Url::parse("https://example.com/").expect("base url");
         let result = parse_zip_links(html, &base).expect("parse succeeds");
         // BTreeMap insert will keep the last inserted value for the same key
-        assert_eq!(result.get("202301").unwrap(), "https://example.com/files/other_202301.zip");
+        assert_eq!(
+            result.get("202301").unwrap(),
+            "https://example.com/files/other_202301.zip"
+        );
     }
 
     #[test]
@@ -477,7 +492,13 @@ mod tests {
 
         let base = Url::parse("https://example.com/path/sub/").expect("base url");
         let result = parse_zip_links(html, &base).expect("parse succeeds");
-        assert_eq!(result.get("202304").unwrap(), "https://example.com/path/sub/files/data_202304.zip");
-        assert_eq!(result.get("202305").unwrap(), "https://example.com/path/up/data_202305.zip");
+        assert_eq!(
+            result.get("202304").unwrap(),
+            "https://example.com/path/sub/files/data_202304.zip"
+        );
+        assert_eq!(
+            result.get("202305").unwrap(),
+            "https://example.com/path/up/data_202305.zip"
+        );
     }
 }
