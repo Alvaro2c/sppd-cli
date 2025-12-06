@@ -421,4 +421,63 @@ mod tests {
         assert_eq!(result.get("202302").unwrap(), "https://example.com/downloads/data_202302.zip");
         assert_eq!(result.get("202303").unwrap(), "https://other.example.com/attachments/data_202303.zip");
     }
+
+    #[test]
+    fn test_parse_zip_links_no_capture() {
+        let html = r#"
+            <html><body>
+              <a href="files/data202301.zip">no underscore</a>
+              <a href="files/data_abc.zip">non-numeric</a>
+            </body></html>
+        "#;
+
+        let base = Url::parse("https://example.com/").expect("base url");
+        let result = parse_zip_links(html, &base).expect("parse succeeds");
+        // No valid numeric captures -> empty
+        assert!(result.is_empty());
+    }
+
+    #[test]
+    fn test_parse_zip_links_multiple_underscores_uses_last_capture() {
+        let html = r#"
+            <html><body>
+              <a href="files/prefix_2023_202301.zip">multi</a>
+            </body></html>
+        "#;
+
+        let base = Url::parse("https://example.com/").expect("base url");
+        let result = parse_zip_links(html, &base).expect("parse succeeds");
+        // Expect to capture the last numeric group (202301)
+        assert_eq!(result.get("202301").unwrap(), "https://example.com/files/prefix_2023_202301.zip");
+    }
+
+    #[test]
+    fn test_parse_zip_links_duplicate_periods_last_wins() {
+        let html = r#"
+            <html><body>
+              <a href="files/data_202301.zip">first</a>
+              <a href="files/other_202301.zip">second</a>
+            </body></html>
+        "#;
+
+        let base = Url::parse("https://example.com/").expect("base url");
+        let result = parse_zip_links(html, &base).expect("parse succeeds");
+        // BTreeMap insert will keep the last inserted value for the same key
+        assert_eq!(result.get("202301").unwrap(), "https://example.com/files/other_202301.zip");
+    }
+
+    #[test]
+    fn test_parse_zip_links_relative_paths_resolve() {
+        let html = r#"
+            <html><body>
+              <a href="./files/data_202304.zip">rel</a>
+              <a href="../up/data_202305.zip">up</a>
+            </body></html>
+        "#;
+
+        let base = Url::parse("https://example.com/path/sub/").expect("base url");
+        let result = parse_zip_links(html, &base).expect("parse succeeds");
+        assert_eq!(result.get("202304").unwrap(), "https://example.com/path/sub/files/data_202304.zip");
+        assert_eq!(result.get("202305").unwrap(), "https://example.com/path/up/data_202305.zip");
+    }
 }
