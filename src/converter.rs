@@ -29,7 +29,7 @@ pub async fn extract_all_zips(directory: &Path) -> AppResult<()> {
     while let Some(entry) = entries
         .next_entry()
         .await
-        .map_err(|e| AppError::IoError(format!("Failed to read directory entry: {}", e)))?
+        .map_err(|e| AppError::IoError(format!("Failed to read directory entry: {e}")))?
     {
         let path = entry.path();
         if path.is_file() && path.extension().and_then(|s| s.to_str()) == Some("zip") {
@@ -179,7 +179,7 @@ async fn extract_zip(zip_path: &Path) -> AppResult<()> {
         Ok::<(), AppError>(())
     })
     .await
-    .map_err(|e| AppError::IoError(format!("Task join error: {}", e)))??;
+    .map_err(|e| AppError::IoError(format!("Task join error: {e}")))??;
 
     info!(
         zip_file = %zip_path_display,
