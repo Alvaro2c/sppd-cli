@@ -1,9 +1,11 @@
 use crate::constants::{APP_ABOUT, APP_AUTHOR, APP_VERSION, PERIOD_HELP_TEXT};
+use crate::converter;
 use crate::downloader::{download_files, filter_periods_by_range};
 use crate::errors::AppResult;
 use crate::models::ProcurementType;
 use clap::{Arg, ArgAction, Command};
 use std::collections::BTreeMap;
+use std::path::Path;
 use tracing::{info, info_span};
 
 /// Parses command-line arguments and executes the download command.
@@ -72,6 +74,13 @@ pub async fn cli(
         print_download_info(&proc_type, start_period, end_period);
 
         download_files(&filtered_links, &proc_type).await?;
+
+        // Automatically extract downloaded ZIP files
+        let download_dir = match proc_type {
+            ProcurementType::MinorContracts => Path::new("data/tmp/mc"),
+            ProcurementType::PublicTenders => Path::new("data/tmp/pt"),
+        };
+        converter::extract_all_zips(download_dir).await?;
     }
 
     Ok(())
