@@ -9,6 +9,7 @@ use std::str::FromStr;
 use tokio::fs;
 use tokio::fs::File;
 use tokio::io::AsyncWriteExt;
+use tracing::{debug, info, warn};
 use url::Url;
 
 /// Fetch all available zip links for both sources using a shared `reqwest::Client`.
@@ -138,7 +139,11 @@ pub async fn download_files(
         let file_path = download_dir.join(&filename);
         // Skip download if final file already exists
         if file_path.exists() {
-            println!("Skipping existing: {}", file_path.display());
+            debug!(
+                file_path = %file_path.display(),
+                period = period,
+                "Skipping existing file"
+            );
             continue;
         }
 
@@ -148,15 +153,20 @@ pub async fn download_files(
         // Remove stale tmp file if present (best-effort)
         if tmp_path.exists() {
             if let Err(e) = fs::remove_file(&tmp_path).await {
-                eprintln!(
-                    "Warning: failed to remove stale temp file {}: {}",
-                    tmp_path.display(),
-                    e
+                warn!(
+                    file_path = %tmp_path.display(),
+                    error = %e,
+                    "Failed to remove stale temp file"
                 );
             }
         }
 
-        println!("Downloading: {} -> {}", url, file_path.display());
+        info!(
+            url = %url,
+            file_path = %file_path.display(),
+            period = period,
+            "Downloading file"
+        );
 
         let mut response = client.get(url).send().await?.error_for_status()?;
 
@@ -191,7 +201,12 @@ pub async fn download_files(
             ))
         })?;
 
-        println!("✓ Downloaded: {filename}");
+        info!(
+            filename = filename,
+            file_path = %file_path.display(),
+            period = period,
+            "✓ Download completed"
+        );
     }
 
     Ok(())

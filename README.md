@@ -79,3 +79,23 @@ Notes:
 
 - The `--type` value is case-insensitive and supports the listed aliases.
 - The CLI will validate that requested periods exist; if a period is not available an error will list available ones.
+
+## Logging
+
+The CLI uses structured logging with the `tracing` crate. Log levels can be controlled via the `RUST_LOG` environment variable:
+
+```bash
+# Show info level and above (default)
+cargo run -- download
+
+# Show debug level and above (includes detailed file operations)
+RUST_LOG=debug cargo run -- download
+
+# Show only warnings and errors
+RUST_LOG=warn cargo run -- download
+
+# Show logs for specific modules
+RUST_LOG=sppd_cli::downloader=debug cargo run -- download
+```
+
+Available log levels (from most to least verbose): `trace`, `debug`, `info`, `warn`, `error`
