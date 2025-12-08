@@ -76,12 +76,14 @@ fn print_download_info(
     start_period: Option<&str>,
     end_period: Option<&str>,
 ) {
-    let _span = info_span!("download", 
+    let _span = info_span!(
+        "download",
         procurement_type = proc_type.display_name(),
         start_period = start_period,
         end_period = end_period
-    ).entered();
-    
+    )
+    .entered();
+
     info!(
         procurement_type = proc_type.display_name(),
         start_period = start_period,
