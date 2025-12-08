@@ -1,5 +1,6 @@
 use std::fmt;
 
+/// Application error types for the SPPD CLI.
 #[derive(Debug)]
 #[allow(dead_code)]
 pub enum AppError {
@@ -68,7 +69,7 @@ impl From<std::num::ParseIntError> for AppError {
     }
 }
 
-// Custom type alias for Results in this application
+/// Result type alias for application operations.
 pub type AppResult<T> = Result<T, AppError>;
 
 #[cfg(test)]

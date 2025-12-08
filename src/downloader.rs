@@ -12,7 +12,11 @@ use tokio::io::AsyncWriteExt;
 use tracing::{debug, info, warn};
 use url::Url;
 
-/// Fetch all available zip links for both sources using a shared `reqwest::Client`.
+/// Fetches all available ZIP file links from both procurement data sources.
+///
+/// Returns a tuple containing maps of period strings to download URLs:
+/// - First map: minor contracts links
+/// - Second map: public tenders links
 pub async fn fetch_all_links() -> AppResult<(BTreeMap<String, String>, BTreeMap<String, String>)> {
     let client = reqwest::Client::new();
     // Sequential fetch: simple and reliable for two landing pages.
@@ -21,7 +25,12 @@ pub async fn fetch_all_links() -> AppResult<(BTreeMap<String, String>, BTreeMap<
     Ok((minor_links, public_links))
 }
 
-/// Fetch zip links from a single page asynchronously using the provided client.
+/// Fetches ZIP file links from a single procurement data page.
+///
+/// # Arguments
+///
+/// * `client` - HTTP client to use for the request
+/// * `input_url` - URL of the page containing ZIP file links
 pub async fn fetch_zip(
     client: &reqwest::Client,
     input_url: &str,
@@ -41,7 +50,9 @@ pub async fn fetch_zip(
     parse_zip_links(&response, &base_url)
 }
 
-/// Parse HTML response and extract `.zip` links keyed by detected period string.
+/// Parses HTML content and extracts ZIP file links, extracting period identifiers from filenames.
+///
+/// Returns a map where keys are period strings (e.g., "202301") and values are absolute URLs.
 pub fn parse_zip_links(html: &str, base_url: &Url) -> AppResult<BTreeMap<String, String>> {
     let document = Html::parse_document(html);
 
@@ -67,6 +78,10 @@ pub fn parse_zip_links(html: &str, base_url: &Url) -> AppResult<BTreeMap<String,
     Ok(links)
 }
 
+/// Filters links by period range, validating that specified periods exist.
+///
+/// Periods are compared numerically. Returns an error if start or end period
+/// doesn't exist in the provided links map.
 pub fn filter_periods_by_range(
     links: &BTreeMap<String, String>,
     start_period: Option<&str>,
@@ -116,6 +131,9 @@ pub fn filter_periods_by_range(
     Ok(filtered)
 }
 
+/// Downloads ZIP files to the appropriate directory based on procurement type.
+///
+/// Files are downloaded atomically using temporary files. Existing files are skipped.
 pub async fn download_files(
     filtered_links: &BTreeMap<String, String>,
     proc_type: &ProcurementType,

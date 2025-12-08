@@ -1,5 +1,6 @@
 use crate::constants::*;
 
+/// Type of procurement data to download.
 #[derive(Debug, PartialEq, Eq)]
 pub enum ProcurementType {
     MinorContracts,
@@ -7,6 +8,7 @@ pub enum ProcurementType {
 }
 
 impl ProcurementType {
+    /// Returns a human-readable name for the procurement type.
     pub fn display_name(&self) -> &'static str {
         match self {
             Self::MinorContracts => "Minor Contracts",
