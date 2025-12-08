@@ -4,6 +4,7 @@ use crate::errors::AppResult;
 use crate::models::ProcurementType;
 use clap::{Arg, ArgAction, Command};
 use std::collections::BTreeMap;
+use tracing::{info, info_span};
 
 pub async fn cli(
     minor_contracts_links: &BTreeMap<String, String>,
@@ -75,14 +76,18 @@ fn print_download_info(
     start_period: Option<&str>,
     end_period: Option<&str>,
 ) {
-    println!("\n📥 Downloading: {}", proc_type.display_name());
-    if let Some(start) = start_period {
-        println!("   Start period: {start}");
-    }
-    if let Some(end) = end_period {
-        println!("   End period: {end}");
-    }
-    println!();
+    let _span = info_span!("download", 
+        procurement_type = proc_type.display_name(),
+        start_period = start_period,
+        end_period = end_period
+    ).entered();
+    
+    info!(
+        procurement_type = proc_type.display_name(),
+        start_period = start_period,
+        end_period = end_period,
+        "📥 Starting download"
+    );
 }
 
 #[cfg(test)]
