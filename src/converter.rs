@@ -37,14 +37,25 @@ pub async fn extract_all_zips(directory: &Path) -> AppResult<()> {
         }
     }
 
+    let mut errors = Vec::new();
     for zip_path in zip_files {
         if let Err(e) = extract_zip(&zip_path).await {
+            let error_msg = format!("Failed to extract {}: {}", zip_path.display(), e);
             warn!(
                 zip_file = %zip_path.display(),
                 error = %e,
                 "Failed to extract ZIP file"
             );
+            errors.push(error_msg);
         }
+    }
+
+    if !errors.is_empty() {
+        return Err(AppError::IoError(format!(
+            "Failed to extract {} ZIP file(s): {}",
+            errors.len(),
+            errors.join("; ")
+        )));
     }
 
     Ok(())
@@ -373,16 +384,43 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_extract_all_zips_handles_invalid_zip_gracefully() {
+    async fn test_extract_all_zips_returns_error_on_invalid_zip() {
         let temp_dir = TempDir::new().unwrap();
 
         // Create a file with .zip extension but invalid ZIP content
         let invalid_zip = temp_dir.path().join("invalid.zip");
         fs::write(&invalid_zip, "not a valid zip file").unwrap();
 
-        // Should not panic, but may log a warning
+        // Should return an error when extraction fails
         let result = extract_all_zips(temp_dir.path()).await;
-        // The function continues processing even if one ZIP fails
-        assert!(result.is_ok());
+        assert!(result.is_err());
+        match result.unwrap_err() {
+            AppError::IoError(msg) => {
+                assert!(msg.contains("Failed to extract"));
+                assert!(msg.contains("invalid.zip"));
+            }
+            _ => panic!("Expected IoError for invalid ZIP"),
+        }
+    }
+
+    #[tokio::test]
+    async fn test_extract_all_zips_returns_error_when_some_fail() {
+        let temp_dir = TempDir::new().unwrap();
+
+        // Create one valid ZIP
+        let valid_zip = temp_dir.path().join("valid.zip");
+        create_test_zip(&valid_zip, &[("file.xml", "content")]).unwrap();
+
+        // Create one invalid ZIP
+        let invalid_zip = temp_dir.path().join("invalid.zip");
+        fs::write(&invalid_zip, "not a valid zip file").unwrap();
+
+        // Should return an error even though one ZIP succeeded
+        let result = extract_all_zips(temp_dir.path()).await;
+        assert!(result.is_err());
+
+        // Verify the valid ZIP was still extracted
+        let extract_dir = temp_dir.path().join("valid");
+        assert!(extract_dir.exists());
     }
 }
