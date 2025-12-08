@@ -19,12 +19,18 @@ pub async fn extract_all_zips(directory: &Path) -> AppResult<()> {
 
     let mut zip_files = Vec::new();
     let mut entries = tokio::fs::read_dir(directory).await.map_err(|e| {
-        AppError::IoError(format!("Failed to read directory {}: {}", directory.display(), e))
+        AppError::IoError(format!(
+            "Failed to read directory {}: {}",
+            directory.display(),
+            e
+        ))
     })?;
 
-    while let Some(entry) = entries.next_entry().await.map_err(|e| {
-        AppError::IoError(format!("Failed to read directory entry: {}", e))
-    })? {
+    while let Some(entry) = entries
+        .next_entry()
+        .await
+        .map_err(|e| AppError::IoError(format!("Failed to read directory entry: {}", e)))?
+    {
         let path = entry.path();
         if path.is_file() && path.extension().and_then(|s| s.to_str()) == Some("zip") {
             zip_files.push(path);
@@ -50,10 +56,7 @@ async fn extract_zip(zip_path: &Path) -> AppResult<()> {
         .file_stem()
         .and_then(|s| s.to_str())
         .ok_or_else(|| {
-            AppError::InvalidInput(format!(
-                "Invalid ZIP file name: {}",
-                zip_path.display()
-            ))
+            AppError::InvalidInput(format!("Invalid ZIP file name: {}", zip_path.display()))
         })?;
 
     let extract_dir = zip_path
@@ -186,4 +189,3 @@ async fn extract_zip(zip_path: &Path) -> AppResult<()> {
 
     Ok(())
 }
-
