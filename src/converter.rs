@@ -189,3 +189,200 @@ async fn extract_zip(zip_path: &Path) -> AppResult<()> {
 
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::extract_all_zips;
+    use crate::errors::AppError;
+    use std::fs;
+    use std::io::Write;
+    use std::path::Path;
+    use tempfile::TempDir;
+    use zip::write::FileOptions;
+    use zip::ZipWriter;
+
+    fn create_test_zip(
+        zip_path: &Path,
+        files: &[(&str, &str)],
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        let file = fs::File::create(zip_path)?;
+        let mut zip = ZipWriter::new(file);
+        let options = FileOptions::default().compression_method(zip::CompressionMethod::Stored);
+
+        for (name, content) in files {
+            zip.start_file(*name, options)?;
+            zip.write_all(content.as_bytes())?;
+        }
+
+        zip.finish()?;
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_extract_all_zips_nonexistent_directory() {
+        let result = extract_all_zips(Path::new("/nonexistent/directory")).await;
+        assert!(result.is_err());
+        match result.unwrap_err() {
+            AppError::IoError(_) => {}
+            _ => panic!("Expected IoError for nonexistent directory"),
+        }
+    }
+
+    #[tokio::test]
+    async fn test_extract_all_zips_empty_directory() {
+        let temp_dir = TempDir::new().unwrap();
+        let result = extract_all_zips(temp_dir.path()).await;
+        assert!(result.is_ok());
+    }
+
+    #[tokio::test]
+    async fn test_extract_all_zips_single_zip() {
+        let temp_dir = TempDir::new().unwrap();
+        let zip_path = temp_dir.path().join("202501.zip");
+        create_test_zip(
+            &zip_path,
+            &[("file1.xml", "content1"), ("file2.xml", "content2")],
+        )
+        .unwrap();
+
+        let result = extract_all_zips(temp_dir.path()).await;
+        assert!(result.is_ok());
+
+        // Verify extraction directory was created
+        let extract_dir = temp_dir.path().join("202501");
+        assert!(extract_dir.exists());
+        assert!(extract_dir.is_dir());
+
+        // Verify files were extracted
+        let file1 = extract_dir.join("file1.xml");
+        let file2 = extract_dir.join("file2.xml");
+        assert!(file1.exists());
+        assert!(file2.exists());
+
+        // Verify file contents
+        assert_eq!(fs::read_to_string(&file1).unwrap(), "content1");
+        assert_eq!(fs::read_to_string(&file2).unwrap(), "content2");
+    }
+
+    #[tokio::test]
+    async fn test_extract_all_zips_multiple_zips() {
+        let temp_dir = TempDir::new().unwrap();
+
+        // Create first ZIP
+        let zip1_path = temp_dir.path().join("202501.zip");
+        create_test_zip(&zip1_path, &[("file1.xml", "content1")]).unwrap();
+
+        // Create second ZIP
+        let zip2_path = temp_dir.path().join("202502.zip");
+        create_test_zip(&zip2_path, &[("file2.xml", "content2")]).unwrap();
+
+        let result = extract_all_zips(temp_dir.path()).await;
+        assert!(result.is_ok());
+
+        // Verify both extraction directories were created
+        let extract_dir1 = temp_dir.path().join("202501");
+        let extract_dir2 = temp_dir.path().join("202502");
+        assert!(extract_dir1.exists());
+        assert!(extract_dir2.exists());
+
+        // Verify files were extracted
+        assert_eq!(
+            fs::read_to_string(extract_dir1.join("file1.xml")).unwrap(),
+            "content1"
+        );
+        assert_eq!(
+            fs::read_to_string(extract_dir2.join("file2.xml")).unwrap(),
+            "content2"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_extract_all_zips_ignores_non_zip_files() {
+        let temp_dir = TempDir::new().unwrap();
+
+        // Create a ZIP file
+        let zip_path = temp_dir.path().join("202501.zip");
+        create_test_zip(&zip_path, &[("file1.xml", "content1")]).unwrap();
+
+        // Create a non-ZIP file
+        let txt_path = temp_dir.path().join("readme.txt");
+        fs::write(&txt_path, "not a zip").unwrap();
+
+        let result = extract_all_zips(temp_dir.path()).await;
+        assert!(result.is_ok());
+
+        // Verify only ZIP was extracted
+        let extract_dir = temp_dir.path().join("202501");
+        assert!(extract_dir.exists());
+
+        // Non-ZIP file should still exist but not be processed
+        assert!(txt_path.exists());
+    }
+
+    #[tokio::test]
+    async fn test_extract_all_zips_skips_existing_directory() {
+        let temp_dir = TempDir::new().unwrap();
+        let zip_path = temp_dir.path().join("202501.zip");
+        create_test_zip(&zip_path, &[("file1.xml", "content1")]).unwrap();
+
+        // Create extraction directory manually
+        let extract_dir = temp_dir.path().join("202501");
+        fs::create_dir_all(&extract_dir).unwrap();
+        fs::write(extract_dir.join("existing.txt"), "existing").unwrap();
+
+        let result = extract_all_zips(temp_dir.path()).await;
+        assert!(result.is_ok());
+
+        // Verify existing file is still there (extraction was skipped)
+        assert_eq!(
+            fs::read_to_string(extract_dir.join("existing.txt")).unwrap(),
+            "existing"
+        );
+        // Verify ZIP file was not extracted (file1.xml should not exist)
+        assert!(!extract_dir.join("file1.xml").exists());
+    }
+
+    #[tokio::test]
+    async fn test_extract_all_zips_with_subdirectories() {
+        let temp_dir = TempDir::new().unwrap();
+        let zip_path = temp_dir.path().join("202501.zip");
+
+        // Create ZIP with files in subdirectories
+        let file = fs::File::create(&zip_path).unwrap();
+        let mut zip = ZipWriter::new(file);
+        let options = FileOptions::default().compression_method(zip::CompressionMethod::Stored);
+
+        zip.start_file("subdir/file1.xml", options).unwrap();
+        zip.write_all(b"content1").unwrap();
+        zip.start_file("subdir/nested/file2.xml", options).unwrap();
+        zip.write_all(b"content2").unwrap();
+        zip.finish().unwrap();
+
+        let result = extract_all_zips(temp_dir.path()).await;
+        assert!(result.is_ok());
+
+        // Verify directory structure was preserved
+        let extract_dir = temp_dir.path().join("202501");
+        let file1 = extract_dir.join("subdir/file1.xml");
+        let file2 = extract_dir.join("subdir/nested/file2.xml");
+
+        assert!(file1.exists());
+        assert!(file2.exists());
+        assert_eq!(fs::read_to_string(&file1).unwrap(), "content1");
+        assert_eq!(fs::read_to_string(&file2).unwrap(), "content2");
+    }
+
+    #[tokio::test]
+    async fn test_extract_all_zips_handles_invalid_zip_gracefully() {
+        let temp_dir = TempDir::new().unwrap();
+
+        // Create a file with .zip extension but invalid ZIP content
+        let invalid_zip = temp_dir.path().join("invalid.zip");
+        fs::write(&invalid_zip, "not a valid zip file").unwrap();
+
+        // Should not panic, but may log a warning
+        let result = extract_all_zips(temp_dir.path()).await;
+        // The function continues processing even if one ZIP fails
+        assert!(result.is_ok());
+    }
+}
