@@ -6,6 +6,12 @@ use clap::{Arg, ArgAction, Command};
 use std::collections::BTreeMap;
 use tracing::{info, info_span};
 
+/// Parses command-line arguments and executes the download command.
+///
+/// # Arguments
+///
+/// * `minor_contracts_links` - Map of period strings to minor contracts download URLs
+/// * `public_tenders_links` - Map of period strings to public tenders download URLs
 pub async fn cli(
     minor_contracts_links: &BTreeMap<String, String>,
     public_tenders_links: &BTreeMap<String, String>,
