@@ -5,7 +5,7 @@
 
 pub mod cli;
 pub mod constants;
-pub mod converter;
 pub mod downloader;
 pub mod errors;
+pub mod extractor;
 pub mod models;

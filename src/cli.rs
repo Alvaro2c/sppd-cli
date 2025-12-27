@@ -1,7 +1,7 @@
 use crate::constants::{APP_ABOUT, APP_AUTHOR, APP_VERSION, PERIOD_HELP_TEXT};
-use crate::converter;
 use crate::downloader::{download_files, filter_periods_by_range};
 use crate::errors::AppResult;
+use crate::extractor::extract_all_zips;
 use crate::models::ProcurementType;
 use clap::{Arg, ArgAction, Command};
 use std::collections::BTreeMap;
@@ -80,7 +80,7 @@ pub async fn cli(
             ProcurementType::MinorContracts => Path::new("data/tmp/mc"),
             ProcurementType::PublicTenders => Path::new("data/tmp/pt"),
         };
-        converter::extract_all_zips(download_dir).await?;
+        extract_all_zips(download_dir).await?;
     }
 
     Ok(())
