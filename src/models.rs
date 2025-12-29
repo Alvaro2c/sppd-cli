@@ -15,6 +15,30 @@ impl ProcurementType {
             Self::PublicTenders => "Public Tenders",
         }
     }
+    /// Returns a string representation of the procurement type.
+    /// Returns the download directory path for the procurement type (for ZIP downloads).
+    pub fn download_dir(&self) -> &'static str {
+        match self {
+            Self::MinorContracts => "data/tmp/mc",
+            Self::PublicTenders => "data/tmp/pt",
+        }
+    }
+
+    /// Returns the extraction directory path for the procurement type (for XML extraction).
+    pub fn extract_dir(&self) -> &'static str {
+        match self {
+            Self::MinorContracts => "data/tmp/mc",
+            Self::PublicTenders => "data/tmp/pt",
+        }
+    }
+
+    /// Returns the directory path for the final parquet files.
+    pub fn parquet_dir(&self) -> &'static str {
+        match self {
+            Self::MinorContracts => "data/parquet/mc",
+            Self::PublicTenders => "data/parquet/pt",
+        }
+    }
 }
 
 impl From<&str> for ProcurementType {
