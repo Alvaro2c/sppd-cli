@@ -1,6 +1,6 @@
 [package]
 name = "sppd-cli"
-version = "0.1.0"
+version = "0.9.0"
 edition = "2021"
 description = "A command-line tool for fetching and managing data from public tenders and minor contracts in Spain"
 authors = ["Alvaro Carranza <alvarocarranzacarrion@gmail.com>"]
@@ -10,15 +10,18 @@ keywords = ["cli", "procurement", "spain", "public-tenders", "data-download", "s
 categories = ["command-line-utilities", "data-processing"]
 
 [dependencies]
-clap = { version = "3.0", default-features = false, features = ["std", "unicode", "wrap_help"] }
-reqwest = { version = "0.11", default-features = false, features = ["stream", "rustls-tls"] }
+clap = "3.0"
+reqwest = { version = "0.11", features = ["stream", "rustls-tls"] }
 scraper = "0.12"
 url = "2"
+quick-xml = "0.38.4"
 regex = "1"
 tokio = { version = "1", features = ["rt", "rt-multi-thread", "fs", "macros"] }
-tracing = { version = "0.1", default-features = false, features = ["std"] }
+tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt"] }
-zip = { version = "0.6", default-features = false }
+zip = "0.6"
+polars = { version = "0.40", features = ["parquet"] }
+walkdir = "2.5.0"
 
 [dev-dependencies]
 tempfile = "3"

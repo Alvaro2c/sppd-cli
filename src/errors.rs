@@ -69,6 +69,18 @@ impl From<std::num::ParseIntError> for AppError {
     }
 }
 
+impl From<std::io::Error> for AppError {
+    fn from(err: std::io::Error) -> Self {
+        AppError::IoError(err.to_string())
+    }
+}
+
+impl From<quick_xml::Error> for AppError {
+    fn from(err: quick_xml::Error) -> Self {
+        AppError::ParseError(format!("XML parsing error: {err}"))
+    }
+}
+
 /// Result type alias for application operations.
 pub type AppResult<T> = Result<T, AppError>;
 

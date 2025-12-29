@@ -138,11 +138,7 @@ pub async fn download_files(
     filtered_links: &BTreeMap<String, String>,
     proc_type: &ProcurementType,
 ) -> AppResult<()> {
-    let download_dir = match proc_type {
-        ProcurementType::MinorContracts => Path::new("data/tmp/mc"),
-        ProcurementType::PublicTenders => Path::new("data/tmp/pt"),
-    };
-
+    let download_dir = Path::new(proc_type.download_dir());
     // Create directory if it doesn't exist
     if !download_dir.exists() {
         fs::create_dir_all(download_dir)

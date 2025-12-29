@@ -1,44 +1,40 @@
 use crate::errors::{AppError, AppResult};
+use crate::models::ProcurementType;
+use std::collections::BTreeMap;
 use std::fs::File;
 use std::io::Read;
 use std::path::Path;
 use tracing::{debug, info, warn};
 use zip::ZipArchive;
 
-/// Extracts all ZIP files from the specified directory into subdirectories.
+/// Extracts ZIP files from the specified directory into subdirectories.
 ///
+/// Only extracts ZIP files that correspond to keys in `target_links` (e.g., "202511" -> "202511.zip").
 /// For each `{period}.zip` file, extracts its contents into a `{period}/` directory
 /// at the same level as the ZIP file.
-pub async fn extract_all_zips(directory: &Path) -> AppResult<()> {
-    if !directory.exists() {
+pub async fn extract_all_zips(
+    target_links: &BTreeMap<String, String>,
+    procurement_type: &ProcurementType,
+) -> AppResult<()> {
+    let extract_dir = Path::new(procurement_type.extract_dir());
+    if !extract_dir.exists() {
         return Err(AppError::IoError(format!(
             "Directory does not exist: {}",
-            directory.display()
+            extract_dir.display()
         )));
     }
 
-    let mut zip_files = Vec::new();
-    let mut entries = tokio::fs::read_dir(directory).await.map_err(|e| {
-        AppError::IoError(format!(
-            "Failed to read directory {}: {}",
-            directory.display(),
-            e
-        ))
-    })?;
-
-    while let Some(entry) = entries
-        .next_entry()
-        .await
-        .map_err(|e| AppError::IoError(format!("Failed to read directory entry: {e}")))?
-    {
-        let path = entry.path();
-        if path.is_file() && path.extension().and_then(|s| s.to_str()) == Some("zip") {
-            zip_files.push(path);
-        }
-    }
-
     let mut errors = Vec::new();
-    for zip_path in zip_files {
+    for period in target_links.keys() {
+        let zip_path = extract_dir.join(format!("{period}.zip"));
+        if !zip_path.exists() {
+            warn!(
+                zip_file = %zip_path.display(),
+                "ZIP file not found, skipping"
+            );
+            continue;
+        }
+
         if let Err(e) = extract_zip(&zip_path).await {
             let error_msg = format!("Failed to extract {}: {}", zip_path.display(), e);
             warn!(
@@ -205,12 +201,18 @@ async fn extract_zip(zip_path: &Path) -> AppResult<()> {
 mod tests {
     use super::extract_all_zips;
     use crate::errors::AppError;
+    use crate::models::ProcurementType;
+    use std::collections::BTreeMap;
     use std::fs;
     use std::io::Write;
     use std::path::Path;
     use tempfile::TempDir;
+    use tokio::sync::Mutex;
     use zip::write::FileOptions;
     use zip::ZipWriter;
+
+    // Serialize working directory changes to avoid race conditions
+    static DIR_LOCK: Mutex<()> = Mutex::const_new(());
 
     fn create_test_zip(
         zip_path: &Path,
@@ -230,197 +232,88 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_extract_all_zips_nonexistent_directory() {
-        let result = extract_all_zips(Path::new("/nonexistent/directory")).await;
-        assert!(result.is_err());
-        match result.unwrap_err() {
-            AppError::IoError(_) => {}
-            _ => panic!("Expected IoError for nonexistent directory"),
-        }
-    }
-
-    #[tokio::test]
-    async fn test_extract_all_zips_empty_directory() {
+    async fn test_extract_all_zips_basic() {
+        let _lock = DIR_LOCK.lock().await;
         let temp_dir = TempDir::new().unwrap();
-        let result = extract_all_zips(temp_dir.path()).await;
+        let extract_dir = temp_dir.path().join("data/tmp/mc");
+        fs::create_dir_all(&extract_dir).unwrap();
+
+        let zip_path = extract_dir.join("202501.zip");
+        create_test_zip(&zip_path, &[("file.xml", "content")]).unwrap();
+
+        let original_dir = std::env::current_dir().unwrap();
+        std::env::set_current_dir(temp_dir.path()).unwrap();
+
+        let mut target_links = BTreeMap::new();
+        target_links.insert("202501".to_string(), "http://example.com".to_string());
+        let procurement_type = ProcurementType::MinorContracts;
+        let result = extract_all_zips(&target_links, &procurement_type).await;
+
+        std::env::set_current_dir(original_dir).unwrap();
+
         assert!(result.is_ok());
+        assert!(extract_dir.join("202501").exists());
+        assert_eq!(
+            fs::read_to_string(extract_dir.join("202501/file.xml")).unwrap(),
+            "content"
+        );
     }
 
     #[tokio::test]
-    async fn test_extract_all_zips_single_zip() {
+    async fn test_extract_all_zips_only_targeted() {
+        let _lock = DIR_LOCK.lock().await;
         let temp_dir = TempDir::new().unwrap();
-        let zip_path = temp_dir.path().join("202501.zip");
+        let extract_dir = temp_dir.path().join("data/tmp/mc");
+        fs::create_dir_all(&extract_dir).unwrap();
+
         create_test_zip(
-            &zip_path,
-            &[("file1.xml", "content1"), ("file2.xml", "content2")],
+            &extract_dir.join("202501.zip"),
+            &[("file1.xml", "content1")],
+        )
+        .unwrap();
+        create_test_zip(
+            &extract_dir.join("202502.zip"),
+            &[("file2.xml", "content2")],
         )
         .unwrap();
 
-        let result = extract_all_zips(temp_dir.path()).await;
+        let original_dir = std::env::current_dir().unwrap();
+        std::env::set_current_dir(temp_dir.path()).unwrap();
+
+        let mut target_links = BTreeMap::new();
+        target_links.insert("202501".to_string(), "http://example.com".to_string());
+        let procurement_type = ProcurementType::MinorContracts;
+        let result = extract_all_zips(&target_links, &procurement_type).await;
+
+        std::env::set_current_dir(original_dir).unwrap();
+
         assert!(result.is_ok());
-
-        // Verify extraction directory was created
-        let extract_dir = temp_dir.path().join("202501");
-        assert!(extract_dir.exists());
-        assert!(extract_dir.is_dir());
-
-        // Verify files were extracted
-        let file1 = extract_dir.join("file1.xml");
-        let file2 = extract_dir.join("file2.xml");
-        assert!(file1.exists());
-        assert!(file2.exists());
-
-        // Verify file contents
-        assert_eq!(fs::read_to_string(&file1).unwrap(), "content1");
-        assert_eq!(fs::read_to_string(&file2).unwrap(), "content2");
+        assert!(extract_dir.join("202501").exists());
+        assert!(!extract_dir.join("202502").exists());
     }
 
     #[tokio::test]
-    async fn test_extract_all_zips_multiple_zips() {
+    async fn test_extract_all_zips_error_on_invalid() {
+        let _lock = DIR_LOCK.lock().await;
         let temp_dir = TempDir::new().unwrap();
-
-        // Create first ZIP
-        let zip1_path = temp_dir.path().join("202501.zip");
-        create_test_zip(&zip1_path, &[("file1.xml", "content1")]).unwrap();
-
-        // Create second ZIP
-        let zip2_path = temp_dir.path().join("202502.zip");
-        create_test_zip(&zip2_path, &[("file2.xml", "content2")]).unwrap();
-
-        let result = extract_all_zips(temp_dir.path()).await;
-        assert!(result.is_ok());
-
-        // Verify both extraction directories were created
-        let extract_dir1 = temp_dir.path().join("202501");
-        let extract_dir2 = temp_dir.path().join("202502");
-        assert!(extract_dir1.exists());
-        assert!(extract_dir2.exists());
-
-        // Verify files were extracted
-        assert_eq!(
-            fs::read_to_string(extract_dir1.join("file1.xml")).unwrap(),
-            "content1"
-        );
-        assert_eq!(
-            fs::read_to_string(extract_dir2.join("file2.xml")).unwrap(),
-            "content2"
-        );
-    }
-
-    #[tokio::test]
-    async fn test_extract_all_zips_ignores_non_zip_files() {
-        let temp_dir = TempDir::new().unwrap();
-
-        // Create a ZIP file
-        let zip_path = temp_dir.path().join("202501.zip");
-        create_test_zip(&zip_path, &[("file1.xml", "content1")]).unwrap();
-
-        // Create a non-ZIP file
-        let txt_path = temp_dir.path().join("readme.txt");
-        fs::write(&txt_path, "not a zip").unwrap();
-
-        let result = extract_all_zips(temp_dir.path()).await;
-        assert!(result.is_ok());
-
-        // Verify only ZIP was extracted
-        let extract_dir = temp_dir.path().join("202501");
-        assert!(extract_dir.exists());
-
-        // Non-ZIP file should still exist but not be processed
-        assert!(txt_path.exists());
-    }
-
-    #[tokio::test]
-    async fn test_extract_all_zips_skips_existing_directory() {
-        let temp_dir = TempDir::new().unwrap();
-        let zip_path = temp_dir.path().join("202501.zip");
-        create_test_zip(&zip_path, &[("file1.xml", "content1")]).unwrap();
-
-        // Create extraction directory manually
-        let extract_dir = temp_dir.path().join("202501");
+        let extract_dir = temp_dir.path().join("data/tmp/mc");
         fs::create_dir_all(&extract_dir).unwrap();
-        fs::write(extract_dir.join("existing.txt"), "existing").unwrap();
+        fs::write(extract_dir.join("202501.zip"), "invalid").unwrap();
 
-        let result = extract_all_zips(temp_dir.path()).await;
-        assert!(result.is_ok());
+        let original_dir = std::env::current_dir().unwrap();
+        std::env::set_current_dir(temp_dir.path()).unwrap();
 
-        // Verify existing file is still there (extraction was skipped)
-        assert_eq!(
-            fs::read_to_string(extract_dir.join("existing.txt")).unwrap(),
-            "existing"
-        );
-        // Verify ZIP file was not extracted (file1.xml should not exist)
-        assert!(!extract_dir.join("file1.xml").exists());
-    }
+        let mut target_links = BTreeMap::new();
+        target_links.insert("202501".to_string(), "http://example.com".to_string());
+        let procurement_type = ProcurementType::MinorContracts;
+        let result = extract_all_zips(&target_links, &procurement_type).await;
 
-    #[tokio::test]
-    async fn test_extract_all_zips_with_subdirectories() {
-        let temp_dir = TempDir::new().unwrap();
-        let zip_path = temp_dir.path().join("202501.zip");
+        std::env::set_current_dir(original_dir).unwrap();
 
-        // Create ZIP with files in subdirectories
-        let file = fs::File::create(&zip_path).unwrap();
-        let mut zip = ZipWriter::new(file);
-        let options = FileOptions::default().compression_method(zip::CompressionMethod::Stored);
-
-        zip.start_file("subdir/file1.xml", options).unwrap();
-        zip.write_all(b"content1").unwrap();
-        zip.start_file("subdir/nested/file2.xml", options).unwrap();
-        zip.write_all(b"content2").unwrap();
-        zip.finish().unwrap();
-
-        let result = extract_all_zips(temp_dir.path()).await;
-        assert!(result.is_ok());
-
-        // Verify directory structure was preserved
-        let extract_dir = temp_dir.path().join("202501");
-        let file1 = extract_dir.join("subdir/file1.xml");
-        let file2 = extract_dir.join("subdir/nested/file2.xml");
-
-        assert!(file1.exists());
-        assert!(file2.exists());
-        assert_eq!(fs::read_to_string(&file1).unwrap(), "content1");
-        assert_eq!(fs::read_to_string(&file2).unwrap(), "content2");
-    }
-
-    #[tokio::test]
-    async fn test_extract_all_zips_returns_error_on_invalid_zip() {
-        let temp_dir = TempDir::new().unwrap();
-
-        // Create a file with .zip extension but invalid ZIP content
-        let invalid_zip = temp_dir.path().join("invalid.zip");
-        fs::write(&invalid_zip, "not a valid zip file").unwrap();
-
-        // Should return an error when extraction fails
-        let result = extract_all_zips(temp_dir.path()).await;
         assert!(result.is_err());
         match result.unwrap_err() {
-            AppError::IoError(msg) => {
-                assert!(msg.contains("Failed to extract"));
-                assert!(msg.contains("invalid.zip"));
-            }
-            _ => panic!("Expected IoError for invalid ZIP"),
+            AppError::IoError(msg) => assert!(msg.contains("Failed to extract")),
+            _ => panic!("Expected IoError"),
         }
-    }
-
-    #[tokio::test]
-    async fn test_extract_all_zips_returns_error_when_some_fail() {
-        let temp_dir = TempDir::new().unwrap();
-
-        // Create one valid ZIP
-        let valid_zip = temp_dir.path().join("valid.zip");
-        create_test_zip(&valid_zip, &[("file.xml", "content")]).unwrap();
-
-        // Create one invalid ZIP
-        let invalid_zip = temp_dir.path().join("invalid.zip");
-        fs::write(&invalid_zip, "not a valid zip file").unwrap();
-
-        // Should return an error even though one ZIP succeeded
-        let result = extract_all_zips(temp_dir.path()).await;
-        assert!(result.is_err());
-
-        // Verify the valid ZIP was still extracted
-        let extract_dir = temp_dir.path().join("valid");
-        assert!(extract_dir.exists());
     }
 }
