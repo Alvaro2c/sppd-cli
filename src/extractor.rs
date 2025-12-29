@@ -206,13 +206,13 @@ mod tests {
     use std::fs;
     use std::io::Write;
     use std::path::Path;
-    use std::sync::Mutex;
     use tempfile::TempDir;
+    use tokio::sync::Mutex;
     use zip::write::FileOptions;
     use zip::ZipWriter;
 
     // Serialize working directory changes to avoid race conditions
-    static DIR_LOCK: Mutex<()> = Mutex::new(());
+    static DIR_LOCK: Mutex<()> = Mutex::const_new(());
 
     fn create_test_zip(
         zip_path: &Path,
@@ -231,10 +231,9 @@ mod tests {
         Ok(())
     }
 
-
     #[tokio::test]
     async fn test_extract_all_zips_basic() {
-        let _lock = DIR_LOCK.lock().unwrap();
+        let _lock = DIR_LOCK.lock().await;
         let temp_dir = TempDir::new().unwrap();
         let extract_dir = temp_dir.path().join("data/tmp/mc");
         fs::create_dir_all(&extract_dir).unwrap();
@@ -262,13 +261,21 @@ mod tests {
 
     #[tokio::test]
     async fn test_extract_all_zips_only_targeted() {
-        let _lock = DIR_LOCK.lock().unwrap();
+        let _lock = DIR_LOCK.lock().await;
         let temp_dir = TempDir::new().unwrap();
         let extract_dir = temp_dir.path().join("data/tmp/mc");
         fs::create_dir_all(&extract_dir).unwrap();
 
-        create_test_zip(&extract_dir.join("202501.zip"), &[("file1.xml", "content1")]).unwrap();
-        create_test_zip(&extract_dir.join("202502.zip"), &[("file2.xml", "content2")]).unwrap();
+        create_test_zip(
+            &extract_dir.join("202501.zip"),
+            &[("file1.xml", "content1")],
+        )
+        .unwrap();
+        create_test_zip(
+            &extract_dir.join("202502.zip"),
+            &[("file2.xml", "content2")],
+        )
+        .unwrap();
 
         let original_dir = std::env::current_dir().unwrap();
         std::env::set_current_dir(temp_dir.path()).unwrap();
@@ -287,7 +294,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_extract_all_zips_error_on_invalid() {
-        let _lock = DIR_LOCK.lock().unwrap();
+        let _lock = DIR_LOCK.lock().await;
         let temp_dir = TempDir::new().unwrap();
         let extract_dir = temp_dir.path().join("data/tmp/mc");
         fs::create_dir_all(&extract_dir).unwrap();
