@@ -109,7 +109,7 @@ pub async fn cli(
 
 /// Parses a yes/no string value (case-insensitive) and returns a boolean.
 /// Accepts "yes", "y", "no", "n". Defaults to true for any unrecognized value.
-fn parse_yes_no(value: &str) -> bool {
+pub(crate) fn parse_yes_no(value: &str) -> bool {
     match value.trim().to_lowercase().as_str() {
         "yes" | "y" => true,
         "no" | "n" => false,
@@ -244,5 +244,44 @@ mod tests {
             3,
         );
         print_download_info(&ProcurementType::PublicTenders, None, None, 5);
+    }
+
+    #[test]
+    fn test_parse_yes_no_yes() {
+        assert!(parse_yes_no("yes"));
+        assert!(parse_yes_no("YES"));
+        assert!(parse_yes_no("Yes"));
+        assert!(parse_yes_no("y"));
+        assert!(parse_yes_no("Y"));
+    }
+
+    #[test]
+    fn test_parse_yes_no_no() {
+        assert!(!parse_yes_no("no"));
+        assert!(!parse_yes_no("NO"));
+        assert!(!parse_yes_no("No"));
+        assert!(!parse_yes_no("n"));
+        assert!(!parse_yes_no("N"));
+    }
+
+    #[test]
+    fn test_parse_yes_no_whitespace() {
+        assert!(parse_yes_no(" yes "));
+        assert!(parse_yes_no("  YES  "));
+        assert!(!parse_yes_no(" no "));
+        assert!(!parse_yes_no("  NO  "));
+        assert!(parse_yes_no("\ty\t"));
+        assert!(!parse_yes_no("\tn\t"));
+    }
+
+    #[test]
+    fn test_parse_yes_no_defaults_to_true() {
+        assert!(parse_yes_no(""));
+        assert!(parse_yes_no("unknown"));
+        assert!(parse_yes_no("maybe"));
+        assert!(parse_yes_no("1"));
+        assert!(parse_yes_no("0"));
+        assert!(parse_yes_no("true"));
+        assert!(parse_yes_no("false"));
     }
 }
