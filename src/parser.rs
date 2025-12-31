@@ -1,5 +1,6 @@
 use crate::errors::{AppError, AppResult};
 use crate::models::Entry;
+use indicatif::{ProgressBar, ProgressStyle};
 use polars::prelude::*;
 use quick_xml::events::Event;
 use quick_xml::reader::Reader;
@@ -7,6 +8,7 @@ use std::collections::BTreeMap;
 use std::fs::{self, File};
 use std::io::BufReader;
 use std::path::Path;
+use tracing::info;
 
 pub fn parse_xmls(
     target_links: &BTreeMap<String, String>,
@@ -22,11 +24,39 @@ pub fn parse_xmls(
     // Find all subdirectories with XML/atom files
     let subdirs = find_xmls(extract_dir)?;
 
+    // Filter subdirectories that match keys in target_links
+    let subdirs_to_process: Vec<_> = subdirs
+        .into_iter()
+        .filter(|(subdir_name, _)| target_links.contains_key(subdir_name))
+        .collect();
+
+    let total_subdirs = subdirs_to_process.len();
+
+    if total_subdirs == 0 {
+        info!("No matching subdirectories found for parsing");
+        return Ok(());
+    }
+
+    // Create progress bar
+    let pb = ProgressBar::new(total_subdirs as u64);
+    pb.set_style(
+        ProgressStyle::default_bar()
+            .template(
+                "{spinner:.green} [{elapsed_precise}] [{wide_bar:.cyan/blue}] {pos}/{len} {msg}",
+            )
+            .unwrap()
+            .progress_chars("#>-"),
+    );
+
+    info!(total = total_subdirs, "Starting XML parsing");
+
+    let mut processed_count = 0;
+    let mut skipped_count = 0;
+
     // Process only subdirectories that match keys in target_links
-    for (subdir_name, xml_files) in subdirs {
-        if !target_links.contains_key(&subdir_name) {
-            continue;
-        }
+    for (subdir_name, xml_files) in subdirs_to_process {
+        // Update progress bar message
+        pb.set_message(format!("Processing {subdir_name}..."));
 
         // Parse all XML/atom files in this subdirectory
         let mut all_entries = Vec::new();
@@ -37,6 +67,9 @@ pub fn parse_xmls(
 
         // Skip if no entries found
         if all_entries.is_empty() {
+            skipped_count += 1;
+            pb.inc(1);
+            pb.set_message(format!("Skipped {subdir_name} (no entries)"));
             continue;
         }
 
@@ -68,7 +101,19 @@ pub fn parse_xmls(
         ParquetWriter::new(&mut file)
             .finish(&mut df)
             .map_err(|e| AppError::IoError(format!("Failed to write Parquet file: {e}")))?;
+
+        processed_count += 1;
+        pb.inc(1);
+        pb.set_message(format!("Completed {subdir_name}"));
     }
+
+    pb.finish_with_message(format!("Processed {processed_count} period(s)"));
+
+    info!(
+        processed = processed_count,
+        skipped = skipped_count,
+        "Parsing completed"
+    );
 
     Ok(())
 }

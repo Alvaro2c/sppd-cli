@@ -71,12 +71,22 @@ pub async fn cli(
 
         let target_links = filter_periods_by_range(links, start_period, end_period)?;
 
-        print_download_info(&proc_type, start_period, end_period);
+        print_download_info(&proc_type, start_period, end_period, target_links.len());
 
         let client = reqwest::Client::new();
         download_files(&client, &target_links, &proc_type).await?;
+
+        info!("Starting extraction phase");
         extract_all_zips(&target_links, &proc_type).await?;
+
+        info!("Starting parsing phase");
         parse_xmls(&target_links, &proc_type)?;
+
+        info!(
+            procurement_type = proc_type.display_name(),
+            periods_processed = target_links.len(),
+            "All operations completed successfully"
+        );
     }
 
     Ok(())
@@ -86,6 +96,7 @@ fn print_download_info(
     proc_type: &ProcurementType,
     start_period: Option<&str>,
     end_period: Option<&str>,
+    periods_count: usize,
 ) {
     let _span = info_span!(
         "download",
@@ -99,7 +110,8 @@ fn print_download_info(
         procurement_type = proc_type.display_name(),
         start_period = start_period,
         end_period = end_period,
-        "📥 Starting download"
+        periods_count = periods_count,
+        "Starting download operation"
     );
 }
 
@@ -204,7 +216,8 @@ mod tests {
             &ProcurementType::MinorContracts,
             Some("202301"),
             Some("202302"),
+            3,
         );
-        print_download_info(&ProcurementType::PublicTenders, None, None);
+        print_download_info(&ProcurementType::PublicTenders, None, None, 5);
     }
 }

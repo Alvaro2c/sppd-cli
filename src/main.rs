@@ -1,4 +1,5 @@
 use sppd_cli::{cli, downloader, errors::AppResult};
+use tracing::{info, info_span};
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt, EnvFilter};
 
 #[tokio::main]
@@ -10,7 +11,17 @@ async fn main() -> AppResult<()> {
         .with(tracing_subscriber::fmt::layer())
         .init();
 
+    let _span = info_span!("main").entered();
+    info!("Fetching available download links");
+
     let (minor_contracts_links, public_tenders_links) = downloader::fetch_all_links().await?;
+
+    info!(
+        minor_contracts_periods = minor_contracts_links.len(),
+        public_tenders_periods = public_tenders_links.len(),
+        "Link fetching completed"
+    );
+
     cli::cli(&minor_contracts_links, &public_tenders_links).await?;
     Ok(())
 }
