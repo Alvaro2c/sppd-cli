@@ -1,6 +1,7 @@
 use crate::constants::{MINOR_CONTRACTS, PERIOD_REGEX_PATTERN, PUBLIC_TENDERS, ZIP_LINK_SELECTOR};
 use crate::errors::{AppError, AppResult};
 use crate::models::ProcurementType;
+use indicatif::{ProgressBar, ProgressStyle};
 use regex::Regex;
 use reqwest;
 use scraper::{Html, Selector};
@@ -30,8 +31,20 @@ static ZIP_LINK_SELECTOR_CACHED: OnceLock<Selector> = OnceLock::new();
 pub async fn fetch_all_links() -> AppResult<(BTreeMap<String, String>, BTreeMap<String, String>)> {
     let client = reqwest::Client::new();
     // Sequential fetch: simple and reliable for two landing pages.
+    info!("Fetching minor contracts links");
     let minor_links = fetch_zip(&client, MINOR_CONTRACTS).await?;
+    info!(
+        periods_found = minor_links.len(),
+        "Minor contracts links fetched"
+    );
+
+    info!("Fetching public tenders links");
     let public_links = fetch_zip(&client, PUBLIC_TENDERS).await?;
+    info!(
+        periods_found = public_links.len(),
+        "Public tenders links fetched"
+    );
+
     Ok((minor_links, public_links))
 }
 
@@ -160,18 +173,46 @@ pub async fn download_files(
             .map_err(|e| AppError::IoError(format!("Failed to create directory: {e}")))?;
     }
 
-    for (period, url) in filtered_links {
+    // Count files that need downloading (excluding existing ones)
+    let files_to_download: Vec<_> = filtered_links
+        .iter()
+        .filter(|(period, _)| {
+            let file_path = download_dir.join(format!("{period}.zip"));
+            !file_path.exists()
+        })
+        .collect();
+
+    let total_files = files_to_download.len();
+    let skipped_count = filtered_links.len() - total_files;
+
+    if total_files == 0 {
+        info!(
+            count = filtered_links.len(),
+            "All files already exist, skipping downloads"
+        );
+        return Ok(());
+    }
+
+    // Create progress bar
+    let pb = ProgressBar::new(total_files as u64);
+    pb.set_style(
+        ProgressStyle::default_bar()
+            .template(
+                "{spinner:.green} [{elapsed_precise}] [{wide_bar:.cyan/blue}] {pos}/{len} {msg}",
+            )
+            .unwrap()
+            .progress_chars("#>-"),
+    );
+
+    info!(
+        total = total_files,
+        skipped = skipped_count,
+        "Starting download"
+    );
+
+    for (period, url) in files_to_download.iter() {
         let filename = format!("{period}.zip");
         let file_path = download_dir.join(&filename);
-        // Skip download if final file already exists
-        if file_path.exists() {
-            debug!(
-                file_path = %file_path.display(),
-                period = period,
-                "Skipping existing file"
-            );
-            continue;
-        }
 
         // Temporary partial file (atomic rename after complete)
         let tmp_path = download_dir.join(format!("{period}.zip.part"));
@@ -187,14 +228,19 @@ pub async fn download_files(
             }
         }
 
-        info!(
-            url = %url,
-            file_path = %file_path.display(),
-            period = period,
-            "Downloading file"
-        );
+        // Update progress bar message
+        pb.set_message(format!("Downloading {filename}..."));
 
-        let mut response = client.get(url).send().await?.error_for_status()?;
+        let mut response = match client.get(*url).send().await {
+            Ok(resp) => resp.error_for_status()?,
+            Err(e) => {
+                pb.inc(1);
+                return Err(AppError::NetworkError(format!(
+                    "Failed to download {}: {}",
+                    filename, e
+                )));
+            }
+        };
 
         let mut file = File::create(&tmp_path).await.map_err(|e| {
             AppError::IoError(format!(
@@ -227,13 +273,22 @@ pub async fn download_files(
             ))
         })?;
 
-        info!(
-            filename = filename,
-            file_path = %file_path.display(),
-            period = period,
-            "✓ Download completed"
-        );
+        // Update progress bar
+        pb.inc(1);
+        pb.set_message(format!("Completed {filename}"));
     }
+
+    pb.finish_with_message(format!("Downloaded {total_files} file(s)"));
+
+    if skipped_count > 0 {
+        debug!(skipped = skipped_count, "Skipped existing files");
+    }
+
+    info!(
+        downloaded = total_files,
+        skipped = skipped_count,
+        "Download completed"
+    );
 
     Ok(())
 }

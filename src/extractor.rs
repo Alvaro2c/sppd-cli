@@ -1,5 +1,6 @@
 use crate::errors::{AppError, AppResult};
 use crate::models::ProcurementType;
+use indicatif::{ProgressBar, ProgressStyle};
 use std::collections::BTreeMap;
 use std::fs::File;
 use std::io::Read;
@@ -24,16 +25,75 @@ pub async fn extract_all_zips(
         )));
     }
 
-    let mut errors = Vec::new();
+    // Collect ZIP files that need extraction
+    let mut zips_to_extract = Vec::new();
+    let mut missing_zips = Vec::new();
+
     for period in target_links.keys() {
         let zip_path = extract_dir.join(format!("{period}.zip"));
         if !zip_path.exists() {
-            warn!(
-                zip_file = %zip_path.display(),
-                "ZIP file not found, skipping"
-            );
+            missing_zips.push((period.clone(), zip_path));
             continue;
         }
+
+        // Check if extraction directory already exists
+        let extract_dir_path = zip_path.parent().unwrap().join(period);
+
+        if !extract_dir_path.exists() {
+            zips_to_extract.push((period.clone(), zip_path));
+        }
+    }
+
+    let total_zips = zips_to_extract.len();
+    let skipped_count = target_links.len() - total_zips - missing_zips.len();
+
+    if total_zips == 0 {
+        info!(
+            total = target_links.len(),
+            skipped = skipped_count,
+            missing = missing_zips.len(),
+            "All ZIP files already extracted, skipping extraction"
+        );
+        return Ok(());
+    }
+
+    // Log warnings for missing ZIP files
+    for (period, zip_path) in &missing_zips {
+        warn!(
+            zip_file = %zip_path.display(),
+            period = period,
+            "ZIP file not found, skipping"
+        );
+    }
+
+    // Create progress bar
+    let pb = ProgressBar::new(total_zips as u64);
+    pb.set_style(
+        ProgressStyle::default_bar()
+            .template(
+                "{spinner:.green} [{elapsed_precise}] [{wide_bar:.cyan/blue}] {pos}/{len} {msg}",
+            )
+            .unwrap()
+            .progress_chars("#>-"),
+    );
+
+    info!(
+        total = total_zips,
+        skipped = skipped_count,
+        missing = missing_zips.len(),
+        "Starting extraction"
+    );
+
+    let mut errors = Vec::new();
+    for (_period, zip_path) in zips_to_extract {
+        let filename = zip_path
+            .file_name()
+            .and_then(|n| n.to_str())
+            .unwrap_or("unknown")
+            .to_string();
+
+        // Update progress bar message
+        pb.set_message(format!("Extracting {filename}..."));
 
         if let Err(e) = extract_zip(&zip_path).await {
             let error_msg = format!("Failed to extract {}: {}", zip_path.display(), e);
@@ -44,7 +104,13 @@ pub async fn extract_all_zips(
             );
             errors.push(error_msg);
         }
+
+        // Update progress bar
+        pb.inc(1);
+        pb.set_message(format!("Completed {filename}"));
     }
+
+    pb.finish_with_message(format!("Extracted {total_zips} ZIP file(s)"));
 
     if !errors.is_empty() {
         return Err(AppError::IoError(format!(
@@ -53,6 +119,17 @@ pub async fn extract_all_zips(
             errors.join("; ")
         )));
     }
+
+    if skipped_count > 0 {
+        debug!(skipped = skipped_count, "Skipped already extracted files");
+    }
+
+    info!(
+        extracted = total_zips,
+        skipped = skipped_count,
+        missing = missing_zips.len(),
+        "Extraction completed"
+    );
 
     Ok(())
 }
@@ -85,14 +162,6 @@ async fn extract_zip(zip_path: &Path) -> AppResult<()> {
         );
         return Ok(());
     }
-
-    let extract_dir_display = extract_dir.display().to_string();
-    let zip_path_display = zip_path.display().to_string();
-    info!(
-        zip_file = %zip_path_display,
-        extract_dir = %extract_dir_display,
-        "Extracting ZIP file"
-    );
 
     // Create extraction directory
     tokio::fs::create_dir_all(&extract_dir).await.map_err(|e| {
@@ -187,12 +256,6 @@ async fn extract_zip(zip_path: &Path) -> AppResult<()> {
     })
     .await
     .map_err(|e| AppError::IoError(format!("Task join error: {e}")))??;
-
-    info!(
-        zip_file = %zip_path_display,
-        extract_dir = %extract_dir_display,
-        "✓ Extraction completed"
-    );
 
     Ok(())
 }
