@@ -302,7 +302,8 @@ pub async fn cleanup_files(
 /// # Example
 ///
 /// For a directory structure like:
-/// ```
+///
+/// ```text
 /// extract_dir/
 ///   202301/
 ///     file1.xml
