@@ -1,13 +1,13 @@
 use crate::constants::{MINOR_CONTRACTS, PERIOD_REGEX_PATTERN, PUBLIC_TENDERS, ZIP_LINK_SELECTOR};
 use crate::errors::{AppError, AppResult};
 use crate::models::ProcurementType;
-use once_cell::sync::Lazy;
 use regex::Regex;
 use reqwest;
 use scraper::{Html, Selector};
 use std::collections::BTreeMap;
 use std::path::Path;
 use std::str::FromStr;
+use std::sync::OnceLock;
 use tokio::fs;
 use tokio::fs::File;
 use tokio::io::AsyncWriteExt;
@@ -16,15 +16,11 @@ use url::Url;
 
 /// Cached regex for extracting period identifiers from ZIP filenames.
 /// Compiled once at initialization for performance.
-static PERIOD_REGEX: Lazy<Regex> = Lazy::new(|| {
-    Regex::new(PERIOD_REGEX_PATTERN).expect("PERIOD_REGEX_PATTERN is a valid regex pattern")
-});
+static PERIOD_REGEX: OnceLock<Regex> = OnceLock::new();
 
 /// Cached CSS selector for ZIP file links.
 /// Compiled once at initialization for performance.
-static ZIP_LINK_SELECTOR_CACHED: Lazy<Selector> = Lazy::new(|| {
-    Selector::parse(ZIP_LINK_SELECTOR).expect("ZIP_LINK_SELECTOR is a valid CSS selector")
-});
+static ZIP_LINK_SELECTOR_CACHED: OnceLock<Selector> = OnceLock::new();
 
 /// Fetches all available ZIP file links from both procurement data sources.
 ///
@@ -72,13 +68,21 @@ pub fn parse_zip_links(html: &str, base_url: &Url) -> AppResult<BTreeMap<String,
 
     let mut links: BTreeMap<String, String> = BTreeMap::new();
 
+    let selector = ZIP_LINK_SELECTOR_CACHED.get_or_init(|| {
+        Selector::parse(ZIP_LINK_SELECTOR).expect("ZIP_LINK_SELECTOR is a valid CSS selector")
+    });
+
+    let period_regex = PERIOD_REGEX.get_or_init(|| {
+        Regex::new(PERIOD_REGEX_PATTERN).expect("PERIOD_REGEX_PATTERN is a valid regex pattern")
+    });
+
     for url in document
-        .select(&ZIP_LINK_SELECTOR_CACHED)
+        .select(selector)
         .filter_map(|el| el.value().attr("href"))
         .filter_map(|href| base_url.join(href).ok())
     {
         if let Some(filename) = url.path_segments().and_then(|mut s| s.next_back()) {
-            if let Some(m) = PERIOD_REGEX.captures(filename).and_then(|c| c.get(1)) {
+            if let Some(m) = period_regex.captures(filename).and_then(|c| c.get(1)) {
                 links.insert(m.as_str().to_string(), url.to_string());
             }
         }
