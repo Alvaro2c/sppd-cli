@@ -2822,14 +2822,12 @@ name = "sppd-cli"
 version = "0.9.0"
 dependencies = [
  "clap",
- "once_cell",
  "polars",
  "quick-xml",
  "regex",
  "reqwest",
  "scraper",
  "serde",
- "serde_json",
  "tempfile",
  "tokio",
  "tracing",
@@ -2864,6 +2862,7 @@ dependencies = [
  "cfg-if",
  "libc",
  "psm",
+ "windows-sys 0.52.0",
  "windows-sys 0.59.0",
 ]
 
