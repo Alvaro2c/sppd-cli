@@ -57,8 +57,8 @@ pub async fn cli(
         let proc_type = ProcurementType::from(
             matches
                 .get_one::<String>("type")
-                .map(|s| s.as_str())
-                .unwrap_or("public-tenders"),
+                .expect("type has default_value")
+                .as_str(),
         );
 
         let links = match proc_type {
@@ -73,7 +73,8 @@ pub async fn cli(
 
         print_download_info(&proc_type, start_period, end_period);
 
-        download_files(&target_links, &proc_type).await?;
+        let client = reqwest::Client::new();
+        download_files(&client, &target_links, &proc_type).await?;
         extract_all_zips(&target_links, &proc_type).await?;
         parse_xmls(&target_links, &proc_type)?;
     }
