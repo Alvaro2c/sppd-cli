@@ -236,8 +236,7 @@ pub async fn download_files(
             Err(e) => {
                 pb.inc(1);
                 return Err(AppError::NetworkError(format!(
-                    "Failed to download {}: {}",
-                    filename, e
+                    "Failed to download {filename}: {e}"
                 )));
             }
         };
