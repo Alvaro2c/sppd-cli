@@ -1,18 +1,6 @@
 # SPPD CLI
 
-A command-line tool for fetching and managing data from public tenders and minor contracts in Spain.
-
-## Build
-
-```bash
-cargo build --release
-```
-
-## Run
-
-```bash
-cargo run
-```
+A command-line tool for downloading, extracting, and converting Spanish public procurement data (SPPD) to Parquet format.
 
 ## Requirements
 
@@ -20,82 +8,53 @@ cargo run
 
 ## Features
 
-- Fetches minor contracts links
-- Fetches public tenders links
-- Interactive CLI interface
+- Downloads ZIP archives from Spanish procurement data sources
+- Extracts and parses XML/ATOM files
+- Converts data to Parquet format for analysis
+- Supports both minor contracts and public tenders
 
-## CLI Usage
+## Usage
 
-The main command is `download`, which fetches ZIP archives for a range of periods.
-
-Basic form:
+Download, extract, and convert procurement data:
 
 ```bash
 cargo run -- download [OPTIONS]
 ```
 
-Options:
+### Options
 
-- `-t, --type <TYPE>`: Procurement type to download. Accepted values:
-  - `public-tenders` (aliases: `pt`, `pub`) — default
+- `-t, --type <TYPE>`: Procurement type (default: `public-tenders`)
+  - `public-tenders` (aliases: `pt`, `pub`)
   - `minor-contracts` (aliases: `mc`, `min`)
-- `-s, --start <PERIOD>`: Start period (inclusive). Uses the period format described below.
-- `-e, --end <PERIOD>`: End period (inclusive).
-
-Period format:
-
-- Periods accept either `YYYY` or `YYYYMM` formats. Examples: `2023`, `202301`.
+- `-s, --start <PERIOD>`: Start period (format: `YYYY` or `YYYYMM`)
+- `-e, --end <PERIOD>`: End period (format: `YYYY` or `YYYYMM`)
 - Available periods are:
   - Previous years: full years only (`YYYY`)
   - Current year: all months up to the download date (`YYYYMM`)
 
-Download destination:
-
-- Files are saved under the `tmp` directory, in a subdirectory depending on the procurement type:
-  - Minor Contracts -> `tmp/mc`
-  - Public Tenders -> `tmp/pt`
-
-Examples:
-
-- Download all available public tenders:
+### Examples
 
 ```bash
+# Download all available public tenders
 cargo run -- download
-```
 
-- Download public tenders for 2023 (year):
-
-```bash
+# Download public tenders for 2023
 cargo run -- download -t public-tenders -s 2023 -e 2023
-```
 
-- Download minor contracts for January 2025:
-
-```bash
+# Download minor contracts for January 2025
 cargo run -- download -t mc -s 202501 -e 202501
 ```
 
-Notes:
+### Output
 
-- The `--type` value is case-insensitive and supports the listed aliases.
-- The CLI will validate that requested periods exist; if a period is not available an error will list available ones.
+- ZIP files: `data/tmp/{mc,pt}/`
+- Parquet files: `data/parquet/{mc,pt}/`
 
 ## Logging
 
-The CLI uses structured logging with the `tracing` crate. Log levels can be controlled via the `RUST_LOG` environment variable:
+Control log levels with `RUST_LOG`:
 
 ```bash
-# Show info level and above (default)
-cargo run -- download
-
-# Show debug level and above (includes detailed file operations)
-RUST_LOG=debug cargo run -- download
-
-# Show only warnings and errors
-RUST_LOG=warn cargo run -- download
-
-# Show logs for specific modules
-RUST_LOG=sppd_cli::downloader=debug cargo run -- download
+RUST_LOG=debug cargo run -- download  # Detailed output
+RUST_LOG=warn cargo run -- download   # Warnings and errors only
 ```
-
-Available log levels (from most to least verbose): `trace`, `debug`, `info`, `warn`, `error`
