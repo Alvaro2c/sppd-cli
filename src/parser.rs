@@ -1,4 +1,5 @@
 use crate::errors::{AppError, AppResult};
+use crate::models::Entry;
 use polars::prelude::*;
 use quick_xml::events::Event;
 use quick_xml::reader::Reader;
@@ -28,17 +29,35 @@ pub fn parse_xmls(
         }
 
         // Parse all XML/atom files in this subdirectory
-        let mut all_titles = Vec::new();
+        let mut all_entries = Vec::new();
         for xml_path in xml_files {
-            let titles = parse_xml(&xml_path)?;
-            all_titles.extend(titles);
+            let entries = parse_xml(&xml_path)?;
+            all_entries.extend(entries);
         }
+
+        // Skip if no entries found
+        if all_entries.is_empty() {
+            continue;
+        }
+
+        // Convert Entry structs to polars DataFrame
+        let ids: Vec<Option<String>> = all_entries.iter().map(|e| e.id.clone()).collect();
+        let titles: Vec<Option<String>> = all_entries.iter().map(|e| e.title.clone()).collect();
+        let links: Vec<Option<String>> = all_entries.iter().map(|e| e.link.clone()).collect();
+        let summaries: Vec<Option<String>> = all_entries.iter().map(|e| e.summary.clone()).collect();
+        let updateds: Vec<Option<String>> = all_entries.iter().map(|e| e.updated.clone()).collect();
+
+        let mut df = DataFrame::new(vec![
+            Series::new("id", ids),
+            Series::new("title", titles),
+            Series::new("link", links),
+            Series::new("summary", summaries),
+            Series::new("updated", updateds),
+        ])
+        .map_err(|e| AppError::ParseError(format!("Failed to create DataFrame: {e}")))?;
 
         // Create parquet file named after the subdirectory
         let parquet_path = parquet_dir.join(format!("{subdir_name}.parquet"));
-        let mut df = DataFrame::new(vec![Series::new("title", all_titles)])
-            .map_err(|e| AppError::ParseError(format!("Failed to create DataFrame: {e}")))?;
-
         let mut file = File::create(&parquet_path).map_err(|e| {
             AppError::IoError(format!(
                 "Failed to create Parquet file {parquet_path:?}: {e}"
@@ -94,37 +113,93 @@ fn collect_xmls(dir: &std::path::Path) -> Vec<std::path::PathBuf> {
     v
 }
 
-/// Parses an XML file and returns a vector of titles.
-fn parse_xml(path: &std::path::Path) -> AppResult<Vec<String>> {
+/// Parses an XML file and returns a vector of Entry.
+fn parse_xml(path: &std::path::Path) -> AppResult<Vec<Entry>> {
     let file = File::open(path)?;
     let mut reader = Reader::from_reader(BufReader::new(file));
     reader.config_mut().trim_text(true);
 
-    let mut titles = Vec::new();
     let mut buf = Vec::new();
+    let mut result = Vec::new();
+
     let mut inside_entry = false;
+
+    // Fields for each entry
+    let mut id = None;
+    let mut title = None;
+    let mut link = None;
+    let mut summary = None;
+    let mut updated = None;
+
+    // States for nested elements
+    let mut inside_id = false;
     let mut inside_title = false;
+    let mut inside_summary = false;
+    let mut inside_updated = false;
 
     loop {
         match reader.read_event_into(&mut buf)? {
             Event::Start(e) => match e.name().as_ref() {
-                b"entry" => inside_entry = true,
+                b"entry" => {
+                    inside_entry = true;
+                    // Reset all fields
+                    id = None;
+                    title = None;
+                    link = None;
+                    summary = None;
+                    updated = None;
+                }
+                b"id" if inside_entry => inside_id = true,
                 b"title" if inside_entry => inside_title = true,
+                b"summary" if inside_entry => inside_summary = true,
+                b"updated" if inside_entry => inside_updated = true,
+                b"link" if inside_entry => {
+                    // Get the href attribute
+                    if let Some(href) = e
+                        .attributes()
+                        .filter_map(|a| a.ok())
+                        .find(|a| a.key.as_ref() == b"href")
+                    {
+                        link = Some(
+                            String::from_utf8_lossy(&href.value).to_string()
+                        );
+                    }
+                }
                 _ => {}
             },
             Event::End(e) => match e.name().as_ref() {
-                b"entry" => inside_entry = false,
+                b"entry" => {
+                    inside_entry = false;
+                    // Push filled struct if any key field (id or title) exists
+                    if id.is_some() || title.is_some() {
+                        result.push(Entry {
+                            id: id.take(),
+                            title: title.take(),
+                            link: link.take(),
+                            summary: summary.take(),
+                            updated: updated.take(),
+                        });
+                    }
+                }
+                b"id" => inside_id = false,
                 b"title" => inside_title = false,
+                b"summary" => inside_summary = false,
+                b"updated" => inside_updated = false,
                 _ => {}
             },
-            Event::Text(e) if inside_entry && inside_title => {
-                titles.push(
-                    e.decode()
-                        .map_err(|e| {
-                            AppError::ParseError(format!("Failed to decode XML text: {e}"))
-                        })?
-                        .into_owned(),
-                );
+            Event::Text(e) if inside_entry => {
+                let txt = e.decode().map_err(|e| {
+                    AppError::ParseError(format!("Failed to decode XML text: {e}"))
+                })?.into_owned();
+                if inside_id {
+                    id = Some(txt);
+                } else if inside_title {
+                    title = Some(txt);
+                } else if inside_summary {
+                    summary = Some(txt);
+                } else if inside_updated {
+                    updated = Some(txt);
+                }
             }
             Event::Eof => break,
             _ => {}
@@ -132,5 +207,5 @@ fn parse_xml(path: &std::path::Path) -> AppResult<Vec<String>> {
         buf.clear();
     }
 
-    Ok(titles)
+    Ok(result)
 }
