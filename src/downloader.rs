@@ -25,9 +25,35 @@ static ZIP_LINK_SELECTOR_CACHED: OnceLock<Selector> = OnceLock::new();
 
 /// Fetches all available ZIP file links from both procurement data sources.
 ///
+/// This function sequentially fetches links from both the minor contracts and
+/// public tenders data source pages. It parses HTML to extract ZIP file links
+/// and extracts period identifiers (e.g., "202301") from filenames.
+///
+/// # Returns
+///
 /// Returns a tuple containing maps of period strings to download URLs:
-/// - First map: minor contracts links
-/// - Second map: public tenders links
+/// - **First element**: Minor contracts links (period -> URL)
+/// - **Second element**: Public tenders links (period -> URL)
+///
+/// # Errors
+///
+/// Returns an error if:
+/// - Network requests fail
+/// - HTML parsing fails
+/// - URLs cannot be parsed
+///
+/// # Example
+///
+/// ```no_run
+/// use sppd_cli::downloader;
+///
+/// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
+/// let (minor_links, public_links) = downloader::fetch_all_links().await?;
+/// println!("Found {} minor contract periods", minor_links.len());
+/// println!("Found {} public tender periods", public_links.len());
+/// # Ok(())
+/// # }
+/// ```
 pub async fn fetch_all_links() -> AppResult<(BTreeMap<String, String>, BTreeMap<String, String>)> {
     let client = reqwest::Client::new();
     // Sequential fetch: simple and reliable for two landing pages.
@@ -50,10 +76,41 @@ pub async fn fetch_all_links() -> AppResult<(BTreeMap<String, String>, BTreeMap<
 
 /// Fetches ZIP file links from a single procurement data page.
 ///
+/// Downloads the HTML content from the given URL and parses it to extract
+/// all ZIP file download links. Period identifiers are extracted from filenames
+/// using a regex pattern that matches `_YYYYMM.zip` or similar formats.
+///
 /// # Arguments
 ///
 /// * `client` - HTTP client to use for the request
-/// * `input_url` - URL of the page containing ZIP file links
+/// * `input_url` - URL of the page containing ZIP file links (e.g., the minor contracts
+///   or public tenders landing page)
+///
+/// # Returns
+///
+/// A map from period strings (e.g., "202301") to absolute download URLs.
+///
+/// # Errors
+///
+/// Returns an error if:
+/// - The HTTP request fails
+/// - The URL cannot be parsed
+/// - HTML parsing fails
+///
+/// # Example
+///
+/// ```no_run
+/// use sppd_cli::downloader;
+/// use reqwest::Client;
+///
+/// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
+/// let client = Client::new();
+/// let url = "https://www.hacienda.gob.es/es-es/gobiernoabierto/datos%20abiertos/paginas/contratosmenores.aspx";
+/// let links = downloader::fetch_zip(&client, url).await?;
+/// println!("Found {} periods", links.len());
+/// # Ok(())
+/// # }
+/// ```
 pub async fn fetch_zip(
     client: &reqwest::Client,
     input_url: &str,
@@ -75,7 +132,37 @@ pub async fn fetch_zip(
 
 /// Parses HTML content and extracts ZIP file links, extracting period identifiers from filenames.
 ///
+/// This function searches for all `<a>` tags with `href` attributes ending in `.zip`,
+/// extracts period identifiers from filenames using a regex pattern (e.g., `_202301.zip`),
+/// and resolves relative URLs to absolute URLs using the base URL.
+///
+/// # Returns
+///
 /// Returns a map where keys are period strings (e.g., "202301") and values are absolute URLs.
+///
+/// # Example
+///
+/// ```
+/// use sppd_cli::downloader::parse_zip_links;
+/// use url::Url;
+///
+/// # fn main() -> Result<(), sppd_cli::errors::AppError> {
+/// let html = r#"
+///     <html>
+///         <body>
+///             <a href="data_202301.zip">January 2023</a>
+///             <a href="data_202302.zip">February 2023</a>
+///         </body>
+///     </html>
+/// "#;
+/// let base = Url::parse("https://example.com/downloads/")?;
+/// let links = parse_zip_links(html, &base)?;
+///
+/// assert_eq!(links.get("202301"), Some(&"https://example.com/downloads/data_202301.zip".to_string()));
+/// assert_eq!(links.get("202302"), Some(&"https://example.com/downloads/data_202302.zip".to_string()));
+/// # Ok(())
+/// # }
+/// ```
 pub fn parse_zip_links(html: &str, base_url: &Url) -> AppResult<BTreeMap<String, String>> {
     let document = Html::parse_document(html);
 
@@ -106,8 +193,51 @@ pub fn parse_zip_links(html: &str, base_url: &Url) -> AppResult<BTreeMap<String,
 
 /// Filters links by period range, validating that specified periods exist.
 ///
-/// Periods are compared numerically. Returns an error if start or end period
-/// doesn't exist in the provided links map.
+/// This function filters a map of period-to-URL links based on a start and/or end period.
+/// Periods are compared numerically (e.g., "202301" < "202302"). The range is inclusive
+/// on both ends.
+///
+/// # Arguments
+///
+/// * `links` - Map of period strings to URLs to filter
+/// * `start_period` - Optional start period (inclusive). If `None`, no lower bound.
+/// * `end_period` - Optional end period (inclusive). If `None`, no upper bound.
+///
+/// # Returns
+///
+/// A filtered map containing only periods within the specified range.
+///
+/// # Errors
+///
+/// Returns `PeriodValidationError` if `start_period` or `end_period` is specified
+/// but doesn't exist in the `links` map.
+///
+/// # Example
+///
+/// ```
+/// use sppd_cli::downloader::filter_periods_by_range;
+/// use std::collections::BTreeMap;
+///
+/// # fn main() -> Result<(), sppd_cli::errors::AppError> {
+/// let mut links = BTreeMap::new();
+/// links.insert("202301".to_string(), "https://example.com/202301.zip".to_string());
+/// links.insert("202302".to_string(), "https://example.com/202302.zip".to_string());
+/// links.insert("202303".to_string(), "https://example.com/202303.zip".to_string());
+///
+/// // Filter from start period only
+/// let filtered = filter_periods_by_range(&links, Some("202302"), None)?;
+/// assert_eq!(filtered.len(), 2); // 202302, 202303
+///
+/// // Filter with both start and end
+/// let filtered = filter_periods_by_range(&links, Some("202301"), Some("202302"))?;
+/// assert_eq!(filtered.len(), 2); // 202301, 202302
+///
+/// // Filter all (no constraints)
+/// let filtered = filter_periods_by_range(&links, None, None)?;
+/// assert_eq!(filtered.len(), 3);
+/// # Ok(())
+/// # }
+/// ```
 pub fn filter_periods_by_range(
     links: &BTreeMap<String, String>,
     start_period: Option<&str>,
@@ -159,7 +289,45 @@ pub fn filter_periods_by_range(
 
 /// Downloads ZIP files to the appropriate directory based on procurement type.
 ///
-/// Files are downloaded atomically using temporary files. Existing files are skipped.
+/// This function downloads ZIP files from the provided URLs to the directory
+/// specified by the procurement type (e.g., `data/tmp/mc` or `data/tmp/pt`).
+///
+/// # Behavior
+///
+/// - **Atomic downloads**: Files are downloaded to temporary `.part` files and
+///   atomically renamed when complete, preventing partial downloads.
+/// - **Skip existing**: Files that already exist are automatically skipped.
+/// - **Progress tracking**: A progress bar is displayed during downloads.
+///
+/// # Arguments
+///
+/// * `client` - HTTP client for making requests
+/// * `filtered_links` - Map of period strings to download URLs (typically from
+///   `filter_periods_by_range()`)
+/// * `proc_type` - Procurement type determining the download directory
+///
+/// # Errors
+///
+/// Returns an error if:
+/// - Directory creation fails
+/// - Network requests fail
+/// - File I/O operations fail
+///
+/// # Example
+///
+/// ```no_run
+/// use sppd_cli::{downloader, models::ProcurementType};
+/// use reqwest::Client;
+/// use std::collections::BTreeMap;
+///
+/// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
+/// let client = Client::new();
+/// let mut links = BTreeMap::new();
+/// links.insert("202301".to_string(), "https://example.com/data_202301.zip".to_string());
+/// downloader::download_files(&client, &links, &ProcurementType::PublicTenders).await?;
+/// # Ok(())
+/// # }
+/// ```
 pub async fn download_files(
     client: &reqwest::Client,
     filtered_links: &BTreeMap<String, String>,
