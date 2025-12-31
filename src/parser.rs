@@ -225,7 +225,7 @@ pub fn find_xmls(path: &std::path::Path) -> AppResult<Vec<(String, Vec<std::path
 }
 
 /// Recursively collects `.xml` or `.atom` files in a directory (including subdirs).
-fn collect_xmls(dir: &std::path::Path) -> Vec<std::path::PathBuf> {
+pub(crate) fn collect_xmls(dir: &std::path::Path) -> Vec<std::path::PathBuf> {
     let mut v = Vec::new();
     let walker = walkdir::WalkDir::new(dir).into_iter();
     for entry in walker.flatten() {
@@ -241,7 +241,7 @@ fn collect_xmls(dir: &std::path::Path) -> Vec<std::path::PathBuf> {
 }
 
 /// Parses an XML file and returns a vector of Entry.
-fn parse_xml(path: &std::path::Path) -> AppResult<Vec<Entry>> {
+pub(crate) fn parse_xml(path: &std::path::Path) -> AppResult<Vec<Entry>> {
     let file = File::open(path)?;
     let mut reader = Reader::from_reader(BufReader::new(file));
     reader.config_mut().trim_text(true);
@@ -292,6 +292,18 @@ fn parse_xml(path: &std::path::Path) -> AppResult<Vec<Entry>> {
                 }
                 _ => {}
             },
+            Event::Empty(e) if inside_entry => {
+                // Handle self-closing tags like <link href="..."/>
+                if e.name().as_ref() == b"link" {
+                    if let Some(href) = e
+                        .attributes()
+                        .filter_map(|a| a.ok())
+                        .find(|a| a.key.as_ref() == b"href")
+                    {
+                        link = Some(String::from_utf8_lossy(&href.value).to_string());
+                    }
+                }
+            }
             Event::End(e) => match e.name().as_ref() {
                 b"entry" => {
                     inside_entry = false;
@@ -334,4 +346,326 @@ fn parse_xml(path: &std::path::Path) -> AppResult<Vec<Entry>> {
     }
 
     Ok(result)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::fs;
+    use std::io::Write;
+    use tempfile::TempDir;
+
+    // Helper function to create a test XML file
+    fn create_test_xml_file(path: &std::path::Path, content: &str) {
+        let parent = path.parent().unwrap();
+        fs::create_dir_all(parent).unwrap();
+        fs::File::create(path)
+            .unwrap()
+            .write_all(content.as_bytes())
+            .unwrap();
+    }
+
+    #[test]
+    fn test_parse_xml_valid_atom_feed() {
+        let temp_dir = TempDir::new().unwrap();
+        let xml_path = temp_dir.path().join("test.xml");
+        // Remove namespace to test basic parsing - namespaces are handled by the parser
+        // but may affect attribute matching, so test without namespace first
+        let xml_content = r#"<?xml version="1.0"?>
+<feed>
+  <entry>
+    <id>id1</id>
+    <title>Title 1</title>
+    <link href="http://example.com/1"/>
+    <summary>Summary 1</summary>
+    <updated>2023-01-01</updated>
+  </entry>
+  <entry>
+    <id>id2</id>
+    <title>Title 2</title>
+    <link href="http://example.com/2"/>
+    <summary>Summary 2</summary>
+    <updated>2023-01-02</updated>
+  </entry>
+</feed>"#;
+        create_test_xml_file(&xml_path, xml_content);
+
+        let result = parse_xml(&xml_path).unwrap();
+        assert_eq!(result.len(), 2);
+        assert_eq!(result[0].id, Some("id1".to_string()));
+        assert_eq!(result[0].title, Some("Title 1".to_string()));
+        assert_eq!(result[0].link, Some("http://example.com/1".to_string()));
+        assert_eq!(result[0].summary, Some("Summary 1".to_string()));
+        assert_eq!(result[0].updated, Some("2023-01-01".to_string()));
+        assert_eq!(result[1].id, Some("id2".to_string()));
+    }
+
+    #[test]
+    fn test_parse_xml_all_fields_populated() {
+        let temp_dir = TempDir::new().unwrap();
+        let xml_path = temp_dir.path().join("test.xml");
+        let xml_content = r#"<?xml version="1.0"?>
+<feed>
+  <entry>
+    <id>full-entry-id</id>
+    <title>Full Entry Title</title>
+    <link href="https://example.com/full"/>
+    <summary>This is a complete summary</summary>
+    <updated>2023-06-15T10:30:00Z</updated>
+  </entry>
+</feed>"#;
+        create_test_xml_file(&xml_path, xml_content);
+
+        let result = parse_xml(&xml_path).unwrap();
+        assert_eq!(result.len(), 1);
+        let entry = &result[0];
+        assert_eq!(entry.id, Some("full-entry-id".to_string()));
+        assert_eq!(entry.title, Some("Full Entry Title".to_string()));
+        assert_eq!(entry.link, Some("https://example.com/full".to_string()));
+        assert_eq!(
+            entry.summary,
+            Some("This is a complete summary".to_string())
+        );
+        assert_eq!(entry.updated, Some("2023-06-15T10:30:00Z".to_string()));
+    }
+
+    #[test]
+    fn test_parse_xml_minimal_entry_id_only() {
+        let temp_dir = TempDir::new().unwrap();
+        let xml_path = temp_dir.path().join("test.xml");
+        let xml_content = r#"<?xml version="1.0"?>
+<feed xmlns="http://www.w3.org/2005/Atom">
+  <entry>
+    <id>minimal-id</id>
+  </entry>
+</feed>"#;
+        create_test_xml_file(&xml_path, xml_content);
+
+        let result = parse_xml(&xml_path).unwrap();
+        assert_eq!(result.len(), 1);
+        assert_eq!(result[0].id, Some("minimal-id".to_string()));
+        assert_eq!(result[0].title, None);
+        assert_eq!(result[0].link, None);
+    }
+
+    #[test]
+    fn test_parse_xml_minimal_entry_title_only() {
+        let temp_dir = TempDir::new().unwrap();
+        let xml_path = temp_dir.path().join("test.xml");
+        let xml_content = r#"<?xml version="1.0"?>
+<feed xmlns="http://www.w3.org/2005/Atom">
+  <entry>
+    <title>Title Only</title>
+  </entry>
+</feed>"#;
+        create_test_xml_file(&xml_path, xml_content);
+
+        let result = parse_xml(&xml_path).unwrap();
+        assert_eq!(result.len(), 1);
+        assert_eq!(result[0].title, Some("Title Only".to_string()));
+        assert_eq!(result[0].id, None);
+    }
+
+    #[test]
+    fn test_parse_xml_entry_missing_href() {
+        let temp_dir = TempDir::new().unwrap();
+        let xml_path = temp_dir.path().join("test.xml");
+        let xml_content = r#"<?xml version="1.0"?>
+<feed xmlns="http://www.w3.org/2005/Atom">
+  <entry>
+    <id>no-href</id>
+    <title>No Link</title>
+    <link/>
+  </entry>
+</feed>"#;
+        create_test_xml_file(&xml_path, xml_content);
+
+        let result = parse_xml(&xml_path).unwrap();
+        assert_eq!(result.len(), 1);
+        assert_eq!(result[0].link, None);
+    }
+
+    #[test]
+    fn test_parse_xml_empty_file() {
+        let temp_dir = TempDir::new().unwrap();
+        let xml_path = temp_dir.path().join("test.xml");
+        let xml_content = r#"<?xml version="1.0"?>
+<feed xmlns="http://www.w3.org/2005/Atom">
+</feed>"#;
+        create_test_xml_file(&xml_path, xml_content);
+
+        let result = parse_xml(&xml_path).unwrap();
+        assert_eq!(result.len(), 0);
+    }
+
+    #[test]
+    fn test_parse_xml_no_entries() {
+        let temp_dir = TempDir::new().unwrap();
+        let xml_path = temp_dir.path().join("test.xml");
+        let xml_content = r#"<?xml version="1.0"?>
+<feed xmlns="http://www.w3.org/2005/Atom">
+  <title>Feed Title</title>
+  <updated>2023-01-01</updated>
+</feed>"#;
+        create_test_xml_file(&xml_path, xml_content);
+
+        let result = parse_xml(&xml_path).unwrap();
+        assert_eq!(result.len(), 0);
+    }
+
+    #[test]
+    fn test_parse_xml_malformed() {
+        let temp_dir = TempDir::new().unwrap();
+        let xml_path = temp_dir.path().join("test.xml");
+        let xml_content = r#"<?xml version="1.0"?>
+<feed xmlns="http://www.w3.org/2005/Atom">
+  <entry>
+    <id>unclosed
+  </entry>
+</feed>"#;
+        create_test_xml_file(&xml_path, xml_content);
+
+        let result = parse_xml(&xml_path);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_parse_xml_entry_with_nested_text() {
+        let temp_dir = TempDir::new().unwrap();
+        let xml_path = temp_dir.path().join("test.xml");
+        let xml_content = r#"<?xml version="1.0"?>
+<feed xmlns="http://www.w3.org/2005/Atom">
+  <entry>
+    <id>nested</id>
+    <title>Title with <![CDATA[special characters & <tags>]]></title>
+    <summary>Summary with &amp; entities</summary>
+  </entry>
+</feed>"#;
+        create_test_xml_file(&xml_path, xml_content);
+
+        let result = parse_xml(&xml_path).unwrap();
+        assert_eq!(result.len(), 1);
+        // The parser should handle CDATA and entities
+        assert!(result[0].title.is_some());
+        assert!(result[0].summary.is_some());
+    }
+
+    #[test]
+    fn test_collect_xmls_recursive() {
+        let temp_dir = TempDir::new().unwrap();
+        let base_dir = temp_dir.path().join("base");
+        fs::create_dir_all(&base_dir).unwrap();
+
+        // Create nested structure
+        let subdir = base_dir.join("subdir");
+        fs::create_dir_all(&subdir).unwrap();
+        fs::create_dir_all(subdir.join("nested")).unwrap();
+
+        // Create XML and ATOM files at different levels
+        create_test_xml_file(&base_dir.join("file1.xml"), "<feed></feed>");
+        create_test_xml_file(&subdir.join("file2.xml"), "<feed></feed>");
+        create_test_xml_file(&subdir.join("nested/file3.atom"), "<feed></feed>");
+        create_test_xml_file(&base_dir.join("file.txt"), "not xml");
+        create_test_xml_file(&base_dir.join("file.XML"), "<feed></feed>");
+        create_test_xml_file(&base_dir.join("file.ATOM"), "<feed></feed>");
+
+        let files = collect_xmls(&base_dir);
+        assert_eq!(files.len(), 5); // file1.xml, file2.xml, file3.atom, file.XML, file.ATOM
+        assert!(files.iter().any(|p| p.ends_with("file1.xml")));
+        assert!(files.iter().any(|p| p.ends_with("file2.xml")));
+        assert!(files.iter().any(|p| p.ends_with("file3.atom")));
+        assert!(files.iter().any(|p| p.ends_with("file.XML")));
+        assert!(files.iter().any(|p| p.ends_with("file.ATOM")));
+        assert!(!files.iter().any(|p| p.ends_with("file.txt")));
+    }
+
+    #[test]
+    fn test_collect_xmls_case_insensitive() {
+        let temp_dir = TempDir::new().unwrap();
+        let base_dir = temp_dir.path().join("base");
+        fs::create_dir_all(&base_dir).unwrap();
+
+        create_test_xml_file(&base_dir.join("lower.xml"), "<feed></feed>");
+        create_test_xml_file(&base_dir.join("UPPER.XML"), "<feed></feed>");
+        create_test_xml_file(&base_dir.join("Mixed.Xml"), "<feed></feed>");
+        create_test_xml_file(&base_dir.join("lower.atom"), "<feed></feed>");
+        create_test_xml_file(&base_dir.join("UPPER.ATOM"), "<feed></feed>");
+        create_test_xml_file(&base_dir.join("Mixed.Atom"), "<feed></feed>");
+
+        let files = collect_xmls(&base_dir);
+        assert_eq!(files.len(), 6);
+    }
+
+    #[test]
+    fn test_find_xmls_with_subdirectories() {
+        let temp_dir = TempDir::new().unwrap();
+        let base_dir = temp_dir.path().join("extract");
+        fs::create_dir_all(&base_dir).unwrap();
+
+        // Create subdirectories
+        let subdir1 = base_dir.join("202301");
+        let subdir2 = base_dir.join("202302");
+        fs::create_dir_all(&subdir1).unwrap();
+        fs::create_dir_all(&subdir2).unwrap();
+
+        // Add XML files to subdirectories
+        create_test_xml_file(&subdir1.join("file1.xml"), "<feed></feed>");
+        create_test_xml_file(&subdir1.join("file2.xml"), "<feed></feed>");
+        create_test_xml_file(&subdir2.join("file1.atom"), "<feed></feed>");
+
+        // Add non-XML file (should be ignored)
+        create_test_xml_file(&subdir2.join("file.txt"), "text");
+
+        // Add file at top level (should be ignored)
+        create_test_xml_file(&base_dir.join("top.xml"), "<feed></feed>");
+
+        let result = find_xmls(&base_dir).unwrap();
+        assert_eq!(result.len(), 2);
+
+        let (name1, files1) = result.iter().find(|(n, _)| n == "202301").unwrap();
+        assert_eq!(name1, "202301");
+        assert_eq!(files1.len(), 2);
+
+        let (name2, files2) = result.iter().find(|(n, _)| n == "202302").unwrap();
+        assert_eq!(name2, "202302");
+        assert_eq!(files2.len(), 1);
+    }
+
+    #[test]
+    fn test_find_xmls_empty_directories() {
+        let temp_dir = TempDir::new().unwrap();
+        let base_dir = temp_dir.path().join("extract");
+        fs::create_dir_all(&base_dir).unwrap();
+
+        // Create empty subdirectory
+        fs::create_dir_all(base_dir.join("empty")).unwrap();
+
+        // Create subdirectory with only non-XML files
+        let no_xml_dir = base_dir.join("no_xml");
+        fs::create_dir_all(&no_xml_dir).unwrap();
+        create_test_xml_file(&no_xml_dir.join("file.txt"), "text");
+
+        let result = find_xmls(&base_dir).unwrap();
+        assert_eq!(result.len(), 0);
+    }
+
+    #[test]
+    fn test_find_xmls_nested_structure() {
+        let temp_dir = TempDir::new().unwrap();
+        let base_dir = temp_dir.path().join("extract");
+        fs::create_dir_all(&base_dir).unwrap();
+
+        let subdir = base_dir.join("202301");
+        fs::create_dir_all(&subdir).unwrap();
+        fs::create_dir_all(subdir.join("level1/level2")).unwrap();
+
+        create_test_xml_file(&subdir.join("file1.xml"), "<feed></feed>");
+        create_test_xml_file(&subdir.join("level1/file2.xml"), "<feed></feed>");
+        create_test_xml_file(&subdir.join("level1/level2/file3.atom"), "<feed></feed>");
+
+        let result = find_xmls(&base_dir).unwrap();
+        assert_eq!(result.len(), 1);
+        let (_, files) = &result[0];
+        assert_eq!(files.len(), 3);
+    }
 }
