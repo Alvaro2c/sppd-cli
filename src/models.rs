@@ -1,4 +1,20 @@
 use crate::constants::*;
+use serde::{Deserialize, Serialize};
+
+/// Represents a single entry element from the XML file.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Entry {
+    /// The entry ID
+    pub id: Option<String>,
+    /// The entry title
+    pub title: Option<String>,
+    /// The link href attribute
+    pub link: Option<String>,
+    /// The entry summary
+    pub summary: Option<String>,
+    /// The last updated timestamp
+    pub updated: Option<String>,
+}
 
 /// Type of procurement data to download.
 #[derive(Debug, PartialEq, Eq)]
