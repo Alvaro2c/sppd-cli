@@ -10,10 +10,40 @@ use tracing::{info, info_span};
 
 /// Parses command-line arguments and executes the download command.
 ///
+/// This function handles the complete workflow for downloading and processing procurement data:
+/// 1. Parses CLI arguments (procurement type, period range, cleanup options)
+/// 2. Filters available links by the specified period range
+/// 3. Downloads ZIP files from the filtered URLs
+/// 4. Extracts ZIP archives to access XML/Atom files
+/// 5. Parses XML/Atom content and converts to Parquet format
+/// 6. Optionally cleans up temporary files (ZIP and extracted directories)
+///
 /// # Arguments
 ///
-/// * `minor_contracts_links` - Map of period strings to minor contracts download URLs
-/// * `public_tenders_links` - Map of period strings to public tenders download URLs
+/// * `minor_contracts_links` - Map of period strings (e.g., "202301") to minor contracts download URLs
+/// * `public_tenders_links` - Map of period strings (e.g., "202301") to public tenders download URLs
+///
+/// # Returns
+///
+/// Returns `Ok(())` if all operations complete successfully. Returns an error if:
+/// - Invalid period ranges are specified
+/// - Network requests fail
+/// - File I/O operations fail
+/// - XML parsing fails
+///
+/// # Example
+///
+/// Typically called from the main binary after fetching links:
+///
+/// ```no_run
+/// use sppd_cli::{cli, downloader, errors::AppResult};
+///
+/// # async fn example() -> AppResult<()> {
+/// let (minor_links, public_links) = downloader::fetch_all_links().await?;
+/// cli::cli(&minor_links, &public_links).await?;
+/// # Ok(())
+/// # }
+/// ```
 pub async fn cli(
     minor_contracts_links: &BTreeMap<String, String>,
     public_tenders_links: &BTreeMap<String, String>,

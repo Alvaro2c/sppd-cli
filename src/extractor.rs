@@ -10,9 +10,50 @@ use zip::ZipArchive;
 
 /// Extracts ZIP files from the specified directory into subdirectories.
 ///
-/// Only extracts ZIP files that correspond to keys in `target_links` (e.g., "202511" -> "202511.zip").
-/// For each `{period}.zip` file, extracts its contents into a `{period}/` directory
-/// at the same level as the ZIP file.
+/// This function processes ZIP files that correspond to periods in `target_links`.
+/// For each period (e.g., "202301"), it looks for a corresponding ZIP file (`202301.zip`)
+/// in the extraction directory and extracts its contents into a subdirectory named
+/// after the period (`202301/`).
+///
+/// # Behavior
+///
+/// - **Skip existing**: If an extraction directory already exists for a period, that
+///   ZIP file is skipped.
+/// - **Missing files**: Missing ZIP files are logged as warnings but don't fail the
+///   operation.
+/// - **Progress tracking**: A progress bar is displayed during extraction.
+///
+/// # Arguments
+///
+/// * `target_links` - Map of period strings to URLs (used to determine which ZIPs to extract)
+/// * `procurement_type` - Procurement type determining the extraction directory
+///
+/// # Directory Structure
+///
+/// For a period "202301", the function expects:
+/// - Input: `{extract_dir}/202301.zip`
+/// - Output: `{extract_dir}/202301/` (contains extracted XML/Atom files)
+///
+/// # Errors
+///
+/// Returns an error if:
+/// - The extraction directory doesn't exist
+/// - ZIP file extraction fails for any file
+///
+/// # Example
+///
+/// ```no_run
+/// use sppd_cli::{extractor, models::ProcurementType};
+/// use std::collections::BTreeMap;
+///
+/// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
+/// let mut links = BTreeMap::new();
+/// links.insert("202301".to_string(), "https://example.com/202301.zip".to_string());
+/// extractor::extract_all_zips(&links, &ProcurementType::PublicTenders).await?;
+/// // Extracts data/tmp/pt/202301.zip -> data/tmp/pt/202301/
+/// # Ok(())
+/// # }
+/// ```
 pub async fn extract_all_zips(
     target_links: &BTreeMap<String, String>,
     procurement_type: &ProcurementType,

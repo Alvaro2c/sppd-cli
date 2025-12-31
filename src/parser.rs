@@ -10,6 +10,58 @@ use std::io::BufReader;
 use std::path::Path;
 use tracing::{info, warn};
 
+/// Parses XML/Atom files and converts them to Parquet format.
+///
+/// This function processes extracted XML/Atom files from the extraction directory,
+/// parses them into `Entry` structures, and writes the results as Parquet files.
+///
+/// # Workflow
+///
+/// 1. Finds all subdirectories in the extraction directory that contain XML/Atom files
+/// 2. Filters to only process subdirectories matching periods in `target_links`
+/// 3. Parses all XML/Atom files in each matching subdirectory
+/// 4. Converts parsed entries to a Polars DataFrame
+/// 5. Writes the DataFrame as a Parquet file named after the period (e.g., `202301.parquet`)
+///
+/// # Directory Structure
+///
+/// The function expects the following structure:
+/// - Input: `{extract_dir}/{period}/` (contains XML/Atom files)
+/// - Output: `{parquet_dir}/{period}.parquet`
+///
+/// # Arguments
+///
+/// * `target_links` - Map of period strings to URLs (used to filter which periods to process)
+/// * `procurement_type` - Procurement type determining the extract and parquet directories
+///
+/// # Behavior
+///
+/// - **Filtering**: Only processes subdirectories whose names match keys in `target_links`
+/// - **Skip empty**: Subdirectories with no entries are skipped (logged but not an error)
+/// - **Progress tracking**: A progress bar is displayed during parsing
+///
+/// # Errors
+///
+/// Returns an error if:
+/// - Directory creation fails
+/// - XML parsing fails
+/// - DataFrame creation fails
+/// - Parquet file writing fails
+///
+/// # Example
+///
+/// ```no_run
+/// use sppd_cli::{parser, models::ProcurementType};
+/// use std::collections::BTreeMap;
+///
+/// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+/// let mut links = BTreeMap::new();
+/// links.insert("202301".to_string(), "https://example.com/202301.zip".to_string());
+/// parser::parse_xmls(&links, &ProcurementType::PublicTenders)?;
+/// // Processes data/tmp/pt/202301/*.xml -> data/parquet/pt/202301.parquet
+/// # Ok(())
+/// # }
+/// ```
 pub fn parse_xmls(
     target_links: &BTreeMap<String, String>,
     procurement_type: &crate::models::ProcurementType,
@@ -120,11 +172,41 @@ pub fn parse_xmls(
 
 /// Deletes ZIP files and extracted directories after processing.
 ///
-/// For each period in `target_links`, this function:
-/// - Deletes the ZIP file: `extract_dir/{period}.zip`
-/// - Deletes the extracted directory: `extract_dir/{period}/` (recursively removes all XML/Atom files)
+/// This function removes temporary files created during the download and extraction
+/// phases, keeping only the final Parquet files. It's typically called after
+/// successful parsing to free up disk space.
 ///
-/// Errors are logged as warnings but do not fail the entire operation.
+/// # Behavior
+///
+/// For each period in `target_links`, this function:
+/// - Deletes the ZIP file: `{extract_dir}/{period}.zip`
+/// - Deletes the extracted directory: `{extract_dir}/{period}/` (recursively removes all XML/Atom files)
+///
+/// # Arguments
+///
+/// * `target_links` - Map of period strings to URLs (determines which files to delete)
+/// * `procurement_type` - Procurement type determining the extraction directory
+/// * `should_cleanup` - If `false`, the function returns immediately without deleting anything
+///
+/// # Error Handling
+///
+/// Individual deletion errors are logged as warnings but do not fail the entire operation.
+/// The function continues processing remaining files even if some deletions fail.
+///
+/// # Example
+///
+/// ```no_run
+/// use sppd_cli::{parser, models::ProcurementType};
+/// use std::collections::BTreeMap;
+///
+/// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
+/// let mut links = BTreeMap::new();
+/// links.insert("202301".to_string(), "https://example.com/202301.zip".to_string());
+/// // Clean up temporary files, keeping only Parquet files
+/// parser::cleanup_files(&links, &ProcurementType::PublicTenders, true).await?;
+/// # Ok(())
+/// # }
+/// ```
 pub async fn cleanup_files(
     target_links: &BTreeMap<String, String>,
     procurement_type: &crate::models::ProcurementType,
@@ -199,8 +281,45 @@ pub async fn cleanup_files(
     Ok(())
 }
 
-/// For each immediate subdirectory of `path`, returns (subdir_name, Vec<PathBuf>) where the vec contains
-/// all `.xml` or `.atom` files under that subdirectory (recursively). Ignores files in the top-level directory.
+/// Finds all XML/Atom files organized by subdirectory.
+///
+/// This function scans the immediate subdirectories of the given path and
+/// recursively collects all `.xml` and `.atom` files within each subdirectory.
+/// Files in the top-level directory are ignored.
+///
+/// # Returns
+///
+/// Returns a vector of tuples where:
+/// - First element: Subdirectory name (e.g., "202301")
+/// - Second element: Vector of paths to XML/Atom files found in that subdirectory
+///
+/// Only subdirectories containing at least one XML/Atom file are included.
+///
+/// # Arguments
+///
+/// * `path` - Base directory to search (typically the extraction directory)
+///
+/// # Example
+///
+/// For a directory structure like:
+///
+/// ```text
+/// extract_dir/
+///   202301/
+///     file1.xml
+///     file2.atom
+///   202302/
+///     nested/
+///       file3.xml
+/// ```
+///
+/// The function would return:
+/// - `("202301", [file1.xml, file2.atom])`
+/// - `("202302", [file3.xml])`
+///
+/// # Errors
+///
+/// Returns an error if directory reading fails.
 pub fn find_xmls(path: &std::path::Path) -> AppResult<Vec<(String, Vec<std::path::PathBuf>)>> {
     let mut out = Vec::new();
 
