@@ -2827,6 +2827,8 @@ dependencies = [
  "regex",
  "reqwest",
  "scraper",
+ "serde",
+ "serde_json",
  "tempfile",
  "tokio",
  "tracing",
