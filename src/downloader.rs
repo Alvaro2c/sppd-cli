@@ -20,6 +20,12 @@ static PERIOD_REGEX: Lazy<Regex> = Lazy::new(|| {
     Regex::new(PERIOD_REGEX_PATTERN).expect("PERIOD_REGEX_PATTERN is a valid regex pattern")
 });
 
+/// Cached CSS selector for ZIP file links.
+/// Compiled once at initialization for performance.
+static ZIP_LINK_SELECTOR_CACHED: Lazy<Selector> = Lazy::new(|| {
+    Selector::parse(ZIP_LINK_SELECTOR).expect("ZIP_LINK_SELECTOR is a valid CSS selector")
+});
+
 /// Fetches all available ZIP file links from both procurement data sources.
 ///
 /// Returns a tuple containing maps of period strings to download URLs:
@@ -64,14 +70,10 @@ pub async fn fetch_zip(
 pub fn parse_zip_links(html: &str, base_url: &Url) -> AppResult<BTreeMap<String, String>> {
     let document = Html::parse_document(html);
 
-    let selector = Selector::parse(ZIP_LINK_SELECTOR).map_err(|_| {
-        AppError::SelectorError(format!("Failed to parse selector '{ZIP_LINK_SELECTOR}'"))
-    })?;
-
     let mut links: BTreeMap<String, String> = BTreeMap::new();
 
     for url in document
-        .select(&selector)
+        .select(&ZIP_LINK_SELECTOR_CACHED)
         .filter_map(|el| el.value().attr("href"))
         .filter_map(|href| base_url.join(href).ok())
     {
@@ -142,6 +144,7 @@ pub fn filter_periods_by_range(
 ///
 /// Files are downloaded atomically using temporary files. Existing files are skipped.
 pub async fn download_files(
+    client: &reqwest::Client,
     filtered_links: &BTreeMap<String, String>,
     proc_type: &ProcurementType,
 ) -> AppResult<()> {
@@ -152,8 +155,6 @@ pub async fn download_files(
             .await
             .map_err(|e| AppError::IoError(format!("Failed to create directory: {e}")))?;
     }
-
-    let client = reqwest::Client::new();
 
     for (period, url) in filtered_links {
         let filename = format!("{period}.zip");
