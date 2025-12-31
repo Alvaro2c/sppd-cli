@@ -2,10 +2,10 @@
 
 use std::fs;
 use std::io::Write;
-use std::path::{Path, PathBuf};
-use tempfile::TempDir;
+use std::path::Path;
 
 /// Helper function to create a test XML file in a directory
+#[allow(dead_code)]
 pub fn create_test_xml_file(path: &Path, content: &str) {
     let parent = path.parent().unwrap();
     fs::create_dir_all(parent).unwrap();
@@ -16,6 +16,7 @@ pub fn create_test_xml_file(path: &Path, content: &str) {
 }
 
 /// Helper function to create a test ZIP file with specified files
+#[allow(dead_code)]
 pub fn create_test_zip(
     zip_path: &Path,
     files: &[(&str, &str)],
@@ -37,6 +38,7 @@ pub fn create_test_zip(
 }
 
 /// Sample XML feed content for testing
+#[allow(dead_code)]
 pub const SAMPLE_XML_FEED: &str = r#"<?xml version="1.0"?>
 <feed>
   <entry>
@@ -53,6 +55,7 @@ pub const SAMPLE_XML_FEED: &str = r#"<?xml version="1.0"?>
 </feed>"#;
 
 /// Sample XML feed with single entry
+#[allow(dead_code)]
 pub const SINGLE_ENTRY_XML: &str = r#"<?xml version="1.0"?>
 <feed>
   <entry>
@@ -63,6 +66,7 @@ pub const SINGLE_ENTRY_XML: &str = r#"<?xml version="1.0"?>
 </feed>"#;
 
 /// Empty XML feed
+#[allow(dead_code)]
 pub const EMPTY_XML_FEED: &str = r#"<?xml version="1.0"?>
 <feed>
 </feed>"#;
