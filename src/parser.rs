@@ -8,7 +8,7 @@ use std::collections::BTreeMap;
 use std::fs::{self, File};
 use std::io::BufReader;
 use std::path::Path;
-use tracing::info;
+use tracing::{info, warn};
 
 pub fn parse_xmls(
     target_links: &BTreeMap<String, String>,
@@ -113,6 +113,87 @@ pub fn parse_xmls(
         processed = processed_count,
         skipped = skipped_count,
         "Parsing completed"
+    );
+
+    Ok(())
+}
+
+/// Deletes ZIP files and extracted directories after processing.
+///
+/// For each period in `target_links`, this function:
+/// - Deletes the ZIP file: `extract_dir/{period}.zip`
+/// - Deletes the extracted directory: `extract_dir/{period}/` (recursively removes all XML/Atom files)
+///
+/// Errors are logged as warnings but do not fail the entire operation.
+pub async fn cleanup_files(
+    target_links: &BTreeMap<String, String>,
+    procurement_type: &crate::models::ProcurementType,
+    should_cleanup: bool,
+) -> AppResult<()> {
+    if !should_cleanup {
+        info!("Cleanup skipped (--cleanup=no)");
+        return Ok(());
+    }
+
+    let extract_dir = Path::new(procurement_type.extract_dir());
+    if !extract_dir.exists() {
+        info!("Extract directory does not exist, skipping cleanup");
+        return Ok(());
+    }
+
+    info!("Starting cleanup phase");
+
+    let mut zip_deleted = 0;
+    let mut zip_errors = 0;
+    let mut dir_deleted = 0;
+    let mut dir_errors = 0;
+
+    for period in target_links.keys() {
+        // Delete ZIP file
+        let zip_path = extract_dir.join(format!("{period}.zip"));
+        if zip_path.exists() {
+            match tokio::fs::remove_file(&zip_path).await {
+                Ok(_) => {
+                    zip_deleted += 1;
+                }
+                Err(e) => {
+                    zip_errors += 1;
+                    warn!(
+                        zip_file = %zip_path.display(),
+                        period = period,
+                        error = %e,
+                        "Failed to delete ZIP file"
+                    );
+                }
+            }
+        }
+
+        // Delete extracted directory (contains XML/Atom files)
+        let extract_dir_path = extract_dir.join(period);
+        if extract_dir_path.exists() {
+            match tokio::fs::remove_dir_all(&extract_dir_path).await {
+                Ok(_) => {
+                    dir_deleted += 1;
+                }
+                Err(e) => {
+                    dir_errors += 1;
+                    warn!(
+                        extract_dir = %extract_dir_path.display(),
+                        period = period,
+                        error = %e,
+                        "Failed to delete extracted directory"
+                    );
+                }
+            }
+        }
+    }
+
+    info!(
+        zip_deleted = zip_deleted,
+        zip_errors = zip_errors,
+        dir_deleted = dir_deleted,
+        dir_errors = dir_errors,
+        "Cleanup completed"
     );
 
     Ok(())

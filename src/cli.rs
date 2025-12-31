@@ -3,7 +3,7 @@ use crate::downloader::{download_files, filter_periods_by_range};
 use crate::errors::AppResult;
 use crate::extractor::extract_all_zips;
 use crate::models::ProcurementType;
-use crate::parser::parse_xmls;
+use crate::parser::{cleanup_files, parse_xmls};
 use clap::{Arg, ArgAction, Command};
 use std::collections::BTreeMap;
 use tracing::{info, info_span};
@@ -49,6 +49,13 @@ pub async fn cli(
                         .long("end")
                         .help(end_help.as_str())
                         .action(ArgAction::Set),
+                )
+                .arg(
+                    Arg::new("cleanup")
+                        .long("cleanup")
+                        .help("Delete ZIP and XML/Atom files after processing, keeping only Parquet files (yes/no)")
+                        .default_value("yes")
+                        .action(ArgAction::Set),
                 ),
         )
         .get_matches();
@@ -69,6 +76,12 @@ pub async fn cli(
         let start_period = matches.get_one::<String>("start").map(|s| s.as_str());
         let end_period = matches.get_one::<String>("end").map(|s| s.as_str());
 
+        let cleanup_value = matches
+            .get_one::<String>("cleanup")
+            .expect("cleanup has default_value")
+            .as_str();
+        let should_cleanup = parse_yes_no(cleanup_value);
+
         let target_links = filter_periods_by_range(links, start_period, end_period)?;
 
         print_download_info(&proc_type, start_period, end_period, target_links.len());
@@ -82,6 +95,8 @@ pub async fn cli(
         info!("Starting parsing phase");
         parse_xmls(&target_links, &proc_type)?;
 
+        cleanup_files(&target_links, &proc_type, should_cleanup).await?;
+
         info!(
             procurement_type = proc_type.display_name(),
             periods_processed = target_links.len(),
@@ -90,6 +105,16 @@ pub async fn cli(
     }
 
     Ok(())
+}
+
+/// Parses a yes/no string value (case-insensitive) and returns a boolean.
+/// Accepts "yes", "y", "no", "n". Defaults to true for any unrecognized value.
+fn parse_yes_no(value: &str) -> bool {
+    match value.trim().to_lowercase().as_str() {
+        "yes" | "y" => true,
+        "no" | "n" => false,
+        _ => true, // Default to true for any unrecognized value
+    }
 }
 
 fn print_download_info(
