@@ -44,7 +44,8 @@ pub fn parse_xmls(
         let ids: Vec<Option<String>> = all_entries.iter().map(|e| e.id.clone()).collect();
         let titles: Vec<Option<String>> = all_entries.iter().map(|e| e.title.clone()).collect();
         let links: Vec<Option<String>> = all_entries.iter().map(|e| e.link.clone()).collect();
-        let summaries: Vec<Option<String>> = all_entries.iter().map(|e| e.summary.clone()).collect();
+        let summaries: Vec<Option<String>> =
+            all_entries.iter().map(|e| e.summary.clone()).collect();
         let updateds: Vec<Option<String>> = all_entries.iter().map(|e| e.updated.clone()).collect();
 
         let mut df = DataFrame::new(vec![
@@ -160,9 +161,7 @@ fn parse_xml(path: &std::path::Path) -> AppResult<Vec<Entry>> {
                         .filter_map(|a| a.ok())
                         .find(|a| a.key.as_ref() == b"href")
                     {
-                        link = Some(
-                            String::from_utf8_lossy(&href.value).to_string()
-                        );
+                        link = Some(String::from_utf8_lossy(&href.value).to_string());
                     }
                 }
                 _ => {}
@@ -188,9 +187,10 @@ fn parse_xml(path: &std::path::Path) -> AppResult<Vec<Entry>> {
                 _ => {}
             },
             Event::Text(e) if inside_entry => {
-                let txt = e.decode().map_err(|e| {
-                    AppError::ParseError(format!("Failed to decode XML text: {e}"))
-                })?.into_owned();
+                let txt = e
+                    .decode()
+                    .map_err(|e| AppError::ParseError(format!("Failed to decode XML text: {e}")))?
+                    .into_owned();
                 if inside_id {
                     id = Some(txt);
                 } else if inside_title {
