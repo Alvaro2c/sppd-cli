@@ -86,6 +86,13 @@ pub async fn cli(
                         .help("Delete ZIP and XML/Atom files after processing, keeping only Parquet files (yes/no)")
                         .default_value("yes")
                         .action(ArgAction::Set),
+                )
+                .arg(
+                    Arg::new("batch-size")
+                        .long("batch-size")
+                        .help("Number of XML files to process per batch (default: 100, can also be set via SPPD_BATCH_SIZE env var)")
+                        .value_parser(clap::value_parser!(usize))
+                        .action(ArgAction::Set),
                 ),
         );
 
@@ -114,6 +121,23 @@ pub async fn cli(
             .as_str();
         let should_cleanup = parse_yes_no(cleanup_value)?;
 
+        // Get batch size from CLI arg, env var, or default
+        let batch_size = matches
+            .get_one::<usize>("batch-size")
+            .copied()
+            .or_else(|| {
+                std::env::var("SPPD_BATCH_SIZE")
+                    .ok()
+                    .and_then(|v| v.parse().ok())
+            })
+            .unwrap_or(100);
+
+        if batch_size == 0 {
+            return Err(AppError::InvalidInput(
+                "Batch size must be greater than 0".to_string(),
+            ));
+        }
+
         let target_links = filter_periods_by_range(links, start_period, end_period)?;
 
         print_download_info(&proc_type, start_period, end_period, target_links.len());
@@ -125,7 +149,7 @@ pub async fn cli(
         extract_all_zips(&target_links, &proc_type).await?;
 
         info!("Starting parsing phase");
-        parse_xmls(&target_links, &proc_type)?;
+        parse_xmls(&target_links, &proc_type, batch_size)?;
 
         cleanup_files(&target_links, &proc_type, should_cleanup).await?;
 
