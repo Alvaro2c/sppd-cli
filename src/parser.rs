@@ -138,7 +138,7 @@ pub fn parse_xmls(
             .template(
                 "{spinner:.green} [{elapsed_precise}] [{wide_bar:.cyan/blue}] {pos}/{len} {msg}",
             )
-            .unwrap()
+            .map_err(|e| AppError::IoError(format!("Failed to create progress bar template: {e}")))?
             .progress_chars("#>-"),
     );
 
@@ -232,11 +232,15 @@ pub fn parse_xmls(
                 "No DataFrames to concatenate".to_string(),
             ));
         } else if dataframes.len() == 1 {
-            dataframes.into_iter().next().unwrap()
+            dataframes.into_iter().next().ok_or_else(|| {
+                AppError::ParseError("Failed to get DataFrame from iterator".to_string())
+            })?
         } else {
             // Use vstack to concatenate DataFrames (more efficient than collecting all data)
             let mut iter = dataframes.into_iter();
-            let mut result = iter.next().unwrap();
+            let mut result = iter.next().ok_or_else(|| {
+                AppError::ParseError("Failed to get first DataFrame from iterator".to_string())
+            })?;
             for other_df in iter {
                 result = result.vstack(&other_df).map_err(|e| {
                     AppError::ParseError(format!("Failed to concatenate DataFrames: {e}"))
