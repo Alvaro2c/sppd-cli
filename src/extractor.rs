@@ -58,7 +58,7 @@ pub async fn extract_all_zips(
     target_links: &BTreeMap<String, String>,
     procurement_type: &ProcurementType,
 ) -> AppResult<()> {
-    let extract_dir = Path::new(procurement_type.extract_dir());
+    let extract_dir = procurement_type.extract_dir();
     if !extract_dir.exists() {
         return Err(AppError::IoError(format!(
             "Directory does not exist: {}",

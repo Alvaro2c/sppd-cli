@@ -9,7 +9,6 @@ use quick_xml_to_json::xml_to_json;
 use std::collections::BTreeMap;
 use std::fs::{self, File};
 use std::io::{BufReader, Cursor};
-use std::path::Path;
 use tracing::{info, warn};
 
 /// Parses XML/Atom files and converts them to Parquet format.
@@ -68,15 +67,15 @@ pub fn parse_xmls(
     target_links: &BTreeMap<String, String>,
     procurement_type: &crate::models::ProcurementType,
 ) -> AppResult<()> {
-    let extract_dir = Path::new(procurement_type.extract_dir());
-    let parquet_dir = Path::new(procurement_type.parquet_dir());
+    let extract_dir = procurement_type.extract_dir();
+    let parquet_dir = procurement_type.parquet_dir();
 
     // Create parquet directory if it doesn't exist
-    fs::create_dir_all(parquet_dir)
+    fs::create_dir_all(&parquet_dir)
         .map_err(|e| AppError::IoError(format!("Failed to create parquet directory: {e}")))?;
 
     // Find all subdirectories with XML/atom files
-    let subdirs = find_xmls(extract_dir)?;
+    let subdirs = find_xmls(&extract_dir)?;
 
     // Filter subdirectories that match keys in target_links
     let subdirs_to_process: Vec<_> = subdirs
@@ -224,7 +223,7 @@ pub async fn cleanup_files(
         return Ok(());
     }
 
-    let extract_dir = Path::new(procurement_type.extract_dir());
+    let extract_dir = procurement_type.extract_dir();
     if !extract_dir.exists() {
         info!("Extract directory does not exist, skipping cleanup");
         return Ok(());

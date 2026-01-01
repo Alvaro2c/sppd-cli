@@ -1,5 +1,6 @@
 use crate::constants::*;
 use serde::{Deserialize, Serialize};
+use std::path::PathBuf;
 
 /// Represents a single entry element from an XML/Atom feed.
 ///
@@ -76,14 +77,15 @@ impl ProcurementType {
     ///
     /// ```
     /// use sppd_cli::models::ProcurementType;
+    /// use std::path::PathBuf;
     ///
-    /// assert_eq!(ProcurementType::MinorContracts.download_dir(), "data/tmp/mc");
-    /// assert_eq!(ProcurementType::PublicTenders.download_dir(), "data/tmp/pt");
+    /// assert_eq!(ProcurementType::MinorContracts.download_dir(), PathBuf::from("data/tmp/mc"));
+    /// assert_eq!(ProcurementType::PublicTenders.download_dir(), PathBuf::from("data/tmp/pt"));
     /// ```
-    pub fn download_dir(&self) -> &'static str {
+    pub fn download_dir(&self) -> PathBuf {
         match self {
-            Self::MinorContracts => "data/tmp/mc",
-            Self::PublicTenders => "data/tmp/pt",
+            Self::MinorContracts => PathBuf::from("data/tmp/mc"),
+            Self::PublicTenders => PathBuf::from("data/tmp/pt"),
         }
     }
 
@@ -93,14 +95,15 @@ impl ProcurementType {
     ///
     /// ```
     /// use sppd_cli::models::ProcurementType;
+    /// use std::path::PathBuf;
     ///
-    /// assert_eq!(ProcurementType::MinorContracts.extract_dir(), "data/tmp/mc");
-    /// assert_eq!(ProcurementType::PublicTenders.extract_dir(), "data/tmp/pt");
+    /// assert_eq!(ProcurementType::MinorContracts.extract_dir(), PathBuf::from("data/tmp/mc"));
+    /// assert_eq!(ProcurementType::PublicTenders.extract_dir(), PathBuf::from("data/tmp/pt"));
     /// ```
-    pub fn extract_dir(&self) -> &'static str {
+    pub fn extract_dir(&self) -> PathBuf {
         match self {
-            Self::MinorContracts => "data/tmp/mc",
-            Self::PublicTenders => "data/tmp/pt",
+            Self::MinorContracts => PathBuf::from("data/tmp/mc"),
+            Self::PublicTenders => PathBuf::from("data/tmp/pt"),
         }
     }
 
@@ -110,14 +113,15 @@ impl ProcurementType {
     ///
     /// ```
     /// use sppd_cli::models::ProcurementType;
+    /// use std::path::PathBuf;
     ///
-    /// assert_eq!(ProcurementType::MinorContracts.parquet_dir(), "data/parquet/mc");
-    /// assert_eq!(ProcurementType::PublicTenders.parquet_dir(), "data/parquet/pt");
+    /// assert_eq!(ProcurementType::MinorContracts.parquet_dir(), PathBuf::from("data/parquet/mc"));
+    /// assert_eq!(ProcurementType::PublicTenders.parquet_dir(), PathBuf::from("data/parquet/pt"));
     /// ```
-    pub fn parquet_dir(&self) -> &'static str {
+    pub fn parquet_dir(&self) -> PathBuf {
         match self {
-            Self::MinorContracts => "data/parquet/mc",
-            Self::PublicTenders => "data/parquet/pt",
+            Self::MinorContracts => PathBuf::from("data/parquet/mc"),
+            Self::PublicTenders => PathBuf::from("data/parquet/pt"),
         }
     }
 }
