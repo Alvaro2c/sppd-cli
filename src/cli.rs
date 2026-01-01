@@ -1,6 +1,6 @@
 use crate::constants::{APP_ABOUT, APP_AUTHOR, APP_VERSION, PERIOD_HELP_TEXT};
 use crate::downloader::{download_files, filter_periods_by_range};
-use crate::errors::AppResult;
+use crate::errors::{AppError, AppResult};
 use crate::extractor::extract_all_zips;
 use crate::models::ProcurementType;
 use crate::parser::{cleanup_files, parse_xmls};
@@ -51,7 +51,7 @@ pub async fn cli(
     let start_help = format!("Start {PERIOD_HELP_TEXT}");
     let end_help = format!("End {PERIOD_HELP_TEXT}");
 
-    let matches = Command::new("sppd-cli")
+    let cmd = Command::new("sppd-cli")
         .version(APP_VERSION)
         .author(APP_AUTHOR)
         .about(APP_ABOUT)
@@ -87,8 +87,10 @@ pub async fn cli(
                         .default_value("yes")
                         .action(ArgAction::Set),
                 ),
-        )
-        .get_matches();
+        );
+
+    let mut cmd_for_help = cmd.clone();
+    let matches = cmd.get_matches();
 
     if let Some(matches) = matches.subcommand_matches("download") {
         let proc_type = ProcurementType::from(
@@ -132,6 +134,11 @@ pub async fn cli(
             periods_processed = target_links.len(),
             "All operations completed successfully"
         );
+    } else {
+        // No subcommand provided, show help
+        cmd_for_help
+            .print_help()
+            .map_err(|e| AppError::IoError(format!("Failed to print help: {e}")))?;
     }
 
     Ok(())
