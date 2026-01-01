@@ -66,8 +66,10 @@ pub async fn extract_all_zips(
     }
 
     // Collect ZIP files that need extraction
-    let mut zips_to_extract = Vec::new();
-    let mut missing_zips = Vec::new();
+    // Pre-allocate with known upper bound (bounded by target_links.len())
+    let capacity = target_links.len();
+    let mut zips_to_extract = Vec::with_capacity(capacity);
+    let mut missing_zips = Vec::with_capacity(capacity);
 
     for period in target_links.keys() {
         let zip_path = extract_dir.join(format!("{period}.zip"));
