@@ -2882,6 +2882,7 @@ dependencies = [
  "polars",
  "quick-xml",
  "quick-xml-to-json",
+ "rayon",
  "regex",
  "reqwest",
  "scraper",
