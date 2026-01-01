@@ -30,7 +30,7 @@ async fn test_parse_xmls_end_to_end() {
     let mut target_links = BTreeMap::new();
     target_links.insert("202301".to_string(), "http://example.com".to_string());
 
-    let result = parser::parse_xmls(&target_links, &ProcurementType::MinorContracts);
+    let result = parser::parse_xmls(&target_links, &ProcurementType::MinorContracts, 100);
 
     assert!(result.is_ok());
 
@@ -83,7 +83,7 @@ async fn test_parse_xmls_filters_by_target_links() {
     let mut target_links = BTreeMap::new();
     target_links.insert("202301".to_string(), "http://example.com".to_string());
 
-    let result = parser::parse_xmls(&target_links, &ProcurementType::PublicTenders);
+    let result = parser::parse_xmls(&target_links, &ProcurementType::PublicTenders, 100);
 
     assert!(result.is_ok());
 
@@ -118,7 +118,7 @@ async fn test_parse_xmls_skips_empty_entries() {
     let mut target_links = BTreeMap::new();
     target_links.insert("202301".to_string(), "http://example.com".to_string());
 
-    let result = parser::parse_xmls(&target_links, &ProcurementType::MinorContracts);
+    let result = parser::parse_xmls(&target_links, &ProcurementType::MinorContracts, 100);
 
     assert!(result.is_ok());
 
@@ -164,7 +164,7 @@ async fn test_parse_xmls_merges_multiple_files() {
     let mut target_links = BTreeMap::new();
     target_links.insert("202301".to_string(), "http://example.com".to_string());
 
-    let result = parser::parse_xmls(&target_links, &ProcurementType::PublicTenders);
+    let result = parser::parse_xmls(&target_links, &ProcurementType::PublicTenders, 100);
 
     assert!(result.is_ok());
 
