@@ -1,5 +1,3 @@
-use std::fmt;
-
 /// Application error types for the SPPD CLI.
 ///
 /// This enum represents all possible errors that can occur during the procurement
@@ -28,47 +26,33 @@ use std::fmt;
 /// // IO errors occur during file operations
 /// let err = AppError::IoError("Failed to create directory".to_string());
 /// ```
-#[derive(Debug)]
+#[derive(Debug, thiserror::Error)]
 pub enum AppError {
     /// Network request failed (e.g., HTTP errors, timeouts)
+    #[error("Network error: {0}")]
     NetworkError(String),
     /// Failed to parse HTML/XML content
+    #[error("Parse error: {0}")]
     ParseError(String),
     /// Invalid URL format
+    #[error("Invalid URL: {0}")]
     UrlError(String),
     /// Regex compilation failed
+    #[error("Regex error: {0}")]
     RegexError(String),
     /// CSS selector parsing failed
+    #[error("CSS selector error: {0}")]
     SelectorError(String),
     /// Period validation failed (requested period not available)
+    #[error("Period '{period}' is not available. Available periods: {available}")]
     PeriodValidationError { period: String, available: String },
     /// Invalid input format (e.g., malformed data)
+    #[error("Invalid input: {0}")]
     InvalidInput(String),
     /// IO operation failed (e.g., file read/write errors)
+    #[error("IO error: {0}")]
     IoError(String),
 }
-
-impl fmt::Display for AppError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            AppError::NetworkError(msg) => write!(f, "Network error: {msg}"),
-            AppError::ParseError(msg) => write!(f, "Parse error: {msg}"),
-            AppError::UrlError(msg) => write!(f, "Invalid URL: {msg}"),
-            AppError::RegexError(msg) => write!(f, "Regex error: {msg}"),
-            AppError::SelectorError(msg) => write!(f, "CSS selector error: {msg}"),
-            AppError::PeriodValidationError { period, available } => {
-                write!(
-                    f,
-                    "Period '{period}' is not available. Available periods: {available}"
-                )
-            }
-            AppError::InvalidInput(msg) => write!(f, "Invalid input: {msg}"),
-            AppError::IoError(msg) => write!(f, "IO error: {msg}"),
-        }
-    }
-}
-
-impl std::error::Error for AppError {}
 
 // Conversion implementations for common errors
 impl From<reqwest::Error> for AppError {
