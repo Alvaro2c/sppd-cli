@@ -1,9 +1,11 @@
 use crate::errors::{AppError, AppResult};
 use crate::models::ProcurementType;
 use indicatif::{ProgressBar, ProgressStyle};
+use rayon::prelude::*;
 use std::collections::BTreeMap;
 use std::fs::File;
-use std::path::Path;
+use std::path::{Path, PathBuf};
+use std::sync::{Arc, Mutex};
 use tracing::{debug, info, warn};
 use zip::ZipArchive;
 
@@ -68,7 +70,7 @@ pub async fn extract_all_zips(
     // Collect ZIP files that need extraction
     // Pre-allocate with known upper bound (bounded by target_links.len())
     let capacity = target_links.len();
-    let mut zips_to_extract = Vec::with_capacity(capacity);
+    let mut zips_to_extract: Vec<PathBuf> = Vec::with_capacity(capacity);
     let mut missing_zips = Vec::with_capacity(capacity);
 
     for period in target_links.keys() {
@@ -82,7 +84,7 @@ pub async fn extract_all_zips(
         let extract_dir_path = zip_path.parent().unwrap().join(period);
 
         if !extract_dir_path.exists() {
-            zips_to_extract.push((period.clone(), zip_path));
+            zips_to_extract.push(zip_path);
         }
     }
 
@@ -126,18 +128,48 @@ pub async fn extract_all_zips(
         "Starting extraction"
     );
 
+    // Wrap progress bar in Arc<Mutex> for thread-safe updates in parallel context
+    let progress_bar = Arc::new(Mutex::new(pb));
+    let progress_bar_clone = progress_bar.clone();
+
+    // Run parallel extraction using rayon within spawn_blocking
+    let results = tokio::task::spawn_blocking(move || {
+        zips_to_extract
+            .par_iter()
+            .map(|zip_path| {
+                let result = extract_zip_sync(zip_path);
+
+                // Update progress bar (thread-safe)
+                let pb = progress_bar.lock().unwrap();
+                let filename = zip_path
+                    .file_name()
+                    .and_then(|n| n.to_str())
+                    .unwrap_or("unknown");
+                pb.inc(1);
+                if result.is_err() {
+                    pb.set_message(format!("Failed {filename}"));
+                } else {
+                    pb.set_message(format!("Completed {filename}"));
+                }
+                drop(pb);
+
+                (zip_path.clone(), result)
+            })
+            .collect::<Vec<(PathBuf, AppResult<()>)>>()
+    })
+    .await
+    .map_err(|e| AppError::IoError(format!("Task join error: {e}")))?;
+
+    // Finish progress bar
+    {
+        let pb = progress_bar_clone.lock().unwrap();
+        pb.finish_with_message(format!("Extracted {total_zips} ZIP file(s)"));
+    }
+
+    // Collect errors
     let mut errors = Vec::new();
-    for (_period, zip_path) in zips_to_extract {
-        let filename = zip_path
-            .file_name()
-            .and_then(|n| n.to_str())
-            .unwrap_or("unknown")
-            .to_string();
-
-        // Update progress bar message
-        pb.set_message(format!("Extracting {filename}..."));
-
-        if let Err(e) = extract_zip(&zip_path).await {
+    for (zip_path, result) in results {
+        if let Err(e) = result {
             let error_msg = format!("Failed to extract {}: {}", zip_path.display(), e);
             warn!(
                 zip_file = %zip_path.display(),
@@ -146,13 +178,7 @@ pub async fn extract_all_zips(
             );
             errors.push(error_msg);
         }
-
-        // Update progress bar
-        pb.inc(1);
-        pb.set_message(format!("Completed {filename}"));
     }
-
-    pb.finish_with_message(format!("Extracted {total_zips} ZIP file(s)"));
 
     if !errors.is_empty() {
         return Err(AppError::IoError(format!(
@@ -176,8 +202,9 @@ pub async fn extract_all_zips(
     Ok(())
 }
 
-/// Extracts a single ZIP file into a directory with the same name (without .zip extension).
-async fn extract_zip(zip_path: &Path) -> AppResult<()> {
+/// Synchronous function to extract a single ZIP file.
+/// This is used by rayon for parallel processing.
+fn extract_zip_sync(zip_path: &Path) -> AppResult<()> {
     let zip_file_name = zip_path
         .file_stem()
         .and_then(|s| s.to_str())
@@ -206,7 +233,7 @@ async fn extract_zip(zip_path: &Path) -> AppResult<()> {
     }
 
     // Create extraction directory
-    tokio::fs::create_dir_all(&extract_dir).await.map_err(|e| {
+    std::fs::create_dir_all(&extract_dir).map_err(|e| {
         AppError::IoError(format!(
             "Failed to create extraction directory {}: {}",
             extract_dir.display(),
@@ -214,82 +241,72 @@ async fn extract_zip(zip_path: &Path) -> AppResult<()> {
         ))
     })?;
 
-    // Extract ZIP file using blocking I/O in a thread pool
-    let zip_path = zip_path.to_path_buf();
-    let extract_dir_clone = extract_dir.to_path_buf();
+    // Open and extract ZIP file
+    let file = File::open(zip_path).map_err(|e| {
+        AppError::IoError(format!(
+            "Failed to open ZIP file {}: {}",
+            zip_path.display(),
+            e
+        ))
+    })?;
 
-    tokio::task::spawn_blocking(move || {
-        // Open and extract ZIP file
-        let file = File::open(&zip_path).map_err(|e| {
-            AppError::IoError(format!(
-                "Failed to open ZIP file {}: {}",
-                zip_path.display(),
-                e
-            ))
-        })?;
+    let mut archive = ZipArchive::new(file).map_err(|e| {
+        AppError::ParseError(format!(
+            "Failed to read ZIP archive {}: {}",
+            zip_path.display(),
+            e
+        ))
+    })?;
 
-        let mut archive = ZipArchive::new(file).map_err(|e| {
+    for i in 0..archive.len() {
+        let mut file = archive.by_index(i).map_err(|e| {
             AppError::ParseError(format!(
-                "Failed to read ZIP archive {}: {}",
+                "Failed to read file {} from ZIP {}: {}",
+                i,
                 zip_path.display(),
                 e
             ))
         })?;
 
-        for i in 0..archive.len() {
-            let mut file = archive.by_index(i).map_err(|e| {
-                AppError::ParseError(format!(
-                    "Failed to read file {} from ZIP {}: {}",
-                    i,
-                    zip_path.display(),
-                    e
-                ))
-            })?;
+        let out_path = match file.enclosed_name() {
+            Some(path) => extract_dir.join(path),
+            None => continue,
+        };
 
-            let out_path = match file.enclosed_name() {
-                Some(path) => extract_dir_clone.join(path),
-                None => continue,
-            };
+        // Skip directories (they will be created when files are extracted)
+        if file.name().ends_with('/') {
+            continue;
+        }
 
-            // Skip directories (they will be created when files are extracted)
-            if file.name().ends_with('/') {
-                continue;
-            }
-
-            // Create parent directories if needed
-            if let Some(parent) = out_path.parent() {
-                std::fs::create_dir_all(parent).map_err(|e| {
-                    AppError::IoError(format!(
-                        "Failed to create directory {}: {}",
-                        parent.display(),
-                        e
-                    ))
-                })?;
-            }
-
-            // Extract file using streaming copy (no intermediate buffer)
-            let mut out_file = std::fs::File::create(&out_path).map_err(|e| {
+        // Create parent directories if needed
+        if let Some(parent) = out_path.parent() {
+            std::fs::create_dir_all(parent).map_err(|e| {
                 AppError::IoError(format!(
-                    "Failed to create file {}: {}",
-                    out_path.display(),
-                    e
-                ))
-            })?;
-
-            std::io::copy(&mut file, &mut out_file).map_err(|e| {
-                AppError::IoError(format!(
-                    "Failed to copy file from ZIP {} to {}: {}",
-                    zip_path.display(),
-                    out_path.display(),
+                    "Failed to create directory {}: {}",
+                    parent.display(),
                     e
                 ))
             })?;
         }
 
-        Ok::<(), AppError>(())
-    })
-    .await
-    .map_err(|e| AppError::IoError(format!("Task join error: {e}")))??;
+        // Extract file using streaming copy (no intermediate buffer)
+        let mut out_file = std::fs::File::create(&out_path).map_err(|e| {
+            AppError::IoError(format!(
+                "Failed to create file {}: {}",
+                out_path.display(),
+                e
+            ))
+        })?;
+
+        std::io::copy(&mut file, &mut out_file).map_err(|e| {
+            AppError::IoError(format!(
+                "Failed to copy file from ZIP {} to {}: {}",
+                zip_path.display(),
+                out_path.display(),
+                e
+            ))
+        })?;
+    }
 
     Ok(())
 }
