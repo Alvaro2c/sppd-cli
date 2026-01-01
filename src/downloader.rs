@@ -191,6 +191,51 @@ pub fn parse_zip_links(html: &str, base_url: &Url) -> AppResult<BTreeMap<String,
     Ok(links)
 }
 
+/// Validates that a period string matches the expected format (YYYY or YYYYMM).
+///
+/// This function checks that the period contains only ASCII digits and has
+/// exactly 4 digits (YYYY) or 6 digits (YYYYMM).
+///
+/// # Arguments
+///
+/// * `period` - Period string to validate
+///
+/// # Returns
+///
+/// Returns `Ok(())` if the period format is valid, or `InvalidInput` error otherwise.
+///
+/// # Example
+///
+/// ```
+/// use sppd_cli::downloader::validate_period_format;
+///
+/// assert!(validate_period_format("2023").is_ok());      // YYYY format
+/// assert!(validate_period_format("202301").is_ok());    // YYYYMM format
+/// assert!(validate_period_format("202").is_err());      // Too short
+/// assert!(validate_period_format("20230101").is_err()); // Too long
+/// assert!(validate_period_format("abcd").is_err());     // Non-numeric
+/// ```
+pub fn validate_period_format(period: &str) -> AppResult<()> {
+    if period.is_empty() {
+        return Err(AppError::InvalidInput(
+            "Period must be YYYY or YYYYMM format (4 or 6 digits), got empty string".to_string(),
+        ));
+    }
+    if !period.chars().all(|c| c.is_ascii_digit()) {
+        return Err(AppError::InvalidInput(format!(
+            "Period must contain only digits, got: {period}"
+        )));
+    }
+    match period.len() {
+        4 | 6 => Ok(()),
+        _ => Err(AppError::InvalidInput(format!(
+            "Period must be YYYY or YYYYMM format (4 or 6 digits), got: {} ({} digits)",
+            period,
+            period.len()
+        ))),
+    }
+}
+
 /// Filters links by period range, validating that specified periods exist.
 ///
 /// This function filters a map of period-to-URL links based on a start and/or end period.
@@ -209,7 +254,8 @@ pub fn parse_zip_links(html: &str, base_url: &Url) -> AppResult<BTreeMap<String,
 ///
 /// # Errors
 ///
-/// Returns `PeriodValidationError` if `start_period` or `end_period` is specified
+/// Returns `InvalidInput` if `start_period` or `end_period` has an invalid format
+/// (not YYYY or YYYYMM). Returns `PeriodValidationError` if the period format is valid
 /// but doesn't exist in the `links` map.
 ///
 /// # Example
@@ -253,9 +299,12 @@ pub fn filter_periods_by_range(
     let available_periods: Vec<String> = links.keys().cloned().collect();
     let available_str = available_periods.join(", ");
 
-    // Validate that specified periods exist in links
+    // Validate that specified periods have correct format and exist in links
     let validate_period = |period: Option<&str>| -> AppResult<()> {
         if let Some(p) = period {
+            // First validate the format
+            validate_period_format(p)?;
+            // Then check if it exists in links
             if !links.contains_key(p) {
                 return Err(AppError::PeriodValidationError {
                     period: p.to_string(),
@@ -285,6 +334,58 @@ pub fn filter_periods_by_range(
     }
 
     Ok(filtered)
+}
+
+/// Downloads a single ZIP file.
+///
+/// This is a helper function that performs the download of a single file,
+/// used by `download_files` to enable error collection and continuation.
+async fn download_single_file(
+    client: &reqwest::Client,
+    url: &str,
+    tmp_path: &Path,
+    file_path: &Path,
+    filename: &str,
+) -> AppResult<()> {
+    let mut response = client
+        .get(url)
+        .send()
+        .await
+        .and_then(|r| r.error_for_status())
+        .map_err(|e| AppError::NetworkError(format!("Failed to download {filename}: {e}")))?;
+
+    let mut file = File::create(tmp_path).await.map_err(|e| {
+        AppError::IoError(format!(
+            "Failed to create temp file {}: {}",
+            tmp_path.display(),
+            e
+        ))
+    })?;
+
+    while let Some(chunk) = response.chunk().await? {
+        file.write_all(&chunk).await.map_err(|e| {
+            AppError::IoError(format!(
+                "Failed to write to temp file {}: {}",
+                tmp_path.display(),
+                e
+            ))
+        })?;
+    }
+
+    // Ensure the file is closed before renaming
+    drop(file);
+
+    // Atomically move the temp file to the final destination
+    fs::rename(tmp_path, file_path).await.map_err(|e| {
+        AppError::IoError(format!(
+            "Failed to rename temp file {} to {}: {}",
+            tmp_path.display(),
+            file_path.display(),
+            e
+        ))
+    })?;
+
+    Ok(())
 }
 
 /// Downloads ZIP files to the appropriate directory based on procurement type.
@@ -378,6 +479,9 @@ pub async fn download_files(
         "Starting download"
     );
 
+    let mut errors = Vec::new();
+    let mut success_count = 0;
+
     for (period, url) in files_to_download.iter() {
         let filename = format!("{period}.zip");
         let file_path = download_dir.join(&filename);
@@ -399,70 +503,65 @@ pub async fn download_files(
         // Update progress bar message
         pb.set_message(format!("Downloading {filename}..."));
 
-        let mut response = match client.get(*url).send().await {
-            Ok(resp) => resp.error_for_status()?,
-            Err(e) => {
-                pb.inc(1);
-                return Err(AppError::NetworkError(format!(
-                    "Failed to download {filename}: {e}"
-                )));
-            }
-        };
-
-        let mut file = File::create(&tmp_path).await.map_err(|e| {
-            AppError::IoError(format!(
-                "Failed to create temp file {}: {}",
-                tmp_path.display(),
-                e
-            ))
-        })?;
-
-        while let Some(chunk) = response.chunk().await? {
-            file.write_all(&chunk).await.map_err(|e| {
-                AppError::IoError(format!(
-                    "Failed to write to temp file {}: {}",
-                    tmp_path.display(),
-                    e
-                ))
-            })?;
+        // Attempt download and collect errors instead of returning early
+        if let Err(e) = download_single_file(client, url, &tmp_path, &file_path, &filename).await {
+            let error_msg = format!("Failed to download {filename}: {e}");
+            warn!(
+                filename = filename,
+                error = %e,
+                "Failed to download file"
+            );
+            errors.push(error_msg);
+            pb.set_message(format!("Failed {filename}"));
+        } else {
+            success_count += 1;
+            pb.set_message(format!("Completed {filename}"));
         }
 
-        // Ensure the file is closed before renaming
-        drop(file);
-
-        // Atomically move the temp file to the final destination
-        fs::rename(&tmp_path, &file_path).await.map_err(|e| {
-            AppError::IoError(format!(
-                "Failed to rename temp file {} to {}: {}",
-                tmp_path.display(),
-                file_path.display(),
-                e
-            ))
-        })?;
-
-        // Update progress bar
+        // Update progress bar regardless of success/failure
         pb.inc(1);
-        pb.set_message(format!("Completed {filename}"));
     }
 
-    pb.finish_with_message(format!("Downloaded {total_files} file(s)"));
+    // Report results
+    if errors.is_empty() {
+        pb.finish_with_message(format!("Downloaded {success_count} file(s)"));
+        info!(
+            downloaded = success_count,
+            skipped = skipped_count,
+            "Download completed"
+        );
+    } else {
+        pb.finish_with_message(format!(
+            "Downloaded {success_count} file(s), {} failed",
+            errors.len()
+        ));
+        info!(
+            downloaded = success_count,
+            failed = errors.len(),
+            skipped = skipped_count,
+            "Download completed with errors"
+        );
+    }
 
     if skipped_count > 0 {
         debug!(skipped = skipped_count, "Skipped existing files");
     }
 
-    info!(
-        downloaded = total_files,
-        skipped = skipped_count,
-        "Download completed"
-    );
+    // Return error if any downloads failed
+    if !errors.is_empty() {
+        return Err(AppError::NetworkError(format!(
+            "Failed to download {} file(s): {}",
+            errors.len(),
+            errors.join("; ")
+        )));
+    }
 
     Ok(())
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{filter_periods_by_range, parse_zip_links};
+    use super::{filter_periods_by_range, parse_zip_links, validate_period_format};
     use crate::errors::AppError;
     use std::collections::BTreeMap;
     use url::Url;
@@ -661,6 +760,120 @@ mod tests {
         assert!(result.is_ok());
         let filtered = result.unwrap();
         assert_eq!(filtered.len(), 0);
+    }
+
+    #[test]
+    fn test_validate_period_format_valid_yyyy() {
+        assert!(validate_period_format("2023").is_ok());
+        assert!(validate_period_format("2024").is_ok());
+        assert!(validate_period_format("1999").is_ok());
+    }
+
+    #[test]
+    fn test_validate_period_format_valid_yyyymm() {
+        assert!(validate_period_format("202301").is_ok());
+        assert!(validate_period_format("202312").is_ok());
+        assert!(validate_period_format("202401").is_ok());
+    }
+
+    #[test]
+    fn test_validate_period_format_invalid_too_short() {
+        let result = validate_period_format("202");
+        assert!(result.is_err());
+        match result.unwrap_err() {
+            AppError::InvalidInput(msg) => {
+                assert!(msg.contains("4 or 6 digits"));
+            }
+            _ => panic!("Expected InvalidInput error"),
+        }
+    }
+
+    #[test]
+    fn test_validate_period_format_invalid_too_long() {
+        let result = validate_period_format("20230101");
+        assert!(result.is_err());
+        match result.unwrap_err() {
+            AppError::InvalidInput(msg) => {
+                assert!(msg.contains("4 or 6 digits"));
+            }
+            _ => panic!("Expected InvalidInput error"),
+        }
+    }
+
+    #[test]
+    fn test_validate_period_format_invalid_five_digits() {
+        let result = validate_period_format("20231");
+        assert!(result.is_err());
+        match result.unwrap_err() {
+            AppError::InvalidInput(msg) => {
+                assert!(msg.contains("4 or 6 digits"));
+            }
+            _ => panic!("Expected InvalidInput error"),
+        }
+    }
+
+    #[test]
+    fn test_validate_period_format_invalid_non_numeric() {
+        let result = validate_period_format("abcd");
+        assert!(result.is_err());
+        match result.unwrap_err() {
+            AppError::InvalidInput(msg) => {
+                assert!(msg.contains("only digits"));
+            }
+            _ => panic!("Expected InvalidInput error"),
+        }
+    }
+
+    #[test]
+    fn test_validate_period_format_invalid_mixed_chars() {
+        let result = validate_period_format("2023ab");
+        assert!(result.is_err());
+        match result.unwrap_err() {
+            AppError::InvalidInput(msg) => {
+                assert!(msg.contains("only digits"));
+            }
+            _ => panic!("Expected InvalidInput error"),
+        }
+    }
+
+    #[test]
+    fn test_validate_period_format_empty_string() {
+        let result = validate_period_format("");
+        assert!(result.is_err());
+        match result.unwrap_err() {
+            AppError::InvalidInput(msg) => {
+                assert!(msg.contains("empty string"));
+            }
+            _ => panic!("Expected InvalidInput error"),
+        }
+    }
+
+    #[test]
+    fn test_filter_periods_invalid_format_start() {
+        let links = create_test_links();
+        let result = filter_periods_by_range(&links, Some("abc"), None);
+
+        assert!(result.is_err());
+        match result.unwrap_err() {
+            AppError::InvalidInput(msg) => {
+                assert!(msg.contains("only digits"));
+            }
+            _ => panic!("Expected InvalidInput error"),
+        }
+    }
+
+    #[test]
+    fn test_filter_periods_invalid_format_end() {
+        let links = create_test_links();
+        let result = filter_periods_by_range(&links, None, Some("20231")); // 5 digits
+
+        assert!(result.is_err());
+        match result.unwrap_err() {
+            AppError::InvalidInput(msg) => {
+                assert!(msg.contains("4 or 6 digits"));
+            }
+            _ => panic!("Expected InvalidInput error"),
+        }
     }
 
     #[test]
