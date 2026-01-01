@@ -81,7 +81,15 @@ pub async fn extract_all_zips(
         }
 
         // Check if extraction directory already exists
-        let extract_dir_path = zip_path.parent().unwrap().join(period);
+        let extract_dir_path = zip_path
+            .parent()
+            .ok_or_else(|| {
+                AppError::InvalidInput(format!(
+                    "ZIP file has no parent directory: {}",
+                    zip_path.display()
+                ))
+            })?
+            .join(period);
 
         if !extract_dir_path.exists() {
             zips_to_extract.push(zip_path);
@@ -140,18 +148,19 @@ pub async fn extract_all_zips(
                 let result = extract_zip_sync(zip_path);
 
                 // Update progress bar (thread-safe)
-                let pb = progress_bar.lock().unwrap();
-                let filename = zip_path
-                    .file_name()
-                    .and_then(|n| n.to_str())
-                    .unwrap_or("unknown");
-                pb.inc(1);
-                if result.is_err() {
-                    pb.set_message(format!("Failed {filename}"));
-                } else {
-                    pb.set_message(format!("Completed {filename}"));
+                // Handle mutex lock error gracefully - if lock fails, continue without updating progress
+                if let Ok(pb) = progress_bar.lock() {
+                    let filename = zip_path
+                        .file_name()
+                        .and_then(|n| n.to_str())
+                        .unwrap_or("unknown");
+                    pb.inc(1);
+                    if result.is_err() {
+                        pb.set_message(format!("Failed {filename}"));
+                    } else {
+                        pb.set_message(format!("Completed {filename}"));
+                    }
                 }
-                drop(pb);
 
                 (zip_path.clone(), result)
             })
@@ -162,7 +171,9 @@ pub async fn extract_all_zips(
 
     // Finish progress bar
     {
-        let pb = progress_bar_clone.lock().unwrap();
+        let pb = progress_bar_clone
+            .lock()
+            .map_err(|e| AppError::IoError(format!("Mutex lock error: {e}")))?;
         pb.finish_with_message(format!("Extracted {total_zips} ZIP file(s)"));
     }
 
