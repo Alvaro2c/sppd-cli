@@ -29,7 +29,6 @@ use std::fmt;
 /// let err = AppError::IoError("Failed to create directory".to_string());
 /// ```
 #[derive(Debug)]
-#[allow(dead_code)]
 pub enum AppError {
     /// Network request failed (e.g., HTTP errors, timeouts)
     NetworkError(String),
