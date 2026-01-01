@@ -6,6 +6,7 @@ use quick_xml::events::Event;
 use quick_xml::reader::Reader;
 use quick_xml::writer::Writer;
 use quick_xml_to_json::xml_to_json;
+use rayon::prelude::*;
 use std::collections::BTreeMap;
 use std::fs::{self, metadata, File};
 use std::io::{BufReader, Cursor};
@@ -152,17 +153,21 @@ pub fn parse_xmls(
         pb.set_message(format!("Processing {subdir_name}..."));
 
         // Process XML files in batches, writing each batch to temporary Parquet file
-        const BATCH_SIZE: usize = 50; // Process 50 XML files per batch (~200MB per batch)
+        const BATCH_SIZE: usize = 100; // Process 100 XML files per batch (~400MB average, up to ~1.5GB worst case)
         let mut temp_files: Vec<NamedTempFile> = Vec::new();
 
         // Process XML files in batches
         for xml_batch in xml_files.chunks(BATCH_SIZE) {
-            // Accumulate entries from all XML files in this batch
-            let mut batch_entries = Vec::new();
+            // Parse XML files in parallel within this batch
+            let batch_results: Vec<AppResult<Vec<Entry>>> = xml_batch
+                .par_iter()
+                .map(|xml_path| parse_xml(xml_path))
+                .collect();
 
-            for xml_path in xml_batch {
-                let entries = parse_xml(xml_path)?;
-                batch_entries.extend(entries);
+            // Collect entries, handling errors (fail-fast)
+            let mut batch_entries = Vec::new();
+            for result in batch_results {
+                batch_entries.extend(result?);
             }
 
             if batch_entries.is_empty() {
