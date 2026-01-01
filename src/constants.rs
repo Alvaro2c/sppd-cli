@@ -3,7 +3,7 @@ pub const MINOR_CONTRACTS: &str = "https://www.hacienda.gob.es/es-es/gobiernoabi
 pub const PUBLIC_TENDERS: &str = "https://www.hacienda.gob.es/es-ES/GobiernoAbierto/Datos%20Abiertos/Paginas/LicitacionesContratante.aspx";
 
 // CLI Metadata
-pub const APP_VERSION: &str = "0.1";
+pub const APP_VERSION: &str = "0.9.0";
 pub const APP_AUTHOR: &str = "Alvaro Carranza <alvarocarranzacarrion@gmail.com>";
 pub const APP_ABOUT: &str = "Downloads and parses Spanish Public Procurement Data (SPPD)";
 

@@ -4,9 +4,11 @@ use indicatif::{ProgressBar, ProgressStyle};
 use polars::prelude::*;
 use quick_xml::events::Event;
 use quick_xml::reader::Reader;
+use quick_xml::writer::Writer;
+use quick_xml_to_json::xml_to_json;
 use std::collections::BTreeMap;
 use std::fs::{self, File};
-use std::io::BufReader;
+use std::io::{BufReader, Cursor};
 use std::path::Path;
 use tracing::{info, warn};
 
@@ -132,6 +134,10 @@ pub fn parse_xmls(
         let summaries: Vec<Option<String>> =
             all_entries.iter().map(|e| e.summary.clone()).collect();
         let updateds: Vec<Option<String>> = all_entries.iter().map(|e| e.updated.clone()).collect();
+        let contract_folder_statuses: Vec<Option<String>> = all_entries
+            .iter()
+            .map(|e| e.contract_folder_status.clone())
+            .collect();
 
         let mut df = DataFrame::new(vec![
             Series::new("id", ids),
@@ -139,6 +145,7 @@ pub fn parse_xmls(
             Series::new("link", links),
             Series::new("summary", summaries),
             Series::new("updated", updateds),
+            Series::new("contract_folder_status", contract_folder_statuses),
         ])
         .map_err(|e| AppError::ParseError(format!("Failed to create DataFrame: {e}")))?;
 
@@ -359,6 +366,15 @@ pub(crate) fn collect_xmls(dir: &std::path::Path) -> Vec<std::path::PathBuf> {
     v
 }
 
+/// Helper function to write an XML event to a buffer
+fn write_event_to_buffer(buffer: &mut Vec<u8>, event: Event) -> AppResult<()> {
+    let mut writer = Writer::new(buffer);
+    writer
+        .write_event(event)
+        .map_err(|e| AppError::ParseError(format!("Failed to write event to buffer: {e}")))?;
+    Ok(())
+}
+
 /// Parses an XML file and returns a vector of Entry.
 pub(crate) fn parse_xml(path: &std::path::Path) -> AppResult<Vec<Entry>> {
     let file = File::open(path)?;
@@ -376,6 +392,7 @@ pub(crate) fn parse_xml(path: &std::path::Path) -> AppResult<Vec<Entry>> {
     let mut link = None;
     let mut summary = None;
     let mut updated = None;
+    let mut contract_folder_status = None;
 
     // States for nested elements
     let mut inside_id = false;
@@ -383,79 +400,200 @@ pub(crate) fn parse_xml(path: &std::path::Path) -> AppResult<Vec<Entry>> {
     let mut inside_summary = false;
     let mut inside_updated = false;
 
+    // States for ContractFolderStatus capture
+    let mut inside_contract_folder_status = false;
+    let mut contract_folder_status_depth: u32 = 0;
+    let mut contract_folder_status_buffer = Vec::new();
+    let mut contract_folder_status_found = false;
+
     loop {
         match reader.read_event_into(&mut buf)? {
-            Event::Start(e) => match e.name().as_ref() {
-                b"entry" => {
-                    inside_entry = true;
-                    // Reset all fields
-                    id = None;
-                    title = None;
-                    link = None;
-                    summary = None;
-                    updated = None;
-                }
-                b"id" if inside_entry => inside_id = true,
-                b"title" if inside_entry => inside_title = true,
-                b"summary" if inside_entry => inside_summary = true,
-                b"updated" if inside_entry => inside_updated = true,
-                b"link" if inside_entry => {
-                    // Get the href attribute
-                    if let Some(href) = e
-                        .attributes()
-                        .filter_map(|a| a.ok())
-                        .find(|a| a.key.as_ref() == b"href")
-                    {
-                        link = Some(String::from_utf8_lossy(&href.value).to_string());
+            Event::Start(e) => {
+                let name = e.name().as_ref().to_vec();
+
+                // Check for ContractFolderStatus element
+                if inside_entry && name.ends_with(b":ContractFolderStatus") {
+                    if contract_folder_status_found {
+                        return Err(AppError::ParseError(
+                            "Multiple ContractFolderStatus elements found in entry".to_string(),
+                        ));
                     }
+                    contract_folder_status_found = true;
+                    inside_contract_folder_status = true;
+                    contract_folder_status_depth = 1;
+                    contract_folder_status_buffer.clear();
+
+                    // Write the opening tag
+                    write_event_to_buffer(
+                        &mut contract_folder_status_buffer,
+                        Event::Start(e.clone()),
+                    )?;
+                } else if inside_contract_folder_status {
+                    // We're inside ContractFolderStatus, capture this event
+                    contract_folder_status_depth += 1;
+                    write_event_to_buffer(
+                        &mut contract_folder_status_buffer,
+                        Event::Start(e.clone()),
+                    )?;
                 }
-                _ => {}
-            },
+
+                // Handle other elements
+                match name.as_slice() {
+                    b"entry" => {
+                        inside_entry = true;
+                        // Reset all fields
+                        id = None;
+                        title = None;
+                        link = None;
+                        summary = None;
+                        updated = None;
+                        contract_folder_status = None;
+                        // Reset ContractFolderStatus capture state
+                        contract_folder_status_found = false;
+                        inside_contract_folder_status = false;
+                        contract_folder_status_depth = 0;
+                        contract_folder_status_buffer.clear();
+                    }
+                    b"id" if inside_entry && !inside_contract_folder_status => inside_id = true,
+                    b"title" if inside_entry && !inside_contract_folder_status => {
+                        inside_title = true
+                    }
+                    b"summary" if inside_entry && !inside_contract_folder_status => {
+                        inside_summary = true
+                    }
+                    b"updated" if inside_entry && !inside_contract_folder_status => {
+                        inside_updated = true
+                    }
+                    b"link" if inside_entry && !inside_contract_folder_status => {
+                        // Get the href attribute
+                        if let Some(href) = e
+                            .attributes()
+                            .filter_map(|a| a.ok())
+                            .find(|a| a.key.as_ref() == b"href")
+                        {
+                            link = Some(String::from_utf8_lossy(&href.value).to_string());
+                        }
+                    }
+                    _ => {}
+                }
+            }
             Event::Empty(e) if inside_entry => {
-                // Handle self-closing tags like <link href="..."/>
-                if e.name().as_ref() == b"link" {
-                    if let Some(href) = e
-                        .attributes()
-                        .filter_map(|a| a.ok())
-                        .find(|a| a.key.as_ref() == b"href")
-                    {
-                        link = Some(String::from_utf8_lossy(&href.value).to_string());
+                if inside_contract_folder_status {
+                    // Capture empty element for ContractFolderStatus
+                    write_event_to_buffer(
+                        &mut contract_folder_status_buffer,
+                        Event::Empty(e.clone()),
+                    )?;
+                } else {
+                    // Handle self-closing tags like <link href="..."/>
+                    if e.name().as_ref() == b"link" {
+                        if let Some(href) = e
+                            .attributes()
+                            .filter_map(|a| a.ok())
+                            .find(|a| a.key.as_ref() == b"href")
+                        {
+                            link = Some(String::from_utf8_lossy(&href.value).to_string());
+                        }
                     }
                 }
             }
-            Event::End(e) => match e.name().as_ref() {
-                b"entry" => {
-                    inside_entry = false;
-                    // Push filled struct if any key field (id or title) exists
-                    if id.is_some() || title.is_some() {
-                        result.push(Entry {
-                            id: id.take(),
-                            title: title.take(),
-                            link: link.take(),
-                            summary: summary.take(),
-                            updated: updated.take(),
-                        });
+            Event::CData(e) if inside_entry && inside_contract_folder_status => {
+                // Capture CDATA for ContractFolderStatus
+                write_event_to_buffer(&mut contract_folder_status_buffer, Event::CData(e.clone()))?;
+            }
+            Event::Comment(e) if inside_entry && inside_contract_folder_status => {
+                // Capture comments for ContractFolderStatus
+                write_event_to_buffer(
+                    &mut contract_folder_status_buffer,
+                    Event::Comment(e.clone()),
+                )?;
+            }
+            Event::PI(e) if inside_entry && inside_contract_folder_status => {
+                // Capture processing instructions for ContractFolderStatus
+                write_event_to_buffer(&mut contract_folder_status_buffer, Event::PI(e.clone()))?;
+            }
+            Event::End(e) => {
+                let name = e.name().as_ref().to_vec();
+
+                // Handle ContractFolderStatus closing
+                if inside_contract_folder_status {
+                    // Write the end event
+                    write_event_to_buffer(
+                        &mut contract_folder_status_buffer,
+                        Event::End(e.clone()),
+                    )?;
+
+                    contract_folder_status_depth -= 1;
+
+                    // If depth reached 0, we've closed the ContractFolderStatus element
+                    if contract_folder_status_depth == 0 {
+                        inside_contract_folder_status = false;
+
+                        // Convert XML buffer to JSON
+                        let mut json_output = Vec::new();
+                        let mut cursor = Cursor::new(&contract_folder_status_buffer);
+                        xml_to_json(&mut cursor, &mut json_output).map_err(|e| {
+                            AppError::ParseError(format!(
+                                "Failed to convert ContractFolderStatus to JSON: {e}"
+                            ))
+                        })?;
+
+                        let json_string = String::from_utf8(json_output).map_err(|e| {
+                            AppError::ParseError(format!("Failed to convert JSON to UTF-8: {e}"))
+                        })?;
+
+                        contract_folder_status = Some(json_string);
+                        contract_folder_status_buffer.clear();
                     }
                 }
-                b"id" => inside_id = false,
-                b"title" => inside_title = false,
-                b"summary" => inside_summary = false,
-                b"updated" => inside_updated = false,
-                _ => {}
-            },
+
+                // Handle other elements
+                match name.as_slice() {
+                    b"entry" => {
+                        inside_entry = false;
+                        // Push filled struct if any key field (id or title) exists
+                        if id.is_some() || title.is_some() {
+                            result.push(Entry {
+                                id: id.take(),
+                                title: title.take(),
+                                link: link.take(),
+                                summary: summary.take(),
+                                updated: updated.take(),
+                                contract_folder_status: contract_folder_status.take(),
+                            });
+                        }
+                    }
+                    b"id" if !inside_contract_folder_status => inside_id = false,
+                    b"title" if !inside_contract_folder_status => inside_title = false,
+                    b"summary" if !inside_contract_folder_status => inside_summary = false,
+                    b"updated" if !inside_contract_folder_status => inside_updated = false,
+                    _ => {}
+                }
+            }
             Event::Text(e) if inside_entry => {
-                let txt = e
-                    .decode()
-                    .map_err(|e| AppError::ParseError(format!("Failed to decode XML text: {e}")))?
-                    .into_owned();
-                if inside_id {
-                    id = Some(txt);
-                } else if inside_title {
-                    title = Some(txt);
-                } else if inside_summary {
-                    summary = Some(txt);
-                } else if inside_updated {
-                    updated = Some(txt);
+                if inside_contract_folder_status {
+                    // Capture text for ContractFolderStatus
+                    write_event_to_buffer(
+                        &mut contract_folder_status_buffer,
+                        Event::Text(e.clone()),
+                    )?;
+                } else {
+                    // Handle normal text fields
+                    let txt = e
+                        .decode()
+                        .map_err(|e| {
+                            AppError::ParseError(format!("Failed to decode XML text: {e}"))
+                        })?
+                        .into_owned();
+                    if inside_id {
+                        id = Some(txt);
+                    } else if inside_title {
+                        title = Some(txt);
+                    } else if inside_summary {
+                        summary = Some(txt);
+                    } else if inside_updated {
+                        updated = Some(txt);
+                    }
                 }
             }
             Event::Eof => break,
