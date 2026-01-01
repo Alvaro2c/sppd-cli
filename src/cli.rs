@@ -112,7 +112,7 @@ pub async fn cli(
             .get_one::<String>("cleanup")
             .expect("cleanup has default_value")
             .as_str();
-        let should_cleanup = parse_yes_no(cleanup_value);
+        let should_cleanup = parse_yes_no(cleanup_value)?;
 
         let target_links = filter_periods_by_range(links, start_period, end_period)?;
 
@@ -145,12 +145,14 @@ pub async fn cli(
 }
 
 /// Parses a yes/no string value (case-insensitive) and returns a boolean.
-/// Accepts "yes", "y", "no", "n". Defaults to true for any unrecognized value.
-pub(crate) fn parse_yes_no(value: &str) -> bool {
+/// Accepts "yes", "y", "no", "n". Returns an error for unrecognized values.
+pub(crate) fn parse_yes_no(value: &str) -> AppResult<bool> {
     match value.trim().to_lowercase().as_str() {
-        "yes" | "y" => true,
-        "no" | "n" => false,
-        _ => true, // Default to true for any unrecognized value
+        "yes" | "y" => Ok(true),
+        "no" | "n" => Ok(false),
+        _ => Err(AppError::InvalidInput(format!(
+            "Invalid cleanup value: {value}. Expected 'yes', 'y', 'no', or 'n'"
+        ))),
     }
 }
 
@@ -285,40 +287,46 @@ mod tests {
 
     #[test]
     fn test_parse_yes_no_yes() {
-        assert!(parse_yes_no("yes"));
-        assert!(parse_yes_no("YES"));
-        assert!(parse_yes_no("Yes"));
-        assert!(parse_yes_no("y"));
-        assert!(parse_yes_no("Y"));
+        assert!(parse_yes_no("yes").unwrap());
+        assert!(parse_yes_no("YES").unwrap());
+        assert!(parse_yes_no("Yes").unwrap());
+        assert!(parse_yes_no("y").unwrap());
+        assert!(parse_yes_no("Y").unwrap());
     }
 
     #[test]
     fn test_parse_yes_no_no() {
-        assert!(!parse_yes_no("no"));
-        assert!(!parse_yes_no("NO"));
-        assert!(!parse_yes_no("No"));
-        assert!(!parse_yes_no("n"));
-        assert!(!parse_yes_no("N"));
+        assert!(!parse_yes_no("no").unwrap());
+        assert!(!parse_yes_no("NO").unwrap());
+        assert!(!parse_yes_no("No").unwrap());
+        assert!(!parse_yes_no("n").unwrap());
+        assert!(!parse_yes_no("N").unwrap());
     }
 
     #[test]
     fn test_parse_yes_no_whitespace() {
-        assert!(parse_yes_no(" yes "));
-        assert!(parse_yes_no("  YES  "));
-        assert!(!parse_yes_no(" no "));
-        assert!(!parse_yes_no("  NO  "));
-        assert!(parse_yes_no("\ty\t"));
-        assert!(!parse_yes_no("\tn\t"));
+        assert!(parse_yes_no(" yes ").unwrap());
+        assert!(parse_yes_no("  YES  ").unwrap());
+        assert!(!parse_yes_no(" no ").unwrap());
+        assert!(!parse_yes_no("  NO  ").unwrap());
+        assert!(parse_yes_no("\ty\t").unwrap());
+        assert!(!parse_yes_no("\tn\t").unwrap());
     }
 
     #[test]
-    fn test_parse_yes_no_defaults_to_true() {
-        assert!(parse_yes_no(""));
-        assert!(parse_yes_no("unknown"));
-        assert!(parse_yes_no("maybe"));
-        assert!(parse_yes_no("1"));
-        assert!(parse_yes_no("0"));
-        assert!(parse_yes_no("true"));
-        assert!(parse_yes_no("false"));
+    fn test_parse_yes_no_invalid_values_return_error() {
+        let invalid_values = vec!["", "unknown", "maybe", "1", "0", "true", "false", "maybe"];
+
+        for value in invalid_values {
+            let result = parse_yes_no(value);
+            assert!(result.is_err(), "Expected error for value: {value}");
+            match result.unwrap_err() {
+                AppError::InvalidInput(msg) => {
+                    assert!(msg.contains("Invalid cleanup value"));
+                    assert!(msg.contains(value));
+                }
+                _ => panic!("Expected InvalidInput error for value: {value}"),
+            }
+        }
     }
 }
