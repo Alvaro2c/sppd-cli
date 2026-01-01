@@ -32,6 +32,8 @@ pub struct Entry {
     pub summary: Option<String>,
     /// The last updated timestamp
     pub updated: Option<String>,
+    /// The ContractFolderStatus XML subtree as a JSON string
+    pub contract_folder_status: Option<String>,
 }
 
 /// Type of procurement data to download.
