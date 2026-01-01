@@ -434,10 +434,10 @@ pub async fn download_files(
     filtered_links: &BTreeMap<String, String>,
     proc_type: &ProcurementType,
 ) -> AppResult<()> {
-    let download_dir = Path::new(proc_type.download_dir());
+    let download_dir = proc_type.download_dir();
     // Create directory if it doesn't exist
     if !download_dir.exists() {
-        fs::create_dir_all(download_dir)
+        fs::create_dir_all(&download_dir)
             .await
             .map_err(|e| AppError::IoError(format!("Failed to create directory: {e}")))?;
     }
