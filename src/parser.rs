@@ -1,6 +1,6 @@
 use crate::errors::{AppError, AppResult};
 use crate::models::Entry;
-use indicatif::{ProgressBar, ProgressStyle};
+use crate::ui;
 use polars::prelude::*;
 use quick_xml::events::Event;
 use quick_xml::reader::Reader;
@@ -107,6 +107,7 @@ fn entries_to_dataframe(entries: &[Entry]) -> AppResult<DataFrame> {
 pub fn parse_xmls(
     target_links: &BTreeMap<String, String>,
     procurement_type: &crate::models::ProcurementType,
+    batch_size: usize,
 ) -> AppResult<()> {
     let extract_dir = procurement_type.extract_dir();
     let parquet_dir = procurement_type.parquet_dir();
@@ -132,15 +133,7 @@ pub fn parse_xmls(
     }
 
     // Create progress bar
-    let pb = ProgressBar::new(total_subdirs as u64);
-    pb.set_style(
-        ProgressStyle::default_bar()
-            .template(
-                "{spinner:.green} [{elapsed_precise}] [{wide_bar:.cyan/blue}] {pos}/{len} {msg}",
-            )
-            .map_err(|e| AppError::IoError(format!("Failed to create progress bar template: {e}")))?
-            .progress_chars("#>-"),
-    );
+    let pb = ui::create_progress_bar(total_subdirs as u64)?;
 
     info!(total = total_subdirs, "Starting XML parsing");
 
@@ -153,11 +146,10 @@ pub fn parse_xmls(
         pb.set_message(format!("Processing {subdir_name}..."));
 
         // Process XML files in batches, writing each batch to temporary Parquet file
-        const BATCH_SIZE: usize = 100; // Process 100 XML files per batch (~400MB average, up to ~1.5GB worst case)
         let mut temp_files: Vec<NamedTempFile> = Vec::new();
 
         // Process XML files in batches
-        for xml_batch in xml_files.chunks(BATCH_SIZE) {
+        for xml_batch in xml_files.chunks(batch_size) {
             // Parse XML files in parallel within this batch
             let batch_results: Vec<AppResult<Vec<Entry>>> = xml_batch
                 .par_iter()
