@@ -3,7 +3,6 @@ use crate::models::ProcurementType;
 use indicatif::{ProgressBar, ProgressStyle};
 use std::collections::BTreeMap;
 use std::fs::File;
-use std::io::Read;
 use std::path::Path;
 use tracing::{debug, info, warn};
 use zip::ZipArchive;
@@ -266,7 +265,7 @@ async fn extract_zip(zip_path: &Path) -> AppResult<()> {
                 })?;
             }
 
-            // Extract file
+            // Extract file using streaming copy (no intermediate buffer)
             let mut out_file = std::fs::File::create(&out_path).map_err(|e| {
                 AppError::IoError(format!(
                     "Failed to create file {}: {}",
@@ -275,18 +274,10 @@ async fn extract_zip(zip_path: &Path) -> AppResult<()> {
                 ))
             })?;
 
-            let mut contents = Vec::new();
-            file.read_to_end(&mut contents).map_err(|e| {
+            std::io::copy(&mut file, &mut out_file).map_err(|e| {
                 AppError::IoError(format!(
-                    "Failed to read file from ZIP {}: {}",
+                    "Failed to copy file from ZIP {} to {}: {}",
                     zip_path.display(),
-                    e
-                ))
-            })?;
-
-            std::io::Write::write_all(&mut out_file, &contents).map_err(|e| {
-                AppError::IoError(format!(
-                    "Failed to write file {}: {}",
                     out_path.display(),
                     e
                 ))
