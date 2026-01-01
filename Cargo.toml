@@ -26,6 +26,6 @@ serde = { version = "1.0", features = ["derive"] }
 indicatif = "0.17"
 quick-xml-to-json = "0.1.0"
 thiserror = "1.0"
+tempfile = "3"
 
 [dev-dependencies]
-tempfile = "3"
