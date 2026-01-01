@@ -479,7 +479,8 @@ pub async fn download_files(
         "Starting download"
     );
 
-    let mut errors = Vec::new();
+    // Pre-allocate errors Vec (usually small, but could accumulate)
+    let mut errors = Vec::with_capacity(10);
     let mut success_count = 0;
 
     for (period, url) in files_to_download.iter() {

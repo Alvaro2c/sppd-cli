@@ -7,7 +7,7 @@ use quick_xml::reader::Reader;
 use quick_xml::writer::Writer;
 use quick_xml_to_json::xml_to_json;
 use std::collections::BTreeMap;
-use std::fs::{self, File};
+use std::fs::{self, metadata, File};
 use std::io::{BufReader, Cursor};
 use tracing::{info, warn};
 
@@ -112,7 +112,9 @@ pub fn parse_xmls(
         pb.set_message(format!("Processing {subdir_name}..."));
 
         // Parse all XML/atom files in this subdirectory
-        let mut all_entries = Vec::new();
+        // Pre-allocate with heuristic: assume ~1000 entries per XML file
+        let estimated_capacity = xml_files.len().saturating_mul(1000);
+        let mut all_entries = Vec::with_capacity(estimated_capacity);
         for xml_path in xml_files {
             let entries = parse_xml(&xml_path)?;
             all_entries.extend(entries);
@@ -127,6 +129,7 @@ pub fn parse_xmls(
         }
 
         // Convert Entry structs to polars DataFrame
+        // Note: collect() uses the iterator's size hint (from all_entries.len()) for optimization
         let ids: Vec<Option<String>> = all_entries.iter().map(|e| e.id.clone()).collect();
         let titles: Vec<Option<String>> = all_entries.iter().map(|e| e.title.clone()).collect();
         let links: Vec<Option<String>> = all_entries.iter().map(|e| e.link.clone()).collect();
@@ -327,7 +330,8 @@ pub async fn cleanup_files(
 ///
 /// Returns an error if directory reading fails.
 pub fn find_xmls(path: &std::path::Path) -> AppResult<Vec<(String, Vec<std::path::PathBuf>)>> {
-    let mut out = Vec::new();
+    // Pre-allocate with conservative estimate (usually 1-100 subdirectories)
+    let mut out = Vec::with_capacity(50);
 
     for subdir in std::fs::read_dir(path).map_err(AppError::from)? {
         let subdir = subdir.map_err(AppError::from)?;
@@ -351,7 +355,8 @@ pub fn find_xmls(path: &std::path::Path) -> AppResult<Vec<(String, Vec<std::path
 
 /// Recursively collects `.xml` or `.atom` files in a directory (including subdirs).
 pub(crate) fn collect_xmls(dir: &std::path::Path) -> Vec<std::path::PathBuf> {
-    let mut v = Vec::new();
+    // Pre-allocate with conservative estimate (usually 1-20 XML files per directory)
+    let mut v = Vec::with_capacity(20);
     let walker = walkdir::WalkDir::new(dir).into_iter();
     for entry in walker.flatten() {
         if entry.file_type().is_file() {
@@ -538,8 +543,14 @@ pub(crate) fn parse_xml(path: &std::path::Path) -> AppResult<Vec<Entry>> {
     let mut reader = Reader::from_reader(BufReader::new(file));
     reader.config_mut().trim_text(true);
 
+    // Estimate capacity from file size (heuristic: ~1 entry per KB)
+    let estimated_capacity = metadata(path)
+        .ok()
+        .map(|m| (m.len() as usize / 1024).max(100))
+        .unwrap_or(100);
+
     let mut buf = Vec::new();
-    let mut result = Vec::new();
+    let mut result = Vec::with_capacity(estimated_capacity);
 
     let mut inside_entry = false;
     let mut builder = EntryBuilder::new();
