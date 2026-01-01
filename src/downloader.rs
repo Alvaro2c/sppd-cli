@@ -8,10 +8,13 @@ use scraper::{Html, Selector};
 use std::collections::BTreeMap;
 use std::path::Path;
 use std::str::FromStr;
+use std::sync::Arc;
 use std::sync::OnceLock;
 use tokio::fs;
 use tokio::fs::File;
 use tokio::io::AsyncWriteExt;
+use tokio::sync::Semaphore;
+use tokio::task::JoinHandle;
 use tracing::{debug, info, warn};
 use url::Url;
 
@@ -336,6 +339,10 @@ pub fn filter_periods_by_range(
     Ok(filtered)
 }
 
+/// Result type for parallel download tasks.
+/// Returns (filename, success, optional_error_message)
+type DownloadTaskResult = Result<(String, bool, Option<String>), AppError>;
+
 /// Downloads a single ZIP file.
 ///
 /// This is a helper function that performs the download of a single file,
@@ -443,12 +450,14 @@ pub async fn download_files(
     }
 
     // Count files that need downloading (excluding existing ones)
-    let files_to_download: Vec<_> = filtered_links
+    // Collect as owned values to avoid lifetime issues with spawned tasks
+    let files_to_download: Vec<(String, String)> = filtered_links
         .iter()
         .filter(|(period, _)| {
             let file_path = download_dir.join(format!("{period}.zip"));
             !file_path.exists()
         })
+        .map(|(period, url)| (period.clone(), url.clone()))
         .collect();
 
     let total_files = files_to_download.len();
@@ -479,48 +488,104 @@ pub async fn download_files(
         "Starting download"
     );
 
+    // Create semaphore to limit concurrent downloads to 4
+    let semaphore = Arc::new(Semaphore::new(4));
+    let client = Arc::new(client.clone());
+    let download_dir_path = download_dir.clone();
+    let download_dir_arc = Arc::new(download_dir_path);
+    let pb = Arc::new(pb);
+
     // Pre-allocate errors Vec (usually small, but could accumulate)
     let mut errors = Vec::with_capacity(10);
     let mut success_count = 0;
 
+    // Spawn download tasks with bounded concurrency
+    let mut handles: Vec<JoinHandle<DownloadTaskResult>> = Vec::with_capacity(total_files);
+
     for (period, url) in files_to_download.iter() {
         let filename = format!("{period}.zip");
-        let file_path = download_dir.join(&filename);
 
-        // Temporary partial file (atomic rename after complete)
-        let tmp_path = download_dir.join(format!("{period}.zip.part"));
+        // Clone Arc references and owned values for the task
+        let semaphore = semaphore.clone();
+        let client = client.clone();
+        let download_dir = download_dir_arc.clone();
+        let pb = pb.clone();
+        let period = period.clone();
+        let url = url.clone();
+        let filename_for_task = filename.clone();
 
-        // Remove stale tmp file if present (best-effort)
-        if tmp_path.exists() {
-            if let Err(e) = fs::remove_file(&tmp_path).await {
-                warn!(
-                    file_path = %tmp_path.display(),
-                    error = %e,
-                    "Failed to remove stale temp file"
-                );
+        // Spawn task that will acquire semaphore permit before downloading
+        let handle = tokio::spawn(async move {
+            // Create paths inside the task
+            let file_path = download_dir.join(&filename_for_task);
+            let tmp_path = download_dir.join(format!("{period}.zip.part"));
+
+            // Acquire permit (will wait if 4 downloads are already in progress)
+            let _permit = semaphore.acquire().await.map_err(|e| {
+                AppError::IoError(format!("Failed to acquire semaphore permit: {e}"))
+            })?;
+
+            // Remove stale tmp file if present (best-effort)
+            if tmp_path.exists() {
+                if let Err(e) = fs::remove_file(&tmp_path).await {
+                    warn!(
+                        file_path = %tmp_path.display(),
+                        error = %e,
+                        "Failed to remove stale temp file"
+                    );
+                }
+            }
+
+            // Update progress bar message
+            pb.set_message(format!("Downloading {filename_for_task}..."));
+
+            // Attempt download
+            let result =
+                download_single_file(&client, &url, &tmp_path, &file_path, &filename_for_task)
+                    .await;
+
+            // Update progress bar based on result
+            match &result {
+                Ok(_) => {
+                    pb.set_message(format!("Completed {filename_for_task}"));
+                    Ok((filename_for_task, true, None))
+                }
+                Err(e) => {
+                    let error_msg = format!("Failed to download {filename_for_task}: {e}");
+                    warn!(
+                        filename = filename_for_task,
+                        error = %e,
+                        "Failed to download file"
+                    );
+                    pb.set_message(format!("Failed {filename_for_task}"));
+                    Ok((filename_for_task, false, Some(error_msg)))
+                }
+            }
+        });
+
+        handles.push(handle);
+    }
+
+    // Await all tasks and collect results
+    for handle in handles {
+        // Update progress bar for each completed download
+        pb.inc(1);
+
+        match handle.await {
+            Ok(Ok((_filename, success, error_msg))) => {
+                if success {
+                    success_count += 1;
+                } else if let Some(msg) = error_msg {
+                    errors.push(msg);
+                }
+            }
+            Ok(Err(e)) => {
+                errors.push(format!("Task error: {e}"));
+            }
+            Err(e) => {
+                errors.push(format!("Task join error: {e}"));
             }
         }
-
-        // Update progress bar message
-        pb.set_message(format!("Downloading {filename}..."));
-
-        // Attempt download and collect errors instead of returning early
-        if let Err(e) = download_single_file(client, url, &tmp_path, &file_path, &filename).await {
-            let error_msg = format!("Failed to download {filename}: {e}");
-            warn!(
-                filename = filename,
-                error = %e,
-                "Failed to download file"
-            );
-            errors.push(error_msg);
-            pb.set_message(format!("Failed {filename}"));
-        } else {
-            success_count += 1;
-            pb.set_message(format!("Completed {filename}"));
-        }
-
-        // Update progress bar regardless of success/failure
-        pb.inc(1);
     }
 
     // Report results
