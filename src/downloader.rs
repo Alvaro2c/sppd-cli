@@ -1,7 +1,7 @@
 use crate::constants::{MINOR_CONTRACTS, PERIOD_REGEX_PATTERN, PUBLIC_TENDERS, ZIP_LINK_SELECTOR};
 use crate::errors::{AppError, AppResult};
 use crate::models::ProcurementType;
-use indicatif::{ProgressBar, ProgressStyle};
+use crate::ui;
 use regex::Regex;
 use reqwest;
 use scraper::{Html, Selector};
@@ -475,6 +475,106 @@ pub fn filter_periods_by_range(
 /// Returns (filename, success, optional_error_message)
 type DownloadTaskResult = Result<(String, bool, Option<String>), AppError>;
 
+/// Determines if an error should trigger a retry attempt.
+///
+/// Returns `true` for retryable errors (network errors, timeouts, 5xx HTTP status codes).
+/// Returns `false` for non-retryable errors (4xx client errors, I/O errors, validation errors).
+fn should_retry(error: &AppError) -> bool {
+    match error {
+        AppError::NetworkError(msg) => {
+            // Retry on network errors and timeouts
+            // Don't retry on client errors (4xx) - these are typically wrapped as NetworkError
+            // but we check the message for HTTP status codes
+            !msg.contains("400")
+                && !msg.contains("401")
+                && !msg.contains("403")
+                && !msg.contains("404")
+                && !msg.contains("client error")
+        }
+        AppError::IoError(_) => false,       // Don't retry I/O errors
+        AppError::ParseError(_) => false,    // Don't retry parse errors
+        AppError::UrlError(_) => false,      // Don't retry URL errors
+        AppError::RegexError(_) => false,    // Don't retry regex errors
+        AppError::SelectorError(_) => false, // Don't retry selector errors
+        AppError::PeriodValidationError { .. } => false, // Don't retry validation errors
+        AppError::InvalidInput(_) => false,  // Don't retry invalid input errors
+    }
+}
+
+/// Configuration for retry behavior.
+struct RetryConfig {
+    max_retries: u32,
+    initial_delay_ms: u64,
+    max_delay_ms: u64,
+}
+
+impl Default for RetryConfig {
+    fn default() -> Self {
+        Self {
+            max_retries: 3,
+            initial_delay_ms: 1000,
+            max_delay_ms: 10000,
+        }
+    }
+}
+
+/// Calculates exponential backoff delay in milliseconds.
+///
+/// Formula: `min(initial_delay * 2^attempt, max_delay)`
+fn calculate_backoff(attempt: u32, config: &RetryConfig) -> u64 {
+    let delay = config.initial_delay_ms * 2_u64.pow(attempt);
+    delay.min(config.max_delay_ms)
+}
+
+/// Downloads a single ZIP file with exponential backoff retry logic.
+///
+/// This wrapper around `download_single_file()` implements retry logic for transient
+/// network errors. It will retry on network errors, timeouts, and 5xx HTTP status codes,
+/// but not on 4xx client errors or I/O errors.
+///
+/// # Arguments
+///
+/// * `client` - HTTP client for making requests
+/// * `url` - URL to download from
+/// * `tmp_path` - Temporary file path for download
+/// * `file_path` - Final destination file path
+/// * `filename` - Filename for error messages
+async fn download_with_retry(
+    client: &reqwest::Client,
+    url: &str,
+    tmp_path: &Path,
+    file_path: &Path,
+    filename: &str,
+) -> AppResult<()> {
+    let config = RetryConfig::default();
+    let mut last_error: Option<AppError> = None;
+
+    for attempt in 0..=config.max_retries {
+        match download_single_file(client, url, tmp_path, file_path, filename).await {
+            Ok(()) => return Ok(()),
+            Err(e) => {
+                if attempt < config.max_retries && should_retry(&e) {
+                    let delay_ms = calculate_backoff(attempt, &config);
+                    warn!(
+                        filename = filename,
+                        attempt = attempt + 1,
+                        max_retries = config.max_retries + 1,
+                        delay_ms = delay_ms,
+                        error = %e,
+                        "Retrying download after error"
+                    );
+                    tokio::time::sleep(tokio::time::Duration::from_millis(delay_ms)).await;
+                    last_error = Some(e);
+                    continue;
+                }
+                return Err(e);
+            }
+        }
+    }
+
+    Err(last_error.unwrap())
+}
+
 /// Downloads a single ZIP file.
 ///
 /// This is a helper function that performs the download of a single file,
@@ -604,15 +704,7 @@ pub async fn download_files(
     }
 
     // Create progress bar
-    let pb = ProgressBar::new(total_files as u64);
-    pb.set_style(
-        ProgressStyle::default_bar()
-            .template(
-                "{spinner:.green} [{elapsed_precise}] [{wide_bar:.cyan/blue}] {pos}/{len} {msg}",
-            )
-            .unwrap()
-            .progress_chars("#>-"),
-    );
+    let pb = ui::create_progress_bar(total_files as u64)?;
 
     info!(
         total = total_files,
@@ -671,10 +763,9 @@ pub async fn download_files(
             // Update progress bar message
             pb.set_message(format!("Downloading {filename_for_task}..."));
 
-            // Attempt download
+            // Attempt download with retry logic
             let result =
-                download_single_file(&client, &url, &tmp_path, &file_path, &filename_for_task)
-                    .await;
+                download_with_retry(&client, &url, &tmp_path, &file_path, &filename_for_task).await;
 
             // Update progress bar based on result
             match &result {
