@@ -9,6 +9,7 @@ use quick_xml_to_json::xml_to_json;
 use std::collections::BTreeMap;
 use std::fs::{self, metadata, File};
 use std::io::{BufReader, Cursor};
+use tempfile::NamedTempFile;
 use tracing::{info, warn};
 
 /// Parses XML/Atom files and converts them to Parquet format.
@@ -63,6 +64,45 @@ use tracing::{info, warn};
 /// # Ok(())
 /// # }
 /// ```
+/// Converts a vector of Entry structs into a Polars DataFrame.
+///
+/// This helper function creates a DataFrame from a slice of Entry structs,
+/// ensuring consistent schema across all DataFrame creations.
+fn entries_to_dataframe(entries: &[Entry]) -> AppResult<DataFrame> {
+    if entries.is_empty() {
+        // Return empty DataFrame with correct schema
+        return DataFrame::new(vec![
+            Series::new("id", Vec::<Option<String>>::new()),
+            Series::new("title", Vec::<Option<String>>::new()),
+            Series::new("link", Vec::<Option<String>>::new()),
+            Series::new("summary", Vec::<Option<String>>::new()),
+            Series::new("updated", Vec::<Option<String>>::new()),
+            Series::new("contract_folder_status", Vec::<Option<String>>::new()),
+        ])
+        .map_err(|e| AppError::ParseError(format!("Failed to create DataFrame: {e}")));
+    }
+
+    let ids: Vec<Option<String>> = entries.iter().map(|e| e.id.clone()).collect();
+    let titles: Vec<Option<String>> = entries.iter().map(|e| e.title.clone()).collect();
+    let links: Vec<Option<String>> = entries.iter().map(|e| e.link.clone()).collect();
+    let summaries: Vec<Option<String>> = entries.iter().map(|e| e.summary.clone()).collect();
+    let updateds: Vec<Option<String>> = entries.iter().map(|e| e.updated.clone()).collect();
+    let contract_folder_statuses: Vec<Option<String>> = entries
+        .iter()
+        .map(|e| e.contract_folder_status.clone())
+        .collect();
+
+    DataFrame::new(vec![
+        Series::new("id", ids),
+        Series::new("title", titles),
+        Series::new("link", links),
+        Series::new("summary", summaries),
+        Series::new("updated", updateds),
+        Series::new("contract_folder_status", contract_folder_statuses),
+    ])
+    .map_err(|e| AppError::ParseError(format!("Failed to create DataFrame: {e}")))
+}
+
 pub fn parse_xmls(
     target_links: &BTreeMap<String, String>,
     procurement_type: &crate::models::ProcurementType,
@@ -111,47 +151,96 @@ pub fn parse_xmls(
         // Update progress bar message
         pb.set_message(format!("Processing {subdir_name}..."));
 
-        // Parse all XML/atom files in this subdirectory
-        // Pre-allocate with heuristic: assume ~1000 entries per XML file
-        let estimated_capacity = xml_files.len().saturating_mul(1000);
-        let mut all_entries = Vec::with_capacity(estimated_capacity);
-        for xml_path in xml_files {
-            let entries = parse_xml(&xml_path)?;
-            all_entries.extend(entries);
+        // Process XML files in batches, writing each batch to temporary Parquet file
+        const BATCH_SIZE: usize = 50; // Process 50 XML files per batch (~200MB per batch)
+        let mut temp_files: Vec<NamedTempFile> = Vec::new();
+
+        // Process XML files in batches
+        for xml_batch in xml_files.chunks(BATCH_SIZE) {
+            // Accumulate entries from all XML files in this batch
+            let mut batch_entries = Vec::new();
+
+            for xml_path in xml_batch {
+                let entries = parse_xml(xml_path)?;
+                batch_entries.extend(entries);
+            }
+
+            if batch_entries.is_empty() {
+                continue;
+            }
+
+            // Convert batch entries to DataFrame
+            let mut batch_df = entries_to_dataframe(&batch_entries)?;
+
+            // Create temporary Parquet file for this batch
+            let temp_file = NamedTempFile::new()
+                .map_err(|e| AppError::IoError(format!("Failed to create temp file: {e}")))?;
+
+            // Write DataFrame to temporary Parquet file
+            let mut file = File::create(temp_file.path()).map_err(|e| {
+                AppError::IoError(format!("Failed to create temp Parquet file: {e}"))
+            })?;
+
+            ParquetWriter::new(&mut file)
+                .finish(&mut batch_df)
+                .map_err(|e| {
+                    AppError::IoError(format!("Failed to write temp Parquet file: {e}"))
+                })?;
+
+            // Store handle to prevent deletion (RAII will clean up later)
+            temp_files.push(temp_file);
+
+            // batch_entries is dropped here, memory released
         }
 
-        // Skip if no entries found
-        if all_entries.is_empty() {
+        // Handle empty case
+        if temp_files.is_empty() {
             skipped_count += 1;
             pb.inc(1);
             pb.set_message(format!("Skipped {subdir_name} (no entries)"));
             continue;
         }
 
-        // Convert Entry structs to polars DataFrame
-        // Note: collect() uses the iterator's size hint (from all_entries.len()) for optimization
-        let ids: Vec<Option<String>> = all_entries.iter().map(|e| e.id.clone()).collect();
-        let titles: Vec<Option<String>> = all_entries.iter().map(|e| e.title.clone()).collect();
-        let links: Vec<Option<String>> = all_entries.iter().map(|e| e.link.clone()).collect();
-        let summaries: Vec<Option<String>> =
-            all_entries.iter().map(|e| e.summary.clone()).collect();
-        let updateds: Vec<Option<String>> = all_entries.iter().map(|e| e.updated.clone()).collect();
-        let contract_folder_statuses: Vec<Option<String>> = all_entries
+        // Convert temp file handles to paths for LazyFrame scanning
+        // Use collect to ensure we have owned strings (safer than &str references)
+        let temp_paths: Vec<String> = temp_files
             .iter()
-            .map(|e| e.contract_folder_status.clone())
+            .map(|f| f.path().to_string_lossy().to_string())
             .collect();
 
-        let mut df = DataFrame::new(vec![
-            Series::new("id", ids),
-            Series::new("title", titles),
-            Series::new("link", links),
-            Series::new("summary", summaries),
-            Series::new("updated", updateds),
-            Series::new("contract_folder_status", contract_folder_statuses),
-        ])
-        .map_err(|e| AppError::ParseError(format!("Failed to create DataFrame: {e}")))?;
+        // Read all temporary Parquet files and concatenate them into a single DataFrame
+        // This approach uses DataFrame directly (simpler than LazyFrame, still memory efficient with batching)
+        let mut dataframes = Vec::with_capacity(temp_paths.len());
+        for path in &temp_paths {
+            let file = File::open(path).map_err(|e| {
+                AppError::IoError(format!("Failed to open temp Parquet file {path}: {e}"))
+            })?;
+            let df = ParquetReader::new(file).finish().map_err(|e| {
+                AppError::ParseError(format!("Failed to read temp Parquet file {path}: {e}"))
+            })?;
+            dataframes.push(df);
+        }
 
-        // Create parquet file named after the subdirectory
+        // Concatenate all DataFrames using vstack
+        let mut df = if dataframes.is_empty() {
+            return Err(AppError::ParseError(
+                "No DataFrames to concatenate".to_string(),
+            ));
+        } else if dataframes.len() == 1 {
+            dataframes.into_iter().next().unwrap()
+        } else {
+            // Use vstack to concatenate DataFrames (more efficient than collecting all data)
+            let mut iter = dataframes.into_iter();
+            let mut result = iter.next().unwrap();
+            for other_df in iter {
+                result = result.vstack(&other_df).map_err(|e| {
+                    AppError::ParseError(format!("Failed to concatenate DataFrames: {e}"))
+                })?;
+            }
+            result
+        };
+
+        // Create final parquet file
         let parquet_path = parquet_dir.join(format!("{subdir_name}.parquet"));
         let mut file = File::create(&parquet_path).map_err(|e| {
             AppError::IoError(format!(
@@ -162,6 +251,8 @@ pub fn parse_xmls(
         ParquetWriter::new(&mut file)
             .finish(&mut df)
             .map_err(|e| AppError::IoError(format!("Failed to write Parquet file: {e}")))?;
+
+        // temp_files Vec is dropped here, automatically deleting all temporary files
 
         processed_count += 1;
         pb.inc(1);
