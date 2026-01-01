@@ -18,6 +18,7 @@ use serde::{Deserialize, Serialize};
 ///     link: Some("https://example.com/tender/12345".to_string()),
 ///     summary: Some("Procurement of IT services for government agency".to_string()),
 ///     updated: Some("2023-01-15T10:30:00Z".to_string()),
+///     contract_folder_status: Some("Active".to_string()),
 /// };
 /// ```
 #[derive(Debug, Clone, Serialize, Deserialize)]
