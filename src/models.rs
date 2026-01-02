@@ -84,21 +84,11 @@ impl ProcurementType {
     /// assert_eq!(ProcurementType::MinorContracts.download_dir(None), PathBuf::from("data/tmp/mc"));
     /// assert_eq!(ProcurementType::PublicTenders.download_dir(None), PathBuf::from("data/tmp/pt"));
     /// ```
-    pub fn download_dir(&self, config: Option<&crate::config::Config>) -> PathBuf {
+    pub fn download_dir(&self, config: Option<&crate::config::ResolvedConfig>) -> PathBuf {
         if let Some(config) = config {
-            if let Some(paths) = &config.paths {
-                match self {
-                    Self::MinorContracts => {
-                        if let Some(dir) = &paths.download_dir_mc {
-                            return PathBuf::from(dir);
-                        }
-                    }
-                    Self::PublicTenders => {
-                        if let Some(dir) = &paths.download_dir_pt {
-                            return PathBuf::from(dir);
-                        }
-                    }
-                }
+            match self {
+                Self::MinorContracts => return config.download_dir_mc.clone(),
+                Self::PublicTenders => return config.download_dir_pt.clone(),
             }
         }
         // Default values
@@ -121,7 +111,7 @@ impl ProcurementType {
     /// assert_eq!(ProcurementType::MinorContracts.extract_dir(None), PathBuf::from("data/tmp/mc"));
     /// assert_eq!(ProcurementType::PublicTenders.extract_dir(None), PathBuf::from("data/tmp/pt"));
     /// ```
-    pub fn extract_dir(&self, config: Option<&crate::config::Config>) -> PathBuf {
+    pub fn extract_dir(&self, config: Option<&crate::config::ResolvedConfig>) -> PathBuf {
         // Extract dir is same as download dir
         self.download_dir(config)
     }
@@ -139,21 +129,11 @@ impl ProcurementType {
     /// assert_eq!(ProcurementType::MinorContracts.parquet_dir(None), PathBuf::from("data/parquet/mc"));
     /// assert_eq!(ProcurementType::PublicTenders.parquet_dir(None), PathBuf::from("data/parquet/pt"));
     /// ```
-    pub fn parquet_dir(&self, config: Option<&crate::config::Config>) -> PathBuf {
+    pub fn parquet_dir(&self, config: Option<&crate::config::ResolvedConfig>) -> PathBuf {
         if let Some(config) = config {
-            if let Some(paths) = &config.paths {
-                match self {
-                    Self::MinorContracts => {
-                        if let Some(dir) = &paths.parquet_dir_mc {
-                            return PathBuf::from(dir);
-                        }
-                    }
-                    Self::PublicTenders => {
-                        if let Some(dir) = &paths.parquet_dir_pt {
-                            return PathBuf::from(dir);
-                        }
-                    }
-                }
+            match self {
+                Self::MinorContracts => return config.parquet_dir_mc.clone(),
+                Self::PublicTenders => return config.parquet_dir_pt.clone(),
             }
         }
         // Default values

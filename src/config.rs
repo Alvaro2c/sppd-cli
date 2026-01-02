@@ -6,12 +6,12 @@ use std::path::{Path, PathBuf};
 ///
 /// Supports loading from TOML files with optional sections.
 /// Missing sections or fields will use default values.
-#[derive(Debug, Clone, Default, Deserialize)]
-#[serde(deny_unknown_fields)]
+#[derive(Debug, Default, Clone, Deserialize)]
+#[serde(default)]
 pub struct Config {
-    pub paths: Option<PathsConfig>,
-    pub processing: Option<ProcessingConfig>,
-    pub downloads: Option<DownloadsConfig>,
+    pub paths: PathsConfig,
+    pub processing: ProcessingConfig,
+    pub downloads: DownloadsConfig,
 }
 
 /// Path configuration section.
@@ -40,6 +40,44 @@ pub struct ProcessingConfig {
 #[serde(deny_unknown_fields)]
 pub struct DownloadsConfig {
     pub concurrent_downloads: Option<usize>,
+}
+
+/// Resolved configuration with all values filled in (no Options).
+///
+/// This struct is created by resolving precedence: CLI args > config file > env vars > defaults.
+/// All fields have concrete values, making it safe to access directly without unwrapping.
+#[derive(Debug, Clone)]
+pub struct ResolvedConfig {
+    // Paths
+    pub download_dir_mc: PathBuf,
+    pub download_dir_pt: PathBuf,
+    pub parquet_dir_mc: PathBuf,
+    pub parquet_dir_pt: PathBuf,
+
+    // Processing
+    pub batch_size: usize,
+    pub max_retries: u32,
+    pub retry_initial_delay_ms: u64,
+    pub retry_max_delay_ms: u64,
+
+    // Downloads
+    pub concurrent_downloads: usize,
+}
+
+impl Default for ResolvedConfig {
+    fn default() -> Self {
+        Self {
+            download_dir_mc: PathBuf::from("data/tmp/mc"),
+            download_dir_pt: PathBuf::from("data/tmp/pt"),
+            parquet_dir_mc: PathBuf::from("data/parquet/mc"),
+            parquet_dir_pt: PathBuf::from("data/parquet/pt"),
+            batch_size: 100,
+            max_retries: 3,
+            retry_initial_delay_ms: 1000,
+            retry_max_delay_ms: 10000,
+            concurrent_downloads: 4,
+        }
+    }
 }
 
 impl Config {
@@ -92,43 +130,60 @@ impl Config {
         Ok(None)
     }
 
-    /// Gets the batch size from config, or returns default.
-    pub fn batch_size(&self) -> usize {
-        self.processing
-            .as_ref()
-            .and_then(|p| p.batch_size)
-            .unwrap_or(100)
-    }
+    /// Resolves configuration values with precedence: CLI args > config file > env vars > defaults.
+    ///
+    /// This method consolidates all precedence logic in one place, producing a `ResolvedConfig`
+    /// with all values filled in. This eliminates the need for complex unwrapping throughout the codebase.
+    ///
+    /// # Arguments
+    ///
+    /// * `cli_batch_size` - Optional batch size from CLI arguments (highest precedence)
+    ///
+    /// # Returns
+    ///
+    /// A `ResolvedConfig` with all values resolved according to precedence rules.
+    pub fn resolve(self, cli_batch_size: Option<usize>) -> ResolvedConfig {
+        // Resolve batch_size: CLI > config > env > default
+        let batch_size = cli_batch_size
+            .or(self.processing.batch_size)
+            .or_else(|| {
+                std::env::var("SPPD_BATCH_SIZE")
+                    .ok()
+                    .and_then(|v| v.parse().ok())
+            })
+            .unwrap_or(100);
 
-    /// Gets the max retries from config, or returns default.
-    pub fn max_retries(&self) -> u32 {
-        self.processing
-            .as_ref()
-            .and_then(|p| p.max_retries)
-            .unwrap_or(3)
-    }
+        ResolvedConfig {
+            // Paths - use config values if present, otherwise defaults
+            download_dir_mc: self
+                .paths
+                .download_dir_mc
+                .map(PathBuf::from)
+                .unwrap_or_else(|| PathBuf::from("data/tmp/mc")),
+            download_dir_pt: self
+                .paths
+                .download_dir_pt
+                .map(PathBuf::from)
+                .unwrap_or_else(|| PathBuf::from("data/tmp/pt")),
+            parquet_dir_mc: self
+                .paths
+                .parquet_dir_mc
+                .map(PathBuf::from)
+                .unwrap_or_else(|| PathBuf::from("data/parquet/mc")),
+            parquet_dir_pt: self
+                .paths
+                .parquet_dir_pt
+                .map(PathBuf::from)
+                .unwrap_or_else(|| PathBuf::from("data/parquet/pt")),
 
-    /// Gets the retry initial delay from config, or returns default.
-    pub fn retry_initial_delay_ms(&self) -> u64 {
-        self.processing
-            .as_ref()
-            .and_then(|p| p.retry_initial_delay_ms)
-            .unwrap_or(1000)
-    }
+            // Processing - use config values if present, otherwise defaults
+            batch_size,
+            max_retries: self.processing.max_retries.unwrap_or(3),
+            retry_initial_delay_ms: self.processing.retry_initial_delay_ms.unwrap_or(1000),
+            retry_max_delay_ms: self.processing.retry_max_delay_ms.unwrap_or(10000),
 
-    /// Gets the retry max delay from config, or returns default.
-    pub fn retry_max_delay_ms(&self) -> u64 {
-        self.processing
-            .as_ref()
-            .and_then(|p| p.retry_max_delay_ms)
-            .unwrap_or(10000)
-    }
-
-    /// Gets the concurrent downloads from config, or returns default.
-    pub fn concurrent_downloads(&self) -> usize {
-        self.downloads
-            .as_ref()
-            .and_then(|d| d.concurrent_downloads)
-            .unwrap_or(4)
+            // Downloads - use config values if present, otherwise defaults
+            concurrent_downloads: self.downloads.concurrent_downloads.unwrap_or(4),
+        }
     }
 }

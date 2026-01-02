@@ -59,7 +59,7 @@ use zip::ZipArchive;
 pub async fn extract_all_zips(
     target_links: &BTreeMap<String, String>,
     procurement_type: &ProcurementType,
-    config: Option<&crate::config::Config>,
+    config: Option<&crate::config::ResolvedConfig>,
 ) -> AppResult<()> {
     let extract_dir = procurement_type.extract_dir(config);
     if !extract_dir.exists() {

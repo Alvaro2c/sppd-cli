@@ -112,7 +112,7 @@ pub fn parse_xmls(
     target_links: &BTreeMap<String, String>,
     procurement_type: &crate::models::ProcurementType,
     batch_size: usize,
-    config: Option<&crate::config::Config>,
+    config: Option<&crate::config::ResolvedConfig>,
 ) -> AppResult<()> {
     let extract_dir = procurement_type.extract_dir(config);
     let parquet_dir = procurement_type.parquet_dir(config);
@@ -324,7 +324,7 @@ pub async fn cleanup_files(
     target_links: &BTreeMap<String, String>,
     procurement_type: &crate::models::ProcurementType,
     should_cleanup: bool,
-    config: Option<&crate::config::Config>,
+    config: Option<&crate::config::ResolvedConfig>,
 ) -> AppResult<()> {
     if !should_cleanup {
         info!("Cleanup skipped (--cleanup=no)");
