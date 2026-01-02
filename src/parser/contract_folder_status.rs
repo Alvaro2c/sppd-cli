@@ -50,11 +50,12 @@ impl ContractFolderStatusHandler {
 
         // Pre-allocate buffer with estimated capacity (typically ContractFolderStatus is 1-10KB)
         let mut buffer = Vec::with_capacity(4096);
-        let mut writer = Writer::new(&mut buffer);
-
-        writer
-            .write_event(event)
-            .map_err(|e| AppError::ParseError(format!("Failed to write event to buffer: {e}")))?;
+        {
+            let mut writer = Writer::new(&mut buffer);
+            writer.write_event(event).map_err(|e| {
+                AppError::ParseError(format!("Failed to write event to buffer: {e}"))
+            })?;
+        }
 
         let state = ContractFolderStatusState {
             depth: 1,
@@ -69,14 +70,10 @@ impl ContractFolderStatusHandler {
     /// Handles an event while inside ContractFolderStatus (generic event).
     pub fn handle_event(&mut self, event: Event) -> AppResult<()> {
         if let Some(ref mut state) = self.state {
-            // Reuse the writer by writing to a temporary buffer, then appending
-            let mut temp_buf = Vec::with_capacity(256);
-            let mut temp_writer = Writer::new(&mut temp_buf);
-            temp_writer.write_event(event).map_err(|e| {
+            let mut writer = Writer::new(&mut state.buffer);
+            writer.write_event(event).map_err(|e| {
                 AppError::ParseError(format!("Failed to write event to buffer: {e}"))
             })?;
-            drop(temp_writer);
-            state.buffer.extend_from_slice(&temp_buf);
         }
         Ok(())
     }
@@ -85,14 +82,10 @@ impl ContractFolderStatusHandler {
     pub fn handle_start(&mut self, event: Event) -> AppResult<()> {
         if let Some(ref mut state) = self.state {
             state.depth += 1;
-            // Reuse the writer by writing to a temporary buffer, then appending
-            let mut temp_buf = Vec::with_capacity(256);
-            let mut temp_writer = Writer::new(&mut temp_buf);
-            temp_writer.write_event(event).map_err(|e| {
+            let mut writer = Writer::new(&mut state.buffer);
+            writer.write_event(event).map_err(|e| {
                 AppError::ParseError(format!("Failed to write event to buffer: {e}"))
             })?;
-            drop(temp_writer);
-            state.buffer.extend_from_slice(&temp_buf);
         }
         Ok(())
     }
@@ -103,14 +96,10 @@ impl ContractFolderStatusHandler {
     /// or `None` if still capturing nested elements.
     pub fn handle_end(&mut self, event: Event) -> AppResult<Option<String>> {
         if let Some(ref mut state) = self.state {
-            // Reuse the writer by writing to a temporary buffer, then appending
-            let mut temp_buf = Vec::with_capacity(256);
-            let mut temp_writer = Writer::new(&mut temp_buf);
-            temp_writer.write_event(event).map_err(|e| {
+            let mut writer = Writer::new(&mut state.buffer);
+            writer.write_event(event).map_err(|e| {
                 AppError::ParseError(format!("Failed to write event to buffer: {e}"))
             })?;
-            drop(temp_writer);
-            state.buffer.extend_from_slice(&temp_buf);
 
             state.depth -= 1;
 

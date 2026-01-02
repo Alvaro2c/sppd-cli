@@ -3,8 +3,11 @@ use crate::errors::{AppError, AppResult};
 use crate::models::Entry;
 use quick_xml::events::Event;
 use quick_xml::reader::Reader;
-use std::fs::{metadata, File};
-use std::io::BufReader;
+#[cfg(test)]
+use std::fs;
+use std::io::Cursor;
+#[cfg(test)]
+use std::path::Path;
 
 /// Represents the current field being parsed within an entry
 enum EntryField {
@@ -115,20 +118,15 @@ impl EntryBuilder {
     }
 }
 
-/// Parses an XML file and returns a vector of Entry.
-pub(crate) fn parse_xml(path: &std::path::Path) -> AppResult<Vec<Entry>> {
-    let file = File::open(path)?;
-    let mut reader = Reader::from_reader(BufReader::new(file));
+/// Parses XML content provided as bytes.
+pub fn parse_xml_bytes(content: &[u8]) -> AppResult<Vec<Entry>> {
+    let cursor = Cursor::new(content);
+    let mut reader = Reader::from_reader(cursor);
     reader.config_mut().trim_text(true);
 
-    // Estimate capacity from file size (heuristic: ~1 entry per KB)
-    let estimated_capacity = metadata(path)
-        .ok()
-        .map(|m| (m.len() as usize / 1024).max(100))
-        .unwrap_or(100);
-
-    // Pre-allocate buffer with reasonable capacity to avoid reallocations
-    let mut buf = Vec::with_capacity(8192); // 8KB initial capacity
+    // Estimate capacity from content length (heuristic: ~1 entry per KB)
+    let estimated_capacity = (content.len() / 1024).max(100);
+    let mut buf = Vec::with_capacity(8192);
     let mut result = Vec::with_capacity(estimated_capacity);
 
     let mut inside_entry = false;
@@ -137,105 +135,84 @@ pub(crate) fn parse_xml(path: &std::path::Path) -> AppResult<Vec<Entry>> {
     loop {
         match reader.read_event_into(&mut buf)? {
             Event::Start(e) => {
-                // Store name as Vec to avoid borrowing issues
-                let name_bytes = e.name().as_ref().to_vec();
-                let name = name_bytes.as_slice();
-
-                // Check for ContractFolderStatus element
-                if inside_entry && name.ends_with(b":ContractFolderStatus") {
-                    builder.start_contract_folder_status(Event::Start(e.clone()))?;
-                } else if builder.is_inside_contract_folder_status() {
-                    // We're inside ContractFolderStatus, capture this event
-                    builder.handle_contract_folder_status_start(Event::Start(e.clone()))?;
-                } else {
-                    // Handle other elements
-                    match name {
-                        b"entry" => {
-                            inside_entry = true;
-                            builder.reset();
-                        }
-                        b"id" if inside_entry => {
-                            builder.set_current_field(EntryField::Id);
-                        }
-                        b"title" if inside_entry => {
-                            builder.set_current_field(EntryField::Title);
-                        }
-                        b"summary" if inside_entry => {
-                            builder.set_current_field(EntryField::Summary);
-                        }
-                        b"updated" if inside_entry => {
-                            builder.set_current_field(EntryField::Updated);
-                        }
-                        b"link" if inside_entry => {
-                            // Get the href attribute
-                            if let Some(href) = e
-                                .attributes()
-                                .filter_map(|a| a.ok())
-                                .find(|a| a.key.as_ref() == b"href")
-                            {
-                                // Direct allocation without double conversion
-                                let href_str = String::from_utf8_lossy(&href.value);
-                                builder.set_link(href_str.into_owned());
-                            }
-                        }
-                        _ => {}
-                    }
+                if inside_entry && e.name().as_ref().ends_with(b":ContractFolderStatus") {
+                    builder.start_contract_folder_status(Event::Start(e.into_owned()))?;
+                    continue;
                 }
-            }
-            Event::Empty(e) if inside_entry => {
+
                 if builder.is_inside_contract_folder_status() {
-                    // Capture empty element for ContractFolderStatus
-                    builder.handle_contract_folder_status_event(Event::Empty(e.clone()))?;
-                } else {
-                    // Handle self-closing tags like <link href="..."/>
-                    if e.name().as_ref() == b"link" {
+                    builder.handle_contract_folder_status_start(Event::Start(e.into_owned()))?;
+                    continue;
+                }
+
+                match e.name().as_ref() {
+                    b"entry" => {
+                        inside_entry = true;
+                        builder.reset();
+                    }
+                    b"id" if inside_entry => {
+                        builder.set_current_field(EntryField::Id);
+                    }
+                    b"title" if inside_entry => {
+                        builder.set_current_field(EntryField::Title);
+                    }
+                    b"summary" if inside_entry => {
+                        builder.set_current_field(EntryField::Summary);
+                    }
+                    b"updated" if inside_entry => {
+                        builder.set_current_field(EntryField::Updated);
+                    }
+                    b"link" if inside_entry => {
                         if let Some(href) = e
                             .attributes()
                             .filter_map(|a| a.ok())
                             .find(|a| a.key.as_ref() == b"href")
                         {
-                            // Direct allocation without double conversion
                             let href_str = String::from_utf8_lossy(&href.value);
                             builder.set_link(href_str.into_owned());
                         }
                     }
+                    _ => {}
+                }
+            }
+            Event::Empty(e) if inside_entry => {
+                if builder.is_inside_contract_folder_status() {
+                    builder.handle_contract_folder_status_event(Event::Empty(e.into_owned()))?;
+                } else if e.name().as_ref() == b"link" {
+                    if let Some(href) = e
+                        .attributes()
+                        .filter_map(|a| a.ok())
+                        .find(|a| a.key.as_ref() == b"href")
+                    {
+                        let href_str = String::from_utf8_lossy(&href.value);
+                        builder.set_link(href_str.into_owned());
+                    }
                 }
             }
             Event::CData(e) if inside_entry && builder.is_inside_contract_folder_status() => {
-                // Capture CDATA for ContractFolderStatus
-                builder.handle_contract_folder_status_event(Event::CData(e.clone()))?;
+                builder.handle_contract_folder_status_event(Event::CData(e.into_owned()))?;
             }
             Event::Comment(e) if inside_entry && builder.is_inside_contract_folder_status() => {
-                // Capture comments for ContractFolderStatus
-                builder.handle_contract_folder_status_event(Event::Comment(e.clone()))?;
+                builder.handle_contract_folder_status_event(Event::Comment(e.into_owned()))?;
             }
             Event::PI(e) if inside_entry && builder.is_inside_contract_folder_status() => {
-                // Capture processing instructions for ContractFolderStatus
-                builder.handle_contract_folder_status_event(Event::PI(e.clone()))?;
+                builder.handle_contract_folder_status_event(Event::PI(e.into_owned()))?;
             }
             Event::End(e) => {
-                // Store name as Vec to avoid borrowing issues
-                let name_bytes = e.name().as_ref().to_vec();
-                let name = name_bytes.as_slice();
-
-                // Handle ContractFolderStatus closing
                 if builder.is_inside_contract_folder_status() {
-                    builder.handle_contract_folder_status_end(Event::End(e.clone()))?;
+                    builder.handle_contract_folder_status_end(Event::End(e.into_owned()))?;
+                    continue;
                 }
 
-                // Handle other elements
-                match name {
+                match e.name().as_ref() {
                     b"entry" => {
                         inside_entry = false;
-                        // Build and push entry if valid
                         if let Some(entry) = builder.build() {
                             result.push(entry);
                         }
                         builder.reset();
                     }
-                    b"id" | b"title" | b"summary" | b"updated"
-                        if !builder.is_inside_contract_folder_status() =>
-                    {
+                    b"id" | b"title" | b"summary" | b"updated" => {
                         builder.clear_current_field();
                     }
                     _ => {}
@@ -243,10 +220,8 @@ pub(crate) fn parse_xml(path: &std::path::Path) -> AppResult<Vec<Entry>> {
             }
             Event::Text(e) if inside_entry => {
                 if builder.is_inside_contract_folder_status() {
-                    // Capture text for ContractFolderStatus
-                    builder.handle_contract_folder_status_event(Event::Text(e.clone()))?;
+                    builder.handle_contract_folder_status_event(Event::Text(e.into_owned()))?;
                 } else {
-                    // Handle normal text fields - decode once and use directly
                     let txt = e
                         .decode()
                         .map_err(|e| {
@@ -263,6 +238,13 @@ pub(crate) fn parse_xml(path: &std::path::Path) -> AppResult<Vec<Entry>> {
     }
 
     Ok(result)
+}
+
+/// Parses an XML file from disk and delegates to `parse_xml_bytes`.
+#[cfg(test)]
+pub(crate) fn parse_xml(path: &Path) -> AppResult<Vec<Entry>> {
+    let content = fs::read(path)?;
+    parse_xml_bytes(&content)
 }
 
 #[cfg(test)]
