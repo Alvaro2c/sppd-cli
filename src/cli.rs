@@ -1,3 +1,4 @@
+use crate::config::Config;
 use crate::constants::{APP_ABOUT, APP_AUTHOR, APP_VERSION, PERIOD_HELP_TEXT};
 use crate::downloader::{download_files, filter_periods_by_range};
 use crate::errors::{AppError, AppResult};
@@ -55,6 +56,12 @@ pub async fn cli(
         .version(APP_VERSION)
         .author(APP_AUTHOR)
         .about(APP_ABOUT)
+        .arg(
+            Arg::new("config")
+                .long("config")
+                .help("Path to configuration file (TOML format). If not specified, checks sppd.toml in current directory and ~/.config/sppd-cli/sppd.toml")
+                .action(ArgAction::Set),
+        )
         .subcommand(
             Command::new("download")
                 .about("Download procurement data")
@@ -90,7 +97,7 @@ pub async fn cli(
                 .arg(
                     Arg::new("batch-size")
                         .long("batch-size")
-                        .help("Number of XML files to process per batch (default: 100, can also be set via SPPD_BATCH_SIZE env var)")
+                        .help("Number of XML files to process per batch (default: 100, can also be set via SPPD_BATCH_SIZE env var or config file)")
                         .value_parser(clap::value_parser!(usize))
                         .action(ArgAction::Set),
                 ),
@@ -98,6 +105,22 @@ pub async fn cli(
 
     let mut cmd_for_help = cmd.clone();
     let matches = cmd.get_matches();
+
+    // Load configuration
+    let config = if let Some(config_path) = matches.get_one::<String>("config") {
+        Some(Config::from_file(config_path)?)
+    } else {
+        match Config::from_standard_locations()? {
+            Some(cfg) => {
+                info!("Loaded configuration from standard location");
+                Some(cfg)
+            }
+            None => {
+                // No config file found, use defaults
+                None
+            }
+        }
+    };
 
     if let Some(matches) = matches.subcommand_matches("download") {
         let proc_type = ProcurementType::from(
@@ -121,10 +144,11 @@ pub async fn cli(
             .as_str();
         let should_cleanup = parse_yes_no(cleanup_value)?;
 
-        // Get batch size from CLI arg, env var, or default
+        // Get batch size: CLI arg > config > env var > default
         let batch_size = matches
             .get_one::<usize>("batch-size")
             .copied()
+            .or_else(|| config.as_ref().map(|c| c.batch_size()))
             .or_else(|| {
                 std::env::var("SPPD_BATCH_SIZE")
                     .ok()
@@ -143,15 +167,15 @@ pub async fn cli(
         print_download_info(&proc_type, start_period, end_period, target_links.len());
 
         let client = reqwest::Client::new();
-        download_files(&client, &target_links, &proc_type).await?;
+        download_files(&client, &target_links, &proc_type, config.as_ref()).await?;
 
         info!("Starting extraction phase");
-        extract_all_zips(&target_links, &proc_type).await?;
+        extract_all_zips(&target_links, &proc_type, config.as_ref()).await?;
 
         info!("Starting parsing phase");
-        parse_xmls(&target_links, &proc_type, batch_size)?;
+        parse_xmls(&target_links, &proc_type, batch_size, config.as_ref())?;
 
-        cleanup_files(&target_links, &proc_type, should_cleanup).await?;
+        cleanup_files(&target_links, &proc_type, should_cleanup, config.as_ref()).await?;
 
         info!(
             procurement_type = proc_type.display_name(),

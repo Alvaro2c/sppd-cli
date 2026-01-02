@@ -73,16 +73,35 @@ impl ProcurementType {
     }
     /// Returns the download directory path for the procurement type (for ZIP downloads).
     ///
+    /// Uses config if provided, otherwise falls back to defaults.
+    ///
     /// # Example
     ///
     /// ```
     /// use sppd_cli::models::ProcurementType;
     /// use std::path::PathBuf;
     ///
-    /// assert_eq!(ProcurementType::MinorContracts.download_dir(), PathBuf::from("data/tmp/mc"));
-    /// assert_eq!(ProcurementType::PublicTenders.download_dir(), PathBuf::from("data/tmp/pt"));
+    /// assert_eq!(ProcurementType::MinorContracts.download_dir(None), PathBuf::from("data/tmp/mc"));
+    /// assert_eq!(ProcurementType::PublicTenders.download_dir(None), PathBuf::from("data/tmp/pt"));
     /// ```
-    pub fn download_dir(&self) -> PathBuf {
+    pub fn download_dir(&self, config: Option<&crate::config::Config>) -> PathBuf {
+        if let Some(config) = config {
+            if let Some(paths) = &config.paths {
+                match self {
+                    Self::MinorContracts => {
+                        if let Some(dir) = &paths.download_dir_mc {
+                            return PathBuf::from(dir);
+                        }
+                    }
+                    Self::PublicTenders => {
+                        if let Some(dir) = &paths.download_dir_pt {
+                            return PathBuf::from(dir);
+                        }
+                    }
+                }
+            }
+        }
+        // Default values
         match self {
             Self::MinorContracts => PathBuf::from("data/tmp/mc"),
             Self::PublicTenders => PathBuf::from("data/tmp/pt"),
@@ -91,34 +110,53 @@ impl ProcurementType {
 
     /// Returns the extraction directory path for the procurement type (for XML extraction).
     ///
+    /// Uses config if provided, otherwise falls back to defaults.
+    ///
     /// # Example
     ///
     /// ```
     /// use sppd_cli::models::ProcurementType;
     /// use std::path::PathBuf;
     ///
-    /// assert_eq!(ProcurementType::MinorContracts.extract_dir(), PathBuf::from("data/tmp/mc"));
-    /// assert_eq!(ProcurementType::PublicTenders.extract_dir(), PathBuf::from("data/tmp/pt"));
+    /// assert_eq!(ProcurementType::MinorContracts.extract_dir(None), PathBuf::from("data/tmp/mc"));
+    /// assert_eq!(ProcurementType::PublicTenders.extract_dir(None), PathBuf::from("data/tmp/pt"));
     /// ```
-    pub fn extract_dir(&self) -> PathBuf {
-        match self {
-            Self::MinorContracts => PathBuf::from("data/tmp/mc"),
-            Self::PublicTenders => PathBuf::from("data/tmp/pt"),
-        }
+    pub fn extract_dir(&self, config: Option<&crate::config::Config>) -> PathBuf {
+        // Extract dir is same as download dir
+        self.download_dir(config)
     }
 
     /// Returns the directory path for the final parquet files.
     ///
+    /// Uses config if provided, otherwise falls back to defaults.
+    ///
     /// # Example
     ///
     /// ```
     /// use sppd_cli::models::ProcurementType;
     /// use std::path::PathBuf;
     ///
-    /// assert_eq!(ProcurementType::MinorContracts.parquet_dir(), PathBuf::from("data/parquet/mc"));
-    /// assert_eq!(ProcurementType::PublicTenders.parquet_dir(), PathBuf::from("data/parquet/pt"));
+    /// assert_eq!(ProcurementType::MinorContracts.parquet_dir(None), PathBuf::from("data/parquet/mc"));
+    /// assert_eq!(ProcurementType::PublicTenders.parquet_dir(None), PathBuf::from("data/parquet/pt"));
     /// ```
-    pub fn parquet_dir(&self) -> PathBuf {
+    pub fn parquet_dir(&self, config: Option<&crate::config::Config>) -> PathBuf {
+        if let Some(config) = config {
+            if let Some(paths) = &config.paths {
+                match self {
+                    Self::MinorContracts => {
+                        if let Some(dir) = &paths.parquet_dir_mc {
+                            return PathBuf::from(dir);
+                        }
+                    }
+                    Self::PublicTenders => {
+                        if let Some(dir) = &paths.parquet_dir_pt {
+                            return PathBuf::from(dir);
+                        }
+                    }
+                }
+            }
+        }
+        // Default values
         match self {
             Self::MinorContracts => PathBuf::from("data/parquet/mc"),
             Self::PublicTenders => PathBuf::from("data/parquet/pt"),

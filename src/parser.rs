@@ -1,15 +1,16 @@
+mod contract_folder_status;
+
 use crate::errors::{AppError, AppResult};
 use crate::models::Entry;
 use crate::ui;
+use contract_folder_status::ContractFolderStatusHandler;
 use polars::prelude::*;
 use quick_xml::events::Event;
 use quick_xml::reader::Reader;
-use quick_xml::writer::Writer;
-use quick_xml_to_json::xml_to_json;
 use rayon::prelude::*;
 use std::collections::BTreeMap;
 use std::fs::{self, metadata, File};
-use std::io::{BufReader, Cursor};
+use std::io::BufReader;
 use tempfile::NamedTempFile;
 use tracing::{info, warn};
 
@@ -61,9 +62,10 @@ use tracing::{info, warn};
 /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
 /// let mut links = BTreeMap::new();
 /// links.insert("202301".to_string(), "https://example.com/202301.zip".to_string());
-/// parser::parse_xmls(&links, &ProcurementType::PublicTenders, 100)?;
+/// parser::parse_xmls(&links, &ProcurementType::PublicTenders, 100, None)?;
 /// // Processes data/tmp/pt/202301/*.xml -> data/parquet/pt/202301.parquet
 /// // batch_size of 100 means 100 XML files are processed per batch
+/// // config: None uses default paths
 /// # Ok(())
 /// # }
 /// ```
@@ -110,9 +112,10 @@ pub fn parse_xmls(
     target_links: &BTreeMap<String, String>,
     procurement_type: &crate::models::ProcurementType,
     batch_size: usize,
+    config: Option<&crate::config::Config>,
 ) -> AppResult<()> {
-    let extract_dir = procurement_type.extract_dir();
-    let parquet_dir = procurement_type.parquet_dir();
+    let extract_dir = procurement_type.extract_dir(config);
+    let parquet_dir = procurement_type.parquet_dir(config);
 
     // Create parquet directory if it doesn't exist
     fs::create_dir_all(&parquet_dir)
@@ -306,7 +309,8 @@ pub fn parse_xmls(
 /// let mut links = BTreeMap::new();
 /// links.insert("202301".to_string(), "https://example.com/202301.zip".to_string());
 /// // Clean up temporary files, keeping only Parquet files
-/// parser::cleanup_files(&links, &ProcurementType::PublicTenders, true).await?;
+/// parser::cleanup_files(&links, &ProcurementType::PublicTenders, true, None).await?;
+/// // config: None uses default paths
 /// # Ok(())
 /// # }
 /// ```
@@ -314,13 +318,14 @@ pub async fn cleanup_files(
     target_links: &BTreeMap<String, String>,
     procurement_type: &crate::models::ProcurementType,
     should_cleanup: bool,
+    config: Option<&crate::config::Config>,
 ) -> AppResult<()> {
     if !should_cleanup {
         info!("Cleanup skipped (--cleanup=no)");
         return Ok(());
     }
 
-    let extract_dir = procurement_type.extract_dir();
+    let extract_dir = procurement_type.extract_dir(config);
     if !extract_dir.exists() {
         info!("Extract directory does not exist, skipping cleanup");
         return Ok(());
@@ -465,27 +470,12 @@ pub(crate) fn collect_xmls(dir: &std::path::Path) -> Vec<std::path::PathBuf> {
 }
 
 /// Helper function to write an XML event to a buffer
-fn write_event_to_buffer(buffer: &mut Vec<u8>, event: Event) -> AppResult<()> {
-    let mut writer = Writer::new(buffer);
-    writer
-        .write_event(event)
-        .map_err(|e| AppError::ParseError(format!("Failed to write event to buffer: {e}")))?;
-    Ok(())
-}
-
 /// Represents the current field being parsed within an entry
 enum EntryField {
     Id,
     Title,
     Summary,
     Updated,
-}
-
-/// State for capturing ContractFolderStatus XML subtree
-struct ContractFolderStatusState {
-    depth: u32,
-    buffer: Vec<u8>,
-    found: bool,
 }
 
 /// Builder for constructing Entry structs during XML parsing.
@@ -498,7 +488,7 @@ struct EntryBuilder {
     updated: Option<String>,
     contract_folder_status: Option<String>,
     current_field: Option<EntryField>,
-    contract_folder_status_state: Option<ContractFolderStatusState>,
+    contract_folder_status_handler: ContractFolderStatusHandler,
 }
 
 impl EntryBuilder {
@@ -511,7 +501,7 @@ impl EntryBuilder {
             updated: None,
             contract_folder_status: None,
             current_field: None,
-            contract_folder_status_state: None,
+            contract_folder_status_handler: ContractFolderStatusHandler::new(),
         }
     }
 
@@ -523,7 +513,7 @@ impl EntryBuilder {
         self.updated = None;
         self.contract_folder_status = None;
         self.current_field = None;
-        self.contract_folder_status_state = None;
+        self.contract_folder_status_handler.reset();
     }
 
     fn set_field_text(&mut self, text: String) {
@@ -550,66 +540,24 @@ impl EntryBuilder {
     }
 
     fn is_inside_contract_folder_status(&self) -> bool {
-        self.contract_folder_status_state.is_some()
+        self.contract_folder_status_handler.is_active()
     }
 
     fn start_contract_folder_status(&mut self, event: Event) -> AppResult<()> {
-        if let Some(ref state) = self.contract_folder_status_state {
-            if state.found {
-                return Err(AppError::ParseError(
-                    "Multiple ContractFolderStatus elements found in entry".to_string(),
-                ));
-            }
-        }
-
-        let mut state = ContractFolderStatusState {
-            depth: 1,
-            buffer: Vec::new(),
-            found: true,
-        };
-
-        write_event_to_buffer(&mut state.buffer, event)?;
-        self.contract_folder_status_state = Some(state);
-        Ok(())
+        self.contract_folder_status_handler.start(event)
     }
 
     fn handle_contract_folder_status_event(&mut self, event: Event) -> AppResult<()> {
-        if let Some(ref mut state) = self.contract_folder_status_state {
-            write_event_to_buffer(&mut state.buffer, event)?;
-        }
-        Ok(())
+        self.contract_folder_status_handler.handle_event(event)
     }
 
     fn handle_contract_folder_status_start(&mut self, event: Event) -> AppResult<()> {
-        if let Some(ref mut state) = self.contract_folder_status_state {
-            state.depth += 1;
-            write_event_to_buffer(&mut state.buffer, event)?;
-        }
-        Ok(())
+        self.contract_folder_status_handler.handle_start(event)
     }
 
     fn handle_contract_folder_status_end(&mut self, event: Event) -> AppResult<()> {
-        if let Some(ref mut state) = self.contract_folder_status_state {
-            write_event_to_buffer(&mut state.buffer, event)?;
-            state.depth -= 1;
-
-            if state.depth == 0 {
-                // Convert XML buffer to JSON
-                let mut json_output = Vec::new();
-                let mut cursor = Cursor::new(&state.buffer);
-                xml_to_json(&mut cursor, &mut json_output).map_err(|e| {
-                    AppError::ParseError(format!(
-                        "Failed to convert ContractFolderStatus to JSON: {e}"
-                    ))
-                })?;
-
-                let json_string = String::from_utf8(json_output).map_err(|e| {
-                    AppError::ParseError(format!("Failed to convert JSON to UTF-8: {e}"))
-                })?;
-
-                self.contract_folder_status = Some(json_string);
-                self.contract_folder_status_state = None;
-            }
+        if let Some(json_string) = self.contract_folder_status_handler.handle_end(event)? {
+            self.contract_folder_status = Some(json_string);
         }
         Ok(())
     }

@@ -24,7 +24,7 @@ async fn test_extract_all_zips_basic() {
     let mut target_links = BTreeMap::new();
     target_links.insert("202501".to_string(), "http://example.com".to_string());
     let procurement_type = ProcurementType::MinorContracts;
-    let result = extractor::extract_all_zips(&target_links, &procurement_type).await;
+    let result = extractor::extract_all_zips(&target_links, &procurement_type, None).await;
 
     std::env::set_current_dir(original_dir).unwrap();
 
@@ -59,7 +59,7 @@ async fn test_extract_all_zips_only_targeted() {
     let mut target_links = BTreeMap::new();
     target_links.insert("202501".to_string(), "http://example.com".to_string());
     let procurement_type = ProcurementType::MinorContracts;
-    let result = extractor::extract_all_zips(&target_links, &procurement_type).await;
+    let result = extractor::extract_all_zips(&target_links, &procurement_type, None).await;
 
     std::env::set_current_dir(original_dir).unwrap();
 
@@ -81,7 +81,7 @@ async fn test_extract_all_zips_error_on_invalid() {
     let mut target_links = BTreeMap::new();
     target_links.insert("202501".to_string(), "http://example.com".to_string());
     let procurement_type = ProcurementType::MinorContracts;
-    let result = extractor::extract_all_zips(&target_links, &procurement_type).await;
+    let result = extractor::extract_all_zips(&target_links, &procurement_type, None).await;
 
     std::env::set_current_dir(original_dir).unwrap();
 
