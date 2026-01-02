@@ -30,7 +30,7 @@ async fn test_parse_xmls_end_to_end() {
     let mut target_links = BTreeMap::new();
     target_links.insert("202301".to_string(), "http://example.com".to_string());
 
-    let result = parser::parse_xmls(&target_links, &ProcurementType::MinorContracts, 100);
+    let result = parser::parse_xmls(&target_links, &ProcurementType::MinorContracts, 100, None);
 
     assert!(result.is_ok());
 
@@ -83,7 +83,7 @@ async fn test_parse_xmls_filters_by_target_links() {
     let mut target_links = BTreeMap::new();
     target_links.insert("202301".to_string(), "http://example.com".to_string());
 
-    let result = parser::parse_xmls(&target_links, &ProcurementType::PublicTenders, 100);
+    let result = parser::parse_xmls(&target_links, &ProcurementType::PublicTenders, 100, None);
 
     assert!(result.is_ok());
 
@@ -118,7 +118,7 @@ async fn test_parse_xmls_skips_empty_entries() {
     let mut target_links = BTreeMap::new();
     target_links.insert("202301".to_string(), "http://example.com".to_string());
 
-    let result = parser::parse_xmls(&target_links, &ProcurementType::MinorContracts, 100);
+    let result = parser::parse_xmls(&target_links, &ProcurementType::MinorContracts, 100, None);
 
     assert!(result.is_ok());
 
@@ -164,7 +164,7 @@ async fn test_parse_xmls_merges_multiple_files() {
     let mut target_links = BTreeMap::new();
     target_links.insert("202301".to_string(), "http://example.com".to_string());
 
-    let result = parser::parse_xmls(&target_links, &ProcurementType::PublicTenders, 100);
+    let result = parser::parse_xmls(&target_links, &ProcurementType::PublicTenders, 100, None);
 
     assert!(result.is_ok());
 
@@ -201,7 +201,8 @@ async fn test_cleanup_files_with_cleanup_true() {
     let mut target_links = BTreeMap::new();
     target_links.insert(period.to_string(), "http://example.com".to_string());
 
-    let result = parser::cleanup_files(&target_links, &ProcurementType::MinorContracts, true).await;
+    let result =
+        parser::cleanup_files(&target_links, &ProcurementType::MinorContracts, true, None).await;
     std::env::set_current_dir(original_dir).unwrap();
 
     assert!(result.is_ok());
@@ -228,7 +229,8 @@ async fn test_cleanup_files_with_cleanup_false() {
     let mut target_links = BTreeMap::new();
     target_links.insert(period.to_string(), "http://example.com".to_string());
 
-    let result = parser::cleanup_files(&target_links, &ProcurementType::PublicTenders, false).await;
+    let result =
+        parser::cleanup_files(&target_links, &ProcurementType::PublicTenders, false, None).await;
     std::env::set_current_dir(original_dir).unwrap();
 
     assert!(result.is_ok());
@@ -246,7 +248,8 @@ async fn test_cleanup_files_nonexistent_extract_dir() {
     target_links.insert("202303".to_string(), "http://example.com".to_string());
 
     // Extract directory doesn't exist
-    let result = parser::cleanup_files(&target_links, &ProcurementType::MinorContracts, true).await;
+    let result =
+        parser::cleanup_files(&target_links, &ProcurementType::MinorContracts, true, None).await;
     std::env::set_current_dir(original_dir).unwrap();
 
     assert!(result.is_ok());
@@ -265,7 +268,8 @@ async fn test_cleanup_files_missing_zip_and_dir() {
     target_links.insert("202304".to_string(), "http://example.com".to_string());
 
     // ZIP and directory don't exist - should continue without error
-    let result = parser::cleanup_files(&target_links, &ProcurementType::MinorContracts, true).await;
+    let result =
+        parser::cleanup_files(&target_links, &ProcurementType::MinorContracts, true, None).await;
     std::env::set_current_dir(original_dir).unwrap();
 
     assert!(result.is_ok());
