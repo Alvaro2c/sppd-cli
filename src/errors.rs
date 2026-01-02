@@ -1,31 +1,7 @@
 /// Application error types for the SPPD CLI.
 ///
-/// This enum represents all possible errors that can occur during the procurement
-/// data download and processing workflow. All variants contain descriptive error
-/// messages to help diagnose issues.
-///
-/// # Error Propagation
-///
-/// The enum implements `From` traits for common error types (e.g., `reqwest::Error`,
-/// `std::io::Error`), allowing automatic conversion using the `?` operator.
-///
-/// # Example
-///
-/// ```
-/// use sppd_cli::errors::AppError;
-///
-/// // Network errors occur during HTTP requests
-/// let err = AppError::NetworkError("Connection timeout".to_string());
-///
-/// // Period validation errors occur when filtering by invalid periods
-/// let err = AppError::PeriodValidationError {
-///     period: "202301".to_string(),
-///     available: "202302, 202303".to_string(),
-/// };
-///
-/// // IO errors occur during file operations
-/// let err = AppError::IoError("Failed to create directory".to_string());
-/// ```
+/// Represents all possible errors that can occur during the procurement data download and processing workflow.
+/// Implements `From` traits for common error types, allowing automatic conversion using the `?` operator.
 #[derive(Debug, thiserror::Error)]
 pub enum AppError {
     /// Network request failed (e.g., HTTP errors, timeouts)
@@ -93,26 +69,7 @@ impl From<quick_xml::Error> for AppError {
 
 /// Result type alias for application operations.
 ///
-/// This is a convenience type alias for `Result<T, AppError>` used throughout
-/// the application to simplify error handling.
-///
-/// # Example
-///
-/// ```
-/// use sppd_cli::errors::{AppError, AppResult};
-///
-/// fn process_data() -> AppResult<String> {
-///     // Operations that may fail
-///     Ok("success".to_string())
-/// }
-///
-/// // Use with ? operator for error propagation
-/// fn caller() -> AppResult<()> {
-///     let result = process_data()?;
-///     println!("{}", result);
-///     Ok(())
-/// }
-/// ```
+/// Convenience type alias for `Result<T, AppError>` used throughout the application.
 pub type AppResult<T> = Result<T, AppError>;
 
 #[cfg(test)]

@@ -3,28 +3,9 @@ use std::collections::BTreeMap;
 
 /// Validates that a period string matches the expected format (YYYY or YYYYMM).
 ///
-/// This function checks that the period contains only ASCII digits and has
-/// exactly 4 digits (YYYY) or 6 digits (YYYYMM).
+/// Checks that the period contains only ASCII digits and has exactly 4 digits (YYYY) or 6 digits (YYYYMM).
 ///
-/// # Arguments
-///
-/// * `period` - Period string to validate
-///
-/// # Returns
-///
-/// Returns `Ok(())` if the period format is valid, or `InvalidInput` error otherwise.
-///
-/// # Example
-///
-/// ```
-/// use sppd_cli::downloader::validate_period_format;
-///
-/// assert!(validate_period_format("2023").is_ok());      // YYYY format
-/// assert!(validate_period_format("202301").is_ok());    // YYYYMM format
-/// assert!(validate_period_format("202").is_err());      // Too short
-/// assert!(validate_period_format("20230101").is_err()); // Too long
-/// assert!(validate_period_format("abcd").is_err());     // Non-numeric
-/// ```
+/// Returns `Ok(())` if valid, or `InvalidInput` error otherwise.
 pub fn validate_period_format(period: &str) -> AppResult<()> {
     if period.is_empty() {
         return Err(AppError::InvalidInput(
@@ -201,32 +182,6 @@ fn period_in_range(period: &str, start: Option<&str>, end: Option<&str>) -> bool
 /// (not YYYY or YYYYMM). Returns `PeriodValidationError` if the period format is valid
 /// but doesn't exist in the `links` map.
 ///
-/// # Example
-///
-/// ```
-/// use sppd_cli::downloader::filter_periods_by_range;
-/// use std::collections::BTreeMap;
-///
-/// # fn main() -> Result<(), sppd_cli::errors::AppError> {
-/// let mut links = BTreeMap::new();
-/// links.insert("202301".to_string(), "https://example.com/202301.zip".to_string());
-/// links.insert("202302".to_string(), "https://example.com/202302.zip".to_string());
-/// links.insert("202303".to_string(), "https://example.com/202303.zip".to_string());
-///
-/// // Filter from start period only
-/// let filtered = filter_periods_by_range(&links, Some("202302"), None)?;
-/// assert_eq!(filtered.len(), 2); // 202302, 202303
-///
-/// // Filter with both start and end
-/// let filtered = filter_periods_by_range(&links, Some("202301"), Some("202302"))?;
-/// assert_eq!(filtered.len(), 2); // 202301, 202302
-///
-/// // Filter all (no constraints)
-/// let filtered = filter_periods_by_range(&links, None, None)?;
-/// assert_eq!(filtered.len(), 3);
-/// # Ok(())
-/// # }
-/// ```
 pub fn filter_periods_by_range(
     links: &BTreeMap<String, String>,
     start_period: Option<&str>,

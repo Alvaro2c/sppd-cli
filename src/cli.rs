@@ -1,4 +1,4 @@
-use crate::config::{Config, ResolvedConfig};
+use crate::config::ResolvedConfig;
 use crate::constants::{APP_ABOUT, APP_AUTHOR, APP_VERSION, PERIOD_HELP_TEXT};
 use crate::downloader::{download_files, filter_periods_by_range};
 use crate::errors::{AppError, AppResult};
@@ -32,19 +32,6 @@ use tracing::{info, info_span};
 /// - File I/O operations fail
 /// - XML parsing fails
 ///
-/// # Example
-///
-/// Typically called from the main binary after fetching links:
-///
-/// ```no_run
-/// use sppd_cli::{cli, downloader, errors::AppResult};
-///
-/// # async fn example() -> AppResult<()> {
-/// let (minor_links, public_links) = downloader::fetch_all_links().await?;
-/// cli::cli(&minor_links, &public_links).await?;
-/// # Ok(())
-/// # }
-/// ```
 pub async fn cli(
     minor_contracts_links: &BTreeMap<String, String>,
     public_tenders_links: &BTreeMap<String, String>,
@@ -56,12 +43,6 @@ pub async fn cli(
         .version(APP_VERSION)
         .author(APP_AUTHOR)
         .about(APP_ABOUT)
-        .arg(
-            Arg::new("config")
-                .long("config")
-                .help("Path to configuration file (TOML format). If not specified, checks sppd.toml in current directory and ~/.config/sppd-cli/sppd.toml")
-                .action(ArgAction::Set),
-        )
         .subcommand(
             Command::new("download")
                 .about("Download procurement data")
@@ -97,7 +78,7 @@ pub async fn cli(
                 .arg(
                     Arg::new("batch-size")
                         .long("batch-size")
-                        .help("Number of XML files to process per batch (default: 100, can also be set via SPPD_BATCH_SIZE env var or config file)")
+                        .help("Number of XML files to process per batch (default: 100, can also be set via SPPD_BATCH_SIZE env var)")
                         .value_parser(clap::value_parser!(usize))
                         .action(ArgAction::Set),
                 ),
@@ -107,37 +88,9 @@ pub async fn cli(
     let matches = cmd.get_matches();
 
     if let Some(matches) = matches.subcommand_matches("download") {
-        // Load configuration file (if exists)
-        let config_file = if let Some(config_path) = matches.get_one::<String>("config") {
-            Some(Config::from_file(config_path)?)
-        } else {
-            match Config::from_standard_locations()? {
-                Some(cfg) => {
-                    info!("Loaded configuration from standard location");
-                    Some(cfg)
-                }
-                None => None,
-            }
-        };
-
-        // Resolve configuration with precedence: CLI > config file > env vars > defaults
+        // Resolve configuration with precedence: CLI > env vars > defaults
         let cli_batch_size = matches.get_one::<usize>("batch-size").copied();
-        let resolved_config = if let Some(config) = config_file {
-            config.resolve(cli_batch_size)
-        } else {
-            // No config file, resolve from CLI/env/defaults only
-            let batch_size = cli_batch_size
-                .or_else(|| {
-                    std::env::var("SPPD_BATCH_SIZE")
-                        .ok()
-                        .and_then(|v| v.parse().ok())
-                })
-                .unwrap_or(100);
-            ResolvedConfig {
-                batch_size,
-                ..ResolvedConfig::default()
-            }
-        };
+        let resolved_config = ResolvedConfig::from_cli_and_env(cli_batch_size);
 
         // Validate batch size
         if resolved_config.batch_size == 0 {
@@ -172,26 +125,20 @@ pub async fn cli(
         print_download_info(&proc_type, start_period, end_period, target_links.len());
 
         let client = reqwest::Client::new();
-        download_files(&client, &target_links, &proc_type, Some(&resolved_config)).await?;
+        download_files(&client, &target_links, &proc_type, &resolved_config).await?;
 
         info!("Starting extraction phase");
-        extract_all_zips(&target_links, &proc_type, Some(&resolved_config)).await?;
+        extract_all_zips(&target_links, &proc_type, &resolved_config).await?;
 
         info!("Starting parsing phase");
         parse_xmls(
             &target_links,
             &proc_type,
             resolved_config.batch_size,
-            Some(&resolved_config),
+            &resolved_config,
         )?;
 
-        cleanup_files(
-            &target_links,
-            &proc_type,
-            should_cleanup,
-            Some(&resolved_config),
-        )
-        .await?;
+        cleanup_files(&target_links, &proc_type, should_cleanup, &resolved_config).await?;
 
         info!(
             procurement_type = proc_type.display_name(),

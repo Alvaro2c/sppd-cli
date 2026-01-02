@@ -34,18 +34,6 @@ static ZIP_LINK_SELECTOR_CACHED: OnceLock<Selector> = OnceLock::new();
 /// - HTML parsing fails
 /// - URLs cannot be parsed
 ///
-/// # Example
-///
-/// ```no_run
-/// use sppd_cli::downloader;
-///
-/// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
-/// let (minor_links, public_links) = downloader::fetch_all_links().await?;
-/// println!("Found {} minor contract periods", minor_links.len());
-/// println!("Found {} public tender periods", public_links.len());
-/// # Ok(())
-/// # }
-/// ```
 pub async fn fetch_all_links() -> AppResult<(BTreeMap<String, String>, BTreeMap<String, String>)> {
     use crate::constants::{MINOR_CONTRACTS, PUBLIC_TENDERS};
 
@@ -91,20 +79,6 @@ pub async fn fetch_all_links() -> AppResult<(BTreeMap<String, String>, BTreeMap<
 /// - The URL cannot be parsed
 /// - HTML parsing fails
 ///
-/// # Example
-///
-/// ```no_run
-/// use sppd_cli::downloader;
-/// use reqwest::Client;
-///
-/// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
-/// let client = Client::new();
-/// let url = "https://www.hacienda.gob.es/es-es/gobiernoabierto/datos%20abiertos/paginas/contratosmenores.aspx";
-/// let links = downloader::fetch_zip(&client, url).await?;
-/// println!("Found {} periods", links.len());
-/// # Ok(())
-/// # }
-/// ```
 pub async fn fetch_zip(
     client: &reqwest::Client,
     input_url: &str,
@@ -134,29 +108,6 @@ pub async fn fetch_zip(
 ///
 /// Returns a map where keys are period strings (e.g., "202301") and values are absolute URLs.
 ///
-/// # Example
-///
-/// ```
-/// use sppd_cli::downloader::parse_zip_links;
-/// use url::Url;
-///
-/// # fn main() -> Result<(), sppd_cli::errors::AppError> {
-/// let html = r#"
-///     <html>
-///         <body>
-///             <a href="data_202301.zip">January 2023</a>
-///             <a href="data_202302.zip">February 2023</a>
-///         </body>
-///     </html>
-/// "#;
-/// let base = Url::parse("https://example.com/downloads/")?;
-/// let links = parse_zip_links(html, &base)?;
-///
-/// assert_eq!(links.get("202301"), Some(&"https://example.com/downloads/data_202301.zip".to_string()));
-/// assert_eq!(links.get("202302"), Some(&"https://example.com/downloads/data_202302.zip".to_string()));
-/// # Ok(())
-/// # }
-/// ```
 pub fn parse_zip_links(html: &str, base_url: &Url) -> AppResult<BTreeMap<String, String>> {
     let document = Html::parse_document(html);
 
