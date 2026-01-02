@@ -235,7 +235,7 @@ pub async fn download_files(
     client: &reqwest::Client,
     filtered_links: &std::collections::BTreeMap<String, String>,
     proc_type: &ProcurementType,
-    config: Option<&crate::config::Config>,
+    config: Option<&crate::config::ResolvedConfig>,
 ) -> AppResult<()> {
     let download_dir = proc_type.download_dir(config);
     // Create directory if it doesn't exist
@@ -277,7 +277,7 @@ pub async fn download_files(
     );
 
     // Create semaphore to limit concurrent downloads (from config or default 4)
-    let concurrent_downloads = config.map(|c| c.concurrent_downloads()).unwrap_or(4);
+    let concurrent_downloads = config.map(|c| c.concurrent_downloads).unwrap_or(4);
     let semaphore = Arc::new(Semaphore::new(concurrent_downloads));
     let client = Arc::new(client.clone());
     let download_dir_path = download_dir.clone();
@@ -285,9 +285,9 @@ pub async fn download_files(
     let pb = Arc::new(pb);
 
     // Extract retry config values before moving into async blocks
-    let retry_max_retries = config.map(|c| c.max_retries()).unwrap_or(3);
-    let retry_initial_delay_ms = config.map(|c| c.retry_initial_delay_ms()).unwrap_or(1000);
-    let retry_max_delay_ms = config.map(|c| c.retry_max_delay_ms()).unwrap_or(10000);
+    let retry_max_retries = config.map(|c| c.max_retries).unwrap_or(3);
+    let retry_initial_delay_ms = config.map(|c| c.retry_initial_delay_ms).unwrap_or(1000);
+    let retry_max_delay_ms = config.map(|c| c.retry_max_delay_ms).unwrap_or(10000);
 
     // Pre-allocate errors Vec (usually small, but could accumulate)
     let mut errors = Vec::with_capacity(10);

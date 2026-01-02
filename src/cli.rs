@@ -1,4 +1,4 @@
-use crate::config::Config;
+use crate::config::{Config, ResolvedConfig};
 use crate::constants::{APP_ABOUT, APP_AUTHOR, APP_VERSION, PERIOD_HELP_TEXT};
 use crate::downloader::{download_files, filter_periods_by_range};
 use crate::errors::{AppError, AppResult};
@@ -106,23 +106,46 @@ pub async fn cli(
     let mut cmd_for_help = cmd.clone();
     let matches = cmd.get_matches();
 
-    // Load configuration
-    let config = if let Some(config_path) = matches.get_one::<String>("config") {
-        Some(Config::from_file(config_path)?)
-    } else {
-        match Config::from_standard_locations()? {
-            Some(cfg) => {
-                info!("Loaded configuration from standard location");
-                Some(cfg)
-            }
-            None => {
-                // No config file found, use defaults
-                None
-            }
-        }
-    };
-
     if let Some(matches) = matches.subcommand_matches("download") {
+        // Load configuration file (if exists)
+        let config_file = if let Some(config_path) = matches.get_one::<String>("config") {
+            Some(Config::from_file(config_path)?)
+        } else {
+            match Config::from_standard_locations()? {
+                Some(cfg) => {
+                    info!("Loaded configuration from standard location");
+                    Some(cfg)
+                }
+                None => None,
+            }
+        };
+
+        // Resolve configuration with precedence: CLI > config file > env vars > defaults
+        let cli_batch_size = matches.get_one::<usize>("batch-size").copied();
+        let resolved_config = if let Some(config) = config_file {
+            config.resolve(cli_batch_size)
+        } else {
+            // No config file, resolve from CLI/env/defaults only
+            let batch_size = cli_batch_size
+                .or_else(|| {
+                    std::env::var("SPPD_BATCH_SIZE")
+                        .ok()
+                        .and_then(|v| v.parse().ok())
+                })
+                .unwrap_or(100);
+            ResolvedConfig {
+                batch_size,
+                ..ResolvedConfig::default()
+            }
+        };
+
+        // Validate batch size
+        if resolved_config.batch_size == 0 {
+            return Err(AppError::InvalidInput(
+                "Batch size must be greater than 0".to_string(),
+            ));
+        }
+
         let proc_type = ProcurementType::from(
             matches
                 .get_one::<String>("type")
@@ -144,38 +167,31 @@ pub async fn cli(
             .as_str();
         let should_cleanup = parse_yes_no(cleanup_value)?;
 
-        // Get batch size: CLI arg > config > env var > default
-        let batch_size = matches
-            .get_one::<usize>("batch-size")
-            .copied()
-            .or_else(|| config.as_ref().map(|c| c.batch_size()))
-            .or_else(|| {
-                std::env::var("SPPD_BATCH_SIZE")
-                    .ok()
-                    .and_then(|v| v.parse().ok())
-            })
-            .unwrap_or(100);
-
-        if batch_size == 0 {
-            return Err(AppError::InvalidInput(
-                "Batch size must be greater than 0".to_string(),
-            ));
-        }
-
         let target_links = filter_periods_by_range(links, start_period, end_period)?;
 
         print_download_info(&proc_type, start_period, end_period, target_links.len());
 
         let client = reqwest::Client::new();
-        download_files(&client, &target_links, &proc_type, config.as_ref()).await?;
+        download_files(&client, &target_links, &proc_type, Some(&resolved_config)).await?;
 
         info!("Starting extraction phase");
-        extract_all_zips(&target_links, &proc_type, config.as_ref()).await?;
+        extract_all_zips(&target_links, &proc_type, Some(&resolved_config)).await?;
 
         info!("Starting parsing phase");
-        parse_xmls(&target_links, &proc_type, batch_size, config.as_ref())?;
+        parse_xmls(
+            &target_links,
+            &proc_type,
+            resolved_config.batch_size,
+            Some(&resolved_config),
+        )?;
 
-        cleanup_files(&target_links, &proc_type, should_cleanup, config.as_ref()).await?;
+        cleanup_files(
+            &target_links,
+            &proc_type,
+            should_cleanup,
+            Some(&resolved_config),
+        )
+        .await?;
 
         info!(
             procurement_type = proc_type.display_name(),
