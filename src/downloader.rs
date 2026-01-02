@@ -526,39 +526,27 @@ fn calculate_backoff(attempt: u32, config: &RetryConfig) -> u64 {
     delay.min(config.max_delay_ms)
 }
 
-/// Downloads a single ZIP file with exponential backoff retry logic.
-///
-/// This wrapper around `download_single_file()` implements retry logic for transient
-/// network errors. It will retry on network errors, timeouts, and 5xx HTTP status codes,
-/// but not on 4xx client errors or I/O errors.
-///
-/// # Arguments
-///
-/// * `client` - HTTP client for making requests
-/// * `url` - URL to download from
-/// * `tmp_path` - Temporary file path for download
-/// * `file_path` - Final destination file path
-/// * `filename` - Filename for error messages
-async fn download_with_retry(
+/// Internal retry function that takes RetryConfig directly.
+async fn download_with_retry_internal(
     client: &reqwest::Client,
     url: &str,
     tmp_path: &Path,
     file_path: &Path,
     filename: &str,
+    retry_config: &RetryConfig,
 ) -> AppResult<()> {
-    let config = RetryConfig::default();
     let mut last_error: Option<AppError> = None;
 
-    for attempt in 0..=config.max_retries {
+    for attempt in 0..=retry_config.max_retries {
         match download_single_file(client, url, tmp_path, file_path, filename).await {
             Ok(()) => return Ok(()),
             Err(e) => {
-                if attempt < config.max_retries && should_retry(&e) {
-                    let delay_ms = calculate_backoff(attempt, &config);
+                if attempt < retry_config.max_retries && should_retry(&e) {
+                    let delay_ms = calculate_backoff(attempt, retry_config);
                     warn!(
                         filename = filename,
                         attempt = attempt + 1,
-                        max_retries = config.max_retries + 1,
+                        max_retries = retry_config.max_retries + 1,
                         delay_ms = delay_ms,
                         error = %e,
                         "Retrying download after error"
@@ -714,12 +702,18 @@ pub async fn download_files(
         "Starting download"
     );
 
-    // Create semaphore to limit concurrent downloads to 4
-    let semaphore = Arc::new(Semaphore::new(4));
+    // Create semaphore to limit concurrent downloads (from config or default 4)
+    let concurrent_downloads = config.map(|c| c.concurrent_downloads()).unwrap_or(4);
+    let semaphore = Arc::new(Semaphore::new(concurrent_downloads));
     let client = Arc::new(client.clone());
     let download_dir_path = download_dir.clone();
     let download_dir_arc = Arc::new(download_dir_path);
     let pb = Arc::new(pb);
+
+    // Extract retry config values before moving into async blocks
+    let retry_max_retries = config.map(|c| c.max_retries()).unwrap_or(3);
+    let retry_initial_delay_ms = config.map(|c| c.retry_initial_delay_ms()).unwrap_or(1000);
+    let retry_max_delay_ms = config.map(|c| c.retry_max_delay_ms()).unwrap_or(10000);
 
     // Pre-allocate errors Vec (usually small, but could accumulate)
     let mut errors = Vec::with_capacity(10);
@@ -739,6 +733,11 @@ pub async fn download_files(
         let period = period.clone();
         let url = url.clone();
         let filename_for_task = filename.clone();
+
+        // Clone retry config values for this task
+        let max_retries = retry_max_retries;
+        let initial_delay_ms = retry_initial_delay_ms;
+        let max_delay_ms = retry_max_delay_ms;
 
         // Spawn task that will acquire semaphore permit before downloading
         let handle = tokio::spawn(async move {
@@ -766,8 +765,22 @@ pub async fn download_files(
             pb.set_message(format!("Downloading {filename_for_task}..."));
 
             // Attempt download with retry logic
-            let result =
-                download_with_retry(&client, &url, &tmp_path, &file_path, &filename_for_task).await;
+            // Create RetryConfig from cloned values
+            let retry_config = RetryConfig {
+                max_retries,
+                initial_delay_ms,
+                max_delay_ms,
+            };
+
+            let result = download_with_retry_internal(
+                &client,
+                &url,
+                &tmp_path,
+                &file_path,
+                &filename_for_task,
+                &retry_config,
+            )
+            .await;
 
             // Update progress bar based on result
             match &result {

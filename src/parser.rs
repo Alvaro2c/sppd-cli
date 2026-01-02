@@ -137,8 +137,14 @@ pub fn parse_xmls(
         return Ok(());
     }
 
-    // Create progress bar
-    let pb = ui::create_progress_bar(total_subdirs as u64)?;
+    // Calculate total XML files across all periods for progress bar
+    let total_xml_files: usize = subdirs_to_process
+        .iter()
+        .map(|(_, files)| files.len())
+        .sum();
+
+    // Create progress bar with total files instead of total periods
+    let pb = ui::create_progress_bar(total_xml_files as u64)?;
 
     info!(total = total_subdirs, "Starting XML parsing");
 
@@ -198,7 +204,7 @@ pub fn parse_xmls(
         // Handle empty case
         if temp_files.is_empty() {
             skipped_count += 1;
-            pb.inc(1);
+            // Progress already updated per batch, just update message
             pb.set_message(format!("Skipped {subdir_name} (no entries)"));
             continue;
         }
@@ -261,7 +267,7 @@ pub fn parse_xmls(
         // temp_files Vec is dropped here, automatically deleting all temporary files
 
         processed_count += 1;
-        pb.inc(1);
+        // Progress already updated per batch, just update message
         pb.set_message(format!("Completed {subdir_name}"));
     }
 
