@@ -127,7 +127,8 @@ pub(crate) fn parse_xml(path: &std::path::Path) -> AppResult<Vec<Entry>> {
         .map(|m| (m.len() as usize / 1024).max(100))
         .unwrap_or(100);
 
-    let mut buf = Vec::new();
+    // Pre-allocate buffer with reasonable capacity to avoid reallocations
+    let mut buf = Vec::with_capacity(8192); // 8KB initial capacity
     let mut result = Vec::with_capacity(estimated_capacity);
 
     let mut inside_entry = false;
@@ -136,7 +137,9 @@ pub(crate) fn parse_xml(path: &std::path::Path) -> AppResult<Vec<Entry>> {
     loop {
         match reader.read_event_into(&mut buf)? {
             Event::Start(e) => {
-                let name = e.name().as_ref().to_vec();
+                // Store name as Vec to avoid borrowing issues
+                let name_bytes = e.name().as_ref().to_vec();
+                let name = name_bytes.as_slice();
 
                 // Check for ContractFolderStatus element
                 if inside_entry && name.ends_with(b":ContractFolderStatus") {
@@ -146,7 +149,7 @@ pub(crate) fn parse_xml(path: &std::path::Path) -> AppResult<Vec<Entry>> {
                     builder.handle_contract_folder_status_start(Event::Start(e.clone()))?;
                 } else {
                     // Handle other elements
-                    match name.as_slice() {
+                    match name {
                         b"entry" => {
                             inside_entry = true;
                             builder.reset();
@@ -170,7 +173,9 @@ pub(crate) fn parse_xml(path: &std::path::Path) -> AppResult<Vec<Entry>> {
                                 .filter_map(|a| a.ok())
                                 .find(|a| a.key.as_ref() == b"href")
                             {
-                                builder.set_link(String::from_utf8_lossy(&href.value).to_string());
+                                // Direct allocation without double conversion
+                                let href_str = String::from_utf8_lossy(&href.value);
+                                builder.set_link(href_str.into_owned());
                             }
                         }
                         _ => {}
@@ -189,7 +194,9 @@ pub(crate) fn parse_xml(path: &std::path::Path) -> AppResult<Vec<Entry>> {
                             .filter_map(|a| a.ok())
                             .find(|a| a.key.as_ref() == b"href")
                         {
-                            builder.set_link(String::from_utf8_lossy(&href.value).to_string());
+                            // Direct allocation without double conversion
+                            let href_str = String::from_utf8_lossy(&href.value);
+                            builder.set_link(href_str.into_owned());
                         }
                     }
                 }
@@ -207,7 +214,9 @@ pub(crate) fn parse_xml(path: &std::path::Path) -> AppResult<Vec<Entry>> {
                 builder.handle_contract_folder_status_event(Event::PI(e.clone()))?;
             }
             Event::End(e) => {
-                let name = e.name().as_ref().to_vec();
+                // Store name as Vec to avoid borrowing issues
+                let name_bytes = e.name().as_ref().to_vec();
+                let name = name_bytes.as_slice();
 
                 // Handle ContractFolderStatus closing
                 if builder.is_inside_contract_folder_status() {
@@ -215,7 +224,7 @@ pub(crate) fn parse_xml(path: &std::path::Path) -> AppResult<Vec<Entry>> {
                 }
 
                 // Handle other elements
-                match name.as_slice() {
+                match name {
                     b"entry" => {
                         inside_entry = false;
                         // Build and push entry if valid
@@ -237,7 +246,7 @@ pub(crate) fn parse_xml(path: &std::path::Path) -> AppResult<Vec<Entry>> {
                     // Capture text for ContractFolderStatus
                     builder.handle_contract_folder_status_event(Event::Text(e.clone()))?;
                 } else {
-                    // Handle normal text fields
+                    // Handle normal text fields - decode once and use directly
                     let txt = e
                         .decode()
                         .map_err(|e| {

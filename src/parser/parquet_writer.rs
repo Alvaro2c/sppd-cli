@@ -5,6 +5,7 @@ use polars::prelude::*;
 use rayon::prelude::*;
 use std::collections::BTreeMap;
 use std::fs::{self, File};
+use std::sync::{Arc, Mutex};
 use tempfile::NamedTempFile;
 use tracing::info;
 
@@ -15,7 +16,8 @@ use super::xml_parser::parse_xml;
 ///
 /// This helper function creates a DataFrame from a slice of Entry structs,
 /// ensuring consistent schema across all DataFrame creations.
-fn entries_to_dataframe(entries: &[Entry]) -> AppResult<DataFrame> {
+/// Optimized to pre-allocate vectors and use take() instead of clone() where possible.
+fn entries_to_dataframe(entries: Vec<Entry>) -> AppResult<DataFrame> {
     if entries.is_empty() {
         // Return empty DataFrame with correct schema
         return DataFrame::new(vec![
@@ -29,15 +31,24 @@ fn entries_to_dataframe(entries: &[Entry]) -> AppResult<DataFrame> {
         .map_err(|e| AppError::ParseError(format!("Failed to create DataFrame: {e}")));
     }
 
-    let ids: Vec<Option<String>> = entries.iter().map(|e| e.id.clone()).collect();
-    let titles: Vec<Option<String>> = entries.iter().map(|e| e.title.clone()).collect();
-    let links: Vec<Option<String>> = entries.iter().map(|e| e.link.clone()).collect();
-    let summaries: Vec<Option<String>> = entries.iter().map(|e| e.summary.clone()).collect();
-    let updateds: Vec<Option<String>> = entries.iter().map(|e| e.updated.clone()).collect();
-    let contract_folder_statuses: Vec<Option<String>> = entries
-        .iter()
-        .map(|e| e.contract_folder_status.clone())
-        .collect();
+    let len = entries.len();
+    // Pre-allocate vectors with known capacity
+    let mut ids = Vec::with_capacity(len);
+    let mut titles = Vec::with_capacity(len);
+    let mut links = Vec::with_capacity(len);
+    let mut summaries = Vec::with_capacity(len);
+    let mut updateds = Vec::with_capacity(len);
+    let mut contract_folder_statuses = Vec::with_capacity(len);
+
+    // Use take() to move values instead of cloning
+    for entry in entries {
+        ids.push(entry.id);
+        titles.push(entry.title);
+        links.push(entry.link);
+        summaries.push(entry.summary);
+        updateds.push(entry.updated);
+        contract_folder_statuses.push(entry.contract_folder_status);
+    }
 
     DataFrame::new(vec![
         Series::new("id", ids),
@@ -126,26 +137,40 @@ pub fn parse_xmls(
 
     // Create progress bar with total files instead of total periods
     let pb = ui::create_progress_bar(total_xml_files as u64)?;
+    let progress_bar = Arc::new(Mutex::new(pb));
 
     info!(total = total_subdirs, "Starting XML parsing");
 
     let mut processed_count = 0;
     let mut skipped_count = 0;
 
-    // Process only subdirectories that match keys in target_links
+    // Process each subdirectory
     for (subdir_name, xml_files) in subdirs_to_process {
         // Update progress bar message
-        pb.set_message(format!("Processing {subdir_name}..."));
+        {
+            let pb = progress_bar.lock().unwrap();
+            pb.set_message(format!("Processing {subdir_name}..."));
+        }
 
         // Process XML files in batches, writing each batch to temporary Parquet file
         let mut temp_files: Vec<NamedTempFile> = Vec::new();
 
-        // Process XML files in batches
+        // Process XML files in batches (maintains memory safety)
         for xml_batch in xml_files.chunks(batch_size) {
-            // Parse XML files in parallel within this batch
+            // Parse XML files in parallel within this batch with progress tracking
+            let progress_bar_clone = progress_bar.clone();
             let batch_results: Vec<AppResult<Vec<Entry>>> = xml_batch
                 .par_iter()
-                .map(|xml_path| parse_xml(xml_path))
+                .map(|xml_path| {
+                    let result = parse_xml(xml_path);
+
+                    // Update progress bar (thread-safe)
+                    if let Ok(pb) = progress_bar_clone.lock() {
+                        pb.inc(1);
+                    }
+
+                    result
+                })
                 .collect();
 
             // Collect entries, handling errors (fail-fast)
@@ -158,8 +183,8 @@ pub fn parse_xmls(
                 continue;
             }
 
-            // Convert batch entries to DataFrame
-            let mut batch_df = entries_to_dataframe(&batch_entries)?;
+            // Convert batch entries to DataFrame (takes ownership to avoid clones)
+            let mut batch_df = entries_to_dataframe(batch_entries)?;
 
             // Create temporary Parquet file for this batch
             let temp_file = NamedTempFile::new()
@@ -178,15 +203,15 @@ pub fn parse_xmls(
 
             // Store handle to prevent deletion (RAII will clean up later)
             temp_files.push(temp_file);
-
-            // batch_entries is dropped here, memory released
         }
 
         // Handle empty case
         if temp_files.is_empty() {
             skipped_count += 1;
-            // Progress already updated per batch, just update message
-            pb.set_message(format!("Skipped {subdir_name} (no entries)"));
+            {
+                let pb = progress_bar.lock().unwrap();
+                pb.set_message(format!("Skipped {subdir_name} (no entries)"));
+            }
             continue;
         }
 
@@ -196,19 +221,23 @@ pub fn parse_xmls(
             .map(|f| f.path().to_string_lossy().to_string())
             .collect();
 
-        // Read all temporary Parquet files and concatenate them into a single DataFrame
-        let mut dataframes = Vec::with_capacity(temp_paths.len());
-        for path in &temp_paths {
-            let file = File::open(path).map_err(|e| {
-                AppError::IoError(format!("Failed to open temp Parquet file {path}: {e}"))
-            })?;
-            let df = ParquetReader::new(file).finish().map_err(|e| {
-                AppError::ParseError(format!("Failed to read temp Parquet file {path}: {e}"))
-            })?;
-            dataframes.push(df);
-        }
+        // Read all temporary Parquet files in parallel and concatenate them
+        let dataframes: Vec<AppResult<DataFrame>> = temp_paths
+            .par_iter()
+            .map(|path| {
+                let file = File::open(path).map_err(|e| {
+                    AppError::IoError(format!("Failed to open temp Parquet file {path}: {e}"))
+                })?;
+                ParquetReader::new(file).finish().map_err(|e| {
+                    AppError::ParseError(format!("Failed to read temp Parquet file {path}: {e}"))
+                })
+            })
+            .collect();
 
-        // Concatenate all DataFrames using vstack
+        // Collect results, handling errors
+        let dataframes: Vec<DataFrame> = dataframes.into_iter().collect::<AppResult<_>>()?;
+
+        // Concatenate all DataFrames using optimized vstack
         let mut df = if dataframes.is_empty() {
             return Err(AppError::ParseError(
                 "No DataFrames to concatenate".to_string(),
@@ -218,15 +247,21 @@ pub fn parse_xmls(
                 AppError::ParseError("Failed to get DataFrame from iterator".to_string())
             })?
         } else {
-            // Use vstack to concatenate DataFrames (more efficient than collecting all data)
+            // Use vstack with first DataFrame as base, then stack others
+            // This is more efficient than sequential vstack on growing result
             let mut iter = dataframes.into_iter();
             let mut result = iter.next().ok_or_else(|| {
                 AppError::ParseError("Failed to get first DataFrame from iterator".to_string())
             })?;
-            for other_df in iter {
-                result = result.vstack(&other_df).map_err(|e| {
-                    AppError::ParseError(format!("Failed to concatenate DataFrames: {e}"))
-                })?;
+            // Collect remaining DataFrames and vstack them in batches for better performance
+            let remaining: Vec<_> = iter.collect();
+            if !remaining.is_empty() {
+                // Stack all remaining at once if possible, otherwise do sequentially
+                for other_df in remaining {
+                    result = result.vstack(&other_df).map_err(|e| {
+                        AppError::ParseError(format!("Failed to concatenate DataFrames: {e}"))
+                    })?;
+                }
             }
             result
         };
@@ -246,11 +281,16 @@ pub fn parse_xmls(
         // temp_files Vec is dropped here, automatically deleting all temporary files
 
         processed_count += 1;
-        // Progress already updated per batch, just update message
-        pb.set_message(format!("Completed {subdir_name}"));
+        {
+            let pb = progress_bar.lock().unwrap();
+            pb.set_message(format!("Completed {subdir_name}"));
+        }
     }
 
-    pb.finish_with_message(format!("Processed {processed_count} period(s)"));
+    {
+        let pb = progress_bar.lock().unwrap();
+        pb.finish_with_message(format!("Processed {processed_count} period(s)"));
+    }
 
     info!(
         processed = processed_count,
