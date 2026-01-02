@@ -34,29 +34,15 @@ cargo run -- download [OPTIONS]
 - `-s, --start <PERIOD>`: Start period (format: `YYYY` or `YYYYMM`)
 - `-e, --end <PERIOD>`: End period (format: `YYYY` or `YYYYMM`)
 - `--cleanup <yes|no>`: Delete intermediate files (ZIP and XML/Atom) after processing, keeping only Parquet files (default: `yes`)
-- `--batch-size <SIZE>`: Number of XML files to process per batch (default: 100). Can also be set via `SPPD_BATCH_SIZE` env var or config file.
-- `--config <PATH>`: Path to configuration file (TOML). If not specified, checks `sppd.toml` in current directory and `~/.config/sppd-cli/sppd.toml`.
+- `--batch-size <SIZE>`: Number of XML files to process per batch (default: 100). Can also be set via `SPPD_BATCH_SIZE` env var.
 
 **Available periods:**
 - Previous years: full years only (`YYYY`)
 - Current year: all months up to the download date (`YYYYMM`)
 
-### Configuration File
-
-Create `sppd.toml` in current directory or `~/.config/sppd-cli/sppd.toml`:
-
-```toml
-[processing]
-batch_size = 100
-max_retries = 3
-concurrent_downloads = 4
-```
-
-Priority: CLI args > config file > env vars > defaults.
-
 ### Environment Variables
 
-- `SPPD_BATCH_SIZE`: XML files per batch (overrides config, not CLI)
+- `SPPD_BATCH_SIZE`: XML files per batch (overrides default, not CLI)
 - `RUST_LOG`: Log level (`debug`, `info`, `warn`)
 
 ### Examples

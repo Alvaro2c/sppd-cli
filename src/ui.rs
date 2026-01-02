@@ -14,18 +14,6 @@ use indicatif::{ProgressBar, ProgressStyle};
 ///
 /// Returns a configured `ProgressBar` ready for use, or an error if template creation fails.
 ///
-/// # Example
-///
-/// ```no_run
-/// use sppd_cli::ui;
-///
-/// # fn main() -> Result<(), sppd_cli::errors::AppError> {
-/// let pb = ui::create_progress_bar(100)?;
-/// pb.inc(1);
-/// pb.finish_with_message("Done");
-/// # Ok(())
-/// # }
-/// ```
 pub fn create_progress_bar(total: u64) -> AppResult<ProgressBar> {
     let pb = ProgressBar::new(total);
     pb.set_style(

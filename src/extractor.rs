@@ -41,25 +41,10 @@ use zip::ZipArchive;
 /// - The extraction directory doesn't exist
 /// - ZIP file extraction fails for any file
 ///
-/// # Example
-///
-/// ```no_run
-/// use sppd_cli::{extractor, models::ProcurementType};
-/// use std::collections::BTreeMap;
-///
-/// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
-/// let mut links = BTreeMap::new();
-/// links.insert("202301".to_string(), "https://example.com/202301.zip".to_string());
-/// extractor::extract_all_zips(&links, &ProcurementType::PublicTenders, None).await?;
-/// // Extracts data/tmp/pt/202301.zip -> data/tmp/pt/202301/
-/// // config: None uses default paths
-/// # Ok(())
-/// # }
-/// ```
 pub async fn extract_all_zips(
     target_links: &BTreeMap<String, String>,
     procurement_type: &ProcurementType,
-    config: Option<&crate::config::ResolvedConfig>,
+    config: &crate::config::ResolvedConfig,
 ) -> AppResult<()> {
     let extract_dir = procurement_type.extract_dir(config);
     if !extract_dir.exists() {

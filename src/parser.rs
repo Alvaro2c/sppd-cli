@@ -53,22 +53,6 @@ use tracing::{info, warn};
 /// - DataFrame creation fails
 /// - Parquet file writing fails
 ///
-/// # Example
-///
-/// ```no_run
-/// use sppd_cli::{parser, models::ProcurementType};
-/// use std::collections::BTreeMap;
-///
-/// # fn main() -> Result<(), Box<dyn std::error::Error>> {
-/// let mut links = BTreeMap::new();
-/// links.insert("202301".to_string(), "https://example.com/202301.zip".to_string());
-/// parser::parse_xmls(&links, &ProcurementType::PublicTenders, 100, None)?;
-/// // Processes data/tmp/pt/202301/*.xml -> data/parquet/pt/202301.parquet
-/// // batch_size of 100 means 100 XML files are processed per batch
-/// // config: None uses default paths
-/// # Ok(())
-/// # }
-/// ```
 /// Converts a vector of Entry structs into a Polars DataFrame.
 ///
 /// This helper function creates a DataFrame from a slice of Entry structs,
@@ -112,7 +96,7 @@ pub fn parse_xmls(
     target_links: &BTreeMap<String, String>,
     procurement_type: &crate::models::ProcurementType,
     batch_size: usize,
-    config: Option<&crate::config::ResolvedConfig>,
+    config: &crate::config::ResolvedConfig,
 ) -> AppResult<()> {
     let extract_dir = procurement_type.extract_dir(config);
     let parquet_dir = procurement_type.parquet_dir(config);
@@ -305,26 +289,11 @@ pub fn parse_xmls(
 /// Individual deletion errors are logged as warnings but do not fail the entire operation.
 /// The function continues processing remaining files even if some deletions fail.
 ///
-/// # Example
-///
-/// ```no_run
-/// use sppd_cli::{parser, models::ProcurementType};
-/// use std::collections::BTreeMap;
-///
-/// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
-/// let mut links = BTreeMap::new();
-/// links.insert("202301".to_string(), "https://example.com/202301.zip".to_string());
-/// // Clean up temporary files, keeping only Parquet files
-/// parser::cleanup_files(&links, &ProcurementType::PublicTenders, true, None).await?;
-/// // config: None uses default paths
-/// # Ok(())
-/// # }
-/// ```
 pub async fn cleanup_files(
     target_links: &BTreeMap<String, String>,
     procurement_type: &crate::models::ProcurementType,
     should_cleanup: bool,
-    config: Option<&crate::config::ResolvedConfig>,
+    config: &crate::config::ResolvedConfig,
 ) -> AppResult<()> {
     if !should_cleanup {
         info!("Cleanup skipped (--cleanup=no)");
@@ -412,24 +381,6 @@ pub async fn cleanup_files(
 /// # Arguments
 ///
 /// * `path` - Base directory to search (typically the extraction directory)
-///
-/// # Example
-///
-/// For a directory structure like:
-///
-/// ```text
-/// extract_dir/
-///   202301/
-///     file1.xml
-///     file2.atom
-///   202302/
-///     nested/
-///       file3.xml
-/// ```
-///
-/// The function would return:
-/// - `("202301", [file1.xml, file2.atom])`
-/// - `("202302", [file3.xml])`
 ///
 /// # Errors
 ///

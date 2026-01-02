@@ -4,24 +4,8 @@ use std::path::PathBuf;
 
 /// Represents a single entry element from an XML/Atom feed.
 ///
-/// This structure corresponds to an `<entry>` element in Atom feeds or similar
-/// structures in XML files downloaded from Spanish procurement data sources.
+/// Corresponds to an `<entry>` element in Atom feeds from Spanish procurement data sources.
 /// All fields are optional to handle variations in the source data format.
-///
-/// # Example
-///
-/// ```
-/// use sppd_cli::models::Entry;
-///
-/// let entry = Entry {
-///     id: Some("12345".to_string()),
-///     title: Some("Public Tender for IT Services".to_string()),
-///     link: Some("https://example.com/tender/12345".to_string()),
-///     summary: Some("Procurement of IT services for government agency".to_string()),
-///     updated: Some("2023-01-15T10:30:00Z".to_string()),
-///     contract_folder_status: Some("Active".to_string()),
-/// };
-/// ```
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Entry {
     /// The entry ID
@@ -56,15 +40,6 @@ pub enum ProcurementType {
 
 impl ProcurementType {
     /// Returns a human-readable name for the procurement type.
-    ///
-    /// # Example
-    ///
-    /// ```
-    /// use sppd_cli::models::ProcurementType;
-    ///
-    /// assert_eq!(ProcurementType::MinorContracts.display_name(), "Minor Contracts");
-    /// assert_eq!(ProcurementType::PublicTenders.display_name(), "Public Tenders");
-    /// ```
     pub fn display_name(&self) -> &'static str {
         match self {
             Self::MinorContracts => "Minor Contracts",
@@ -72,74 +47,24 @@ impl ProcurementType {
         }
     }
     /// Returns the download directory path for the procurement type (for ZIP downloads).
-    ///
-    /// Uses config if provided, otherwise falls back to defaults.
-    ///
-    /// # Example
-    ///
-    /// ```
-    /// use sppd_cli::models::ProcurementType;
-    /// use std::path::PathBuf;
-    ///
-    /// assert_eq!(ProcurementType::MinorContracts.download_dir(None), PathBuf::from("data/tmp/mc"));
-    /// assert_eq!(ProcurementType::PublicTenders.download_dir(None), PathBuf::from("data/tmp/pt"));
-    /// ```
-    pub fn download_dir(&self, config: Option<&crate::config::ResolvedConfig>) -> PathBuf {
-        if let Some(config) = config {
-            match self {
-                Self::MinorContracts => return config.download_dir_mc.clone(),
-                Self::PublicTenders => return config.download_dir_pt.clone(),
-            }
-        }
-        // Default values
+    pub fn download_dir(&self, config: &crate::config::ResolvedConfig) -> PathBuf {
         match self {
-            Self::MinorContracts => PathBuf::from("data/tmp/mc"),
-            Self::PublicTenders => PathBuf::from("data/tmp/pt"),
+            Self::MinorContracts => config.download_dir_mc.clone(),
+            Self::PublicTenders => config.download_dir_pt.clone(),
         }
     }
 
     /// Returns the extraction directory path for the procurement type (for XML extraction).
-    ///
-    /// Uses config if provided, otherwise falls back to defaults.
-    ///
-    /// # Example
-    ///
-    /// ```
-    /// use sppd_cli::models::ProcurementType;
-    /// use std::path::PathBuf;
-    ///
-    /// assert_eq!(ProcurementType::MinorContracts.extract_dir(None), PathBuf::from("data/tmp/mc"));
-    /// assert_eq!(ProcurementType::PublicTenders.extract_dir(None), PathBuf::from("data/tmp/pt"));
-    /// ```
-    pub fn extract_dir(&self, config: Option<&crate::config::ResolvedConfig>) -> PathBuf {
+    pub fn extract_dir(&self, config: &crate::config::ResolvedConfig) -> PathBuf {
         // Extract dir is same as download dir
         self.download_dir(config)
     }
 
     /// Returns the directory path for the final parquet files.
-    ///
-    /// Uses config if provided, otherwise falls back to defaults.
-    ///
-    /// # Example
-    ///
-    /// ```
-    /// use sppd_cli::models::ProcurementType;
-    /// use std::path::PathBuf;
-    ///
-    /// assert_eq!(ProcurementType::MinorContracts.parquet_dir(None), PathBuf::from("data/parquet/mc"));
-    /// assert_eq!(ProcurementType::PublicTenders.parquet_dir(None), PathBuf::from("data/parquet/pt"));
-    /// ```
-    pub fn parquet_dir(&self, config: Option<&crate::config::ResolvedConfig>) -> PathBuf {
-        if let Some(config) = config {
-            match self {
-                Self::MinorContracts => return config.parquet_dir_mc.clone(),
-                Self::PublicTenders => return config.parquet_dir_pt.clone(),
-            }
-        }
-        // Default values
+    pub fn parquet_dir(&self, config: &crate::config::ResolvedConfig) -> PathBuf {
         match self {
-            Self::MinorContracts => PathBuf::from("data/parquet/mc"),
-            Self::PublicTenders => PathBuf::from("data/parquet/pt"),
+            Self::MinorContracts => config.parquet_dir_mc.clone(),
+            Self::PublicTenders => config.parquet_dir_pt.clone(),
         }
     }
 }
@@ -147,47 +72,13 @@ impl ProcurementType {
 impl From<&str> for ProcurementType {
     /// Converts a string to a `ProcurementType`, accepting various aliases.
     ///
-    /// This conversion is case-insensitive and trims whitespace. It's used by the CLI
-    /// to parse the `--type` argument.
+    /// Case-insensitive and trims whitespace. Used by the CLI to parse the `--type` argument.
     ///
-    /// # Accepted Aliases
+    /// **Minor Contracts aliases:** `"mc"`, `"minor-contracts"`, `"min"`
     ///
-    /// **Minor Contracts:**
-    /// - `"mc"`
-    /// - `"minor-contracts"`
-    /// - `"min"`
+    /// **Public Tenders aliases:** `"pt"`, `"pub"`, `"public-tenders"`
     ///
-    /// **Public Tenders:**
-    /// - `"pt"`
-    /// - `"pub"`
-    /// - `"public-tenders"`
-    ///
-    /// # Default Behavior
-    ///
-    /// If the input doesn't match any known alias, it defaults to `PublicTenders`.
-    /// This matches the CLI's default behavior.
-    ///
-    /// # Example
-    ///
-    /// ```
-    /// use sppd_cli::models::ProcurementType;
-    ///
-    /// // Minor contracts aliases
-    /// assert_eq!(ProcurementType::from("mc"), ProcurementType::MinorContracts);
-    /// assert_eq!(ProcurementType::from("MC"), ProcurementType::MinorContracts);
-    /// assert_eq!(ProcurementType::from("minor-contracts"), ProcurementType::MinorContracts);
-    /// assert_eq!(ProcurementType::from("min"), ProcurementType::MinorContracts);
-    ///
-    /// // Public tenders aliases
-    /// assert_eq!(ProcurementType::from("pt"), ProcurementType::PublicTenders);
-    /// assert_eq!(ProcurementType::from("PT"), ProcurementType::PublicTenders);
-    /// assert_eq!(ProcurementType::from("public-tenders"), ProcurementType::PublicTenders);
-    /// assert_eq!(ProcurementType::from("pub"), ProcurementType::PublicTenders);
-    ///
-    /// // Unknown values default to PublicTenders
-    /// assert_eq!(ProcurementType::from("unknown"), ProcurementType::PublicTenders);
-    /// assert_eq!(ProcurementType::from(""), ProcurementType::PublicTenders);
-    /// ```
+    /// Unknown values default to `PublicTenders`.
     fn from(value: &str) -> Self {
         // Trim whitespace and compare case-insensitively
         let lower = value.trim().to_lowercase();
