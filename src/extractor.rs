@@ -1,6 +1,6 @@
 use crate::errors::{AppError, AppResult};
 use crate::models::ProcurementType;
-use indicatif::{ProgressBar, ProgressStyle};
+use crate::ui;
 use rayon::prelude::*;
 use std::collections::BTreeMap;
 use std::fs::File;
@@ -119,15 +119,7 @@ pub async fn extract_all_zips(
     }
 
     // Create progress bar
-    let pb = ProgressBar::new(total_zips as u64);
-    pb.set_style(
-        ProgressStyle::default_bar()
-            .template(
-                "{spinner:.green} [{elapsed_precise}] [{wide_bar:.cyan/blue}] {pos}/{len} {msg}",
-            )
-            .unwrap()
-            .progress_chars("#>-"),
-    );
+    let pb = ui::create_progress_bar(total_zips as u64)?;
 
     info!(
         total = total_zips,
