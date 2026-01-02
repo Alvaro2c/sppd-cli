@@ -475,6 +475,21 @@ pub fn filter_periods_by_range(
 /// Returns (filename, success, optional_error_message)
 type DownloadTaskResult = Result<(String, bool, Option<String>), AppError>;
 
+/// Extracts HTTP status code from error message if present.
+///
+/// Looks for the pattern "HTTP {status_code}:" in the error message.
+/// Returns `Some(status_code)` if found, `None` otherwise.
+fn extract_status_code(msg: &str) -> Option<u16> {
+    let prefix = "HTTP ";
+    if let Some(start) = msg.find(prefix) {
+        let start = start + prefix.len();
+        let end = msg[start..].find(':').unwrap_or(msg[start..].len());
+        msg[start..start + end].trim().parse().ok()
+    } else {
+        None
+    }
+}
+
 /// Determines if an error should trigger a retry attempt.
 ///
 /// Returns `true` for retryable errors (network errors, timeouts, 5xx HTTP status codes).
@@ -482,14 +497,20 @@ type DownloadTaskResult = Result<(String, bool, Option<String>), AppError>;
 fn should_retry(error: &AppError) -> bool {
     match error {
         AppError::NetworkError(msg) => {
-            // Retry on network errors and timeouts
-            // Don't retry on client errors (4xx) - these are typically wrapped as NetworkError
-            // but we check the message for HTTP status codes
-            !msg.contains("400")
-                && !msg.contains("401")
-                && !msg.contains("403")
-                && !msg.contains("404")
-                && !msg.contains("client error")
+            // Extract status code from message if present
+            if let Some(status_code) = extract_status_code(msg) {
+                // 4xx = client error, don't retry
+                // 5xx = server error, retry
+                status_code >= 500
+            } else {
+                // No status code means network/timeout error - retry by default
+                // Legacy string matching fallback for older error formats
+                !msg.contains("400")
+                    && !msg.contains("401")
+                    && !msg.contains("403")
+                    && !msg.contains("404")
+                    && !msg.contains("client error")
+            }
         }
         AppError::IoError(_) => false,       // Don't retry I/O errors
         AppError::ParseError(_) => false,    // Don't retry parse errors
@@ -560,7 +581,12 @@ async fn download_with_retry_internal(
         }
     }
 
-    Err(last_error.unwrap())
+    Err(last_error.unwrap_or_else(|| {
+        AppError::NetworkError(format!(
+            "Download failed after {} retries (no error recorded)",
+            retry_config.max_retries + 1
+        ))
+    }))
 }
 
 /// Downloads a single ZIP file.
@@ -574,12 +600,21 @@ async fn download_single_file(
     file_path: &Path,
     filename: &str,
 ) -> AppResult<()> {
-    let mut response = client
-        .get(url)
-        .send()
-        .await
-        .and_then(|r| r.error_for_status())
-        .map_err(|e| AppError::NetworkError(format!("Failed to download {filename}: {e}")))?;
+    // Send request and handle send errors (network/timeout errors)
+    let response = client.get(url).send().await.map_err(|e| {
+        // For send errors, these are typically network/timeout errors (retryable)
+        AppError::NetworkError(format!("Failed to download {filename}: {e}"))
+    })?;
+
+    // Check status before error_for_status (which converts 4xx/5xx to errors)
+    let status = response.status();
+    let mut response = response.error_for_status().map_err(|e| {
+        // Include status code in error message for retry logic
+        let status_code = status.as_u16();
+        AppError::NetworkError(format!(
+            "HTTP {status_code}: Failed to download {filename}: {e}"
+        ))
+    })?;
 
     let mut file = File::create(tmp_path).await.map_err(|e| {
         AppError::IoError(format!(
