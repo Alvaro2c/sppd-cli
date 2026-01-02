@@ -36,6 +36,7 @@ use tracing::{info, warn};
 ///
 /// * `target_links` - Map of period strings to URLs (used to filter which periods to process)
 /// * `procurement_type` - Procurement type determining the extract and parquet directories
+/// * `batch_size` - Number of XML files to process per batch (affects memory usage)
 ///
 /// # Behavior
 ///
@@ -60,8 +61,9 @@ use tracing::{info, warn};
 /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
 /// let mut links = BTreeMap::new();
 /// links.insert("202301".to_string(), "https://example.com/202301.zip".to_string());
-/// parser::parse_xmls(&links, &ProcurementType::PublicTenders)?;
+/// parser::parse_xmls(&links, &ProcurementType::PublicTenders, 100)?;
 /// // Processes data/tmp/pt/202301/*.xml -> data/parquet/pt/202301.parquet
+/// // batch_size of 100 means 100 XML files are processed per batch
 /// # Ok(())
 /// # }
 /// ```
