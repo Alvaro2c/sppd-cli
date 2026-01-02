@@ -1,11 +1,14 @@
 use crate::errors::{AppError, AppResult};
 use crate::models::ProcurementType;
 use crate::ui;
-use rayon::prelude::*;
-use std::collections::BTreeMap;
+use rayon::{prelude::*, ThreadPoolBuilder};
+use std::collections::{BTreeMap, HashSet};
 use std::fs::File;
+use std::io::{copy, BufWriter, Write};
 use std::path::{Path, PathBuf};
-use std::sync::{Arc, Mutex};
+use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::Arc;
+use std::time::Duration;
 use tracing::{debug, info, warn};
 use zip::ZipArchive;
 
@@ -105,9 +108,8 @@ pub async fn extract_all_zips(
         );
     }
 
-    // Create progress bar
+    // Create progress bar and atomic counter for thread-safe progress tracking
     let pb = ui::create_progress_bar(total_zips as u64)?;
-
     info!(
         total = total_zips,
         skipped = skipped_count,
@@ -115,46 +117,55 @@ pub async fn extract_all_zips(
         "Starting extraction"
     );
 
-    // Wrap progress bar in Arc<Mutex> for thread-safe updates in parallel context
-    let progress_bar = Arc::new(Mutex::new(pb));
-    let progress_bar_clone = progress_bar.clone();
+    let progress_counter = Arc::new(AtomicUsize::new(0));
+    let monitor_pb = pb.clone();
+    let monitor_counter = progress_counter.clone();
+    let monitor_total = total_zips as u64;
+    let monitor_handle = tokio::spawn(async move {
+        use tokio::time::sleep;
+
+        loop {
+            let current = monitor_counter.load(Ordering::Relaxed) as u64;
+            monitor_pb.set_position(current);
+            if current >= monitor_total {
+                break;
+            }
+            sleep(Duration::from_millis(50)).await;
+        }
+    });
+
+    let cpu_count = std::thread::available_parallelism()
+        .map(|p| p.get())
+        .unwrap_or(1);
+    let thread_count = cpu_count.saturating_mul(2);
+    let rayon_pool = ThreadPoolBuilder::new()
+        .num_threads(thread_count)
+        .build()
+        .map_err(|e| AppError::IoError(format!("Failed to configure rayon thread pool: {e}")))?;
+
+    let counter_for_workers = progress_counter.clone();
 
     // Run parallel extraction using rayon within spawn_blocking
     let results = tokio::task::spawn_blocking(move || {
-        zips_to_extract
-            .par_iter()
-            .map(|zip_path| {
-                let result = extract_zip_sync(zip_path);
-
-                // Update progress bar (thread-safe)
-                // Handle mutex lock error gracefully - if lock fails, continue without updating progress
-                if let Ok(pb) = progress_bar.lock() {
-                    let filename = zip_path
-                        .file_name()
-                        .and_then(|n| n.to_str())
-                        .unwrap_or("unknown");
-                    pb.inc(1);
-                    if result.is_err() {
-                        pb.set_message(format!("Failed {filename}"));
-                    } else {
-                        pb.set_message(format!("Completed {filename}"));
-                    }
-                }
-
-                (zip_path.clone(), result)
-            })
-            .collect::<Vec<(PathBuf, AppResult<()>)>>()
+        rayon_pool.install(|| {
+            zips_to_extract
+                .par_iter()
+                .map(|zip_path| {
+                    let result = extract_zip_sync(zip_path);
+                    counter_for_workers.fetch_add(1, Ordering::Relaxed);
+                    (zip_path.clone(), result)
+                })
+                .collect::<Vec<(PathBuf, AppResult<()>)>>()
+        })
     })
     .await
     .map_err(|e| AppError::IoError(format!("Task join error: {e}")))?;
 
-    // Finish progress bar
-    {
-        let pb = progress_bar_clone
-            .lock()
-            .map_err(|e| AppError::IoError(format!("Mutex lock error: {e}")))?;
-        pb.finish_with_message(format!("Extracted {total_zips} ZIP file(s)"));
-    }
+    monitor_handle
+        .await
+        .map_err(|e| AppError::IoError(format!("Progress monitor error: {e}")))?;
+
+    pb.finish_with_message(format!("Extracted {total_zips} ZIP file(s)"));
 
     // Collect errors
     let mut errors = Vec::new();
@@ -248,8 +259,11 @@ fn extract_zip_sync(zip_path: &Path) -> AppResult<()> {
         ))
     })?;
 
+    let mut entries = Vec::with_capacity(archive.len());
+    let mut created_dirs = HashSet::new();
+
     for i in 0..archive.len() {
-        let mut file = archive.by_index(i).map_err(|e| {
+        let file = archive.by_index(i).map_err(|e| {
             AppError::ParseError(format!(
                 "Failed to read file {} from ZIP {}: {}",
                 i,
@@ -263,40 +277,85 @@ fn extract_zip_sync(zip_path: &Path) -> AppResult<()> {
             None => continue,
         };
 
-        // Skip directories (they will be created when files are extracted)
         if file.name().ends_with('/') {
             continue;
         }
 
-        // Create parent directories if needed
         if let Some(parent) = out_path.parent() {
-            std::fs::create_dir_all(parent).map_err(|e| {
+            if created_dirs.insert(parent.to_path_buf()) {
+                std::fs::create_dir_all(parent).map_err(|e| {
+                    AppError::IoError(format!(
+                        "Failed to create directory {}: {}",
+                        parent.display(),
+                        e
+                    ))
+                })?;
+            }
+        }
+
+        entries.push((i, out_path));
+    }
+
+    drop(archive);
+
+    let zip_path_arc = Arc::new(zip_path.to_path_buf());
+    entries
+        .par_iter()
+        .map(|(index, out_path)| {
+            let zip_path = zip_path_arc.clone();
+            let file = File::open(&*zip_path).map_err(|e| {
                 AppError::IoError(format!(
-                    "Failed to create directory {}: {}",
-                    parent.display(),
+                    "Failed to open ZIP file {}: {}",
+                    zip_path.display(),
                     e
                 ))
             })?;
-        }
 
-        // Extract file using streaming copy (no intermediate buffer)
-        let mut out_file = std::fs::File::create(&out_path).map_err(|e| {
-            AppError::IoError(format!(
-                "Failed to create file {}: {}",
-                out_path.display(),
-                e
-            ))
-        })?;
+            let mut archive = ZipArchive::new(file).map_err(|e| {
+                AppError::ParseError(format!(
+                    "Failed to read ZIP archive {}: {}",
+                    zip_path.display(),
+                    e
+                ))
+            })?;
 
-        std::io::copy(&mut file, &mut out_file).map_err(|e| {
-            AppError::IoError(format!(
-                "Failed to copy file from ZIP {} to {}: {}",
-                zip_path.display(),
-                out_path.display(),
-                e
-            ))
-        })?;
-    }
+            let mut file = archive.by_index(*index).map_err(|e| {
+                AppError::ParseError(format!(
+                    "Failed to read file {} from ZIP {}: {}",
+                    index,
+                    zip_path.display(),
+                    e
+                ))
+            })?;
+
+            let out_file = std::fs::File::create(out_path).map_err(|e| {
+                AppError::IoError(format!(
+                    "Failed to create file {}: {}",
+                    out_path.display(),
+                    e
+                ))
+            })?;
+
+            let mut writer = BufWriter::with_capacity(32 * 1024, out_file);
+            copy(&mut file, &mut writer).map_err(|e| {
+                AppError::IoError(format!(
+                    "Failed to copy file from ZIP {} to {}: {}",
+                    zip_path.display(),
+                    out_path.display(),
+                    e
+                ))
+            })?;
+            writer.flush().map_err(|e| {
+                AppError::IoError(format!(
+                    "Failed to flush file {}: {}",
+                    out_path.display(),
+                    e
+                ))
+            })?;
+
+            Ok(())
+        })
+        .collect::<AppResult<Vec<()>>>()?;
 
     Ok(())
 }
