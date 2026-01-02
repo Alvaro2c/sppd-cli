@@ -23,6 +23,8 @@ zip = "0.6"
 polars = { version = "0.40", features = ["parquet"] }
 walkdir = "2.5.0"
 serde = { version = "1.0", features = ["derive"] }
+toml = "0.8"
+dirs = "5.0"
 indicatif = "0.17"
 quick-xml-to-json = "0.1.0"
 rayon = "1.8"
