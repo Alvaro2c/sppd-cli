@@ -1,5 +1,4 @@
 use crate::config::ResolvedConfig;
-use crate::constants::{APP_ABOUT, APP_AUTHOR, APP_VERSION, PERIOD_HELP_TEXT};
 use crate::downloader::{download_files, filter_periods_by_range};
 use crate::errors::{AppError, AppResult};
 use crate::extractor::extract_all_zips;
@@ -8,6 +7,12 @@ use crate::parser::{cleanup_files, parse_xmls};
 use clap::{Arg, ArgAction, Command};
 use std::collections::BTreeMap;
 use tracing::info;
+
+// CLI metadata constants
+const APP_VERSION: &str = env!("CARGO_PKG_VERSION");
+const APP_AUTHOR: &str = env!("CARGO_PKG_AUTHORS");
+const APP_ABOUT: &str = env!("CARGO_PKG_DESCRIPTION");
+const PERIOD_HELP_TEXT: &str = "Period (YYYY or YYYYMM format, e.g., 202301)";
 
 /// Parses command-line arguments and executes the download command.
 ///
