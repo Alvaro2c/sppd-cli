@@ -18,6 +18,31 @@ cargo build --release
 
 El binario estará disponible en `target/release/sppd-cli`.
 
+## Documentación
+
+Documentación de la API: https://alvaro2c.github.io/sppd-cli/sppd_cli/
+
+## Uso como Librería
+
+Añade la dependencia desde GitHub:
+
+```toml
+sppd-cli = { git = "https://github.com/Alvaro2c/sppd-cli" }
+```
+
+```rust
+use sppd_cli::{downloader, extractor, parser};
+```
+
+## Arquitectura
+
+```
+Downloader -> Extractor -> Parser -> Parquet
+    |             |           |
+  obtiene     descomprime   parsea XML
+  enlaces ZIP archivos ZIP  a DataFrame
+```
+
 ## Uso
 
 ### CLI Manual
