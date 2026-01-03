@@ -171,7 +171,8 @@ async fn run_workflow(
         &proc_type,
         resolved_config.batch_size,
         resolved_config,
-    )?;
+    )
+    .await?;
 
     cleanup_files(&target_links, &proc_type, should_cleanup, resolved_config).await?;
 
