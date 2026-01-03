@@ -10,6 +10,7 @@
 //! - [`cli`] - Command-line interface for orchestrating the download and processing workflow
 //! - [`models`] - Data structures representing procurement entries and types
 //! - [`errors`] - Error types used throughout the application
+//! - [`config`] - Configuration types and helpers for pipeline defaults and TOML loading
 
 pub mod cli;
 pub mod config;
