@@ -1,12 +1,13 @@
 use crate::errors::{AppError, AppResult};
 use crate::models::ProcurementType;
+use crate::utils::{format_duration, mb_from_bytes, round_two_decimals};
 use rayon::{prelude::*, ThreadPoolBuilder};
 use std::collections::{BTreeMap, HashSet};
 use std::fs::{self, File};
 use std::io::{copy, BufWriter, Write};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
-use std::time::{Duration, Instant};
+use std::time::Instant;
 use tracing::{debug, info, warn};
 use zip::ZipArchive;
 
@@ -352,22 +353,6 @@ fn extract_zip_sync(zip_path: &Path) -> AppResult<()> {
     Ok(())
 }
 
-fn format_duration(duration: Duration) -> String {
-    let total_secs = duration.as_secs();
-    let hours = total_secs / 3600;
-    let minutes = (total_secs % 3600) / 60;
-    let seconds = total_secs % 60;
-    format!("{hours:02}:{minutes:02}:{seconds:02}")
-}
-
-fn mb_from_bytes(bytes: u64) -> f64 {
-    bytes as f64 / 1_048_576.0
-}
-
-fn round_two_decimals(value: f64) -> f64 {
-    (value * 100.0).round() / 100.0
-}
-
 fn extracted_dir_for_zip(zip_path: &Path) -> Option<PathBuf> {
     let parent = zip_path.parent()?;
     let stem = zip_path.file_stem()?;
@@ -387,4 +372,32 @@ fn directory_size(dir: &Path) -> u64 {
         }
     }
     total
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::fs;
+    use tempfile::TempDir;
+
+    #[test]
+    fn extracted_dir_for_zip_returns_parent_stem() {
+        let zip = PathBuf::from("/tmp/data/202401.zip");
+        assert_eq!(
+            extracted_dir_for_zip(&zip),
+            Some(PathBuf::from("/tmp/data/202401"))
+        );
+    }
+
+    #[test]
+    fn directory_size_counts_nested_files() {
+        let tmp = TempDir::new().unwrap();
+        let base = tmp.path().join("dir");
+        fs::create_dir_all(base.join("nested")).unwrap();
+        fs::write(base.join("file1.txt"), vec![0u8; 10]).unwrap();
+        fs::write(base.join("nested/file2.txt"), vec![0u8; 20]).unwrap();
+
+        let size = directory_size(&base);
+        assert_eq!(size, 30);
+    }
 }

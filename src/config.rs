@@ -78,3 +78,21 @@ impl ResolvedConfig {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn default_config_values() {
+        let config = ResolvedConfig::default();
+        assert_eq!(config.batch_size, 100);
+        assert_eq!(config.concurrent_downloads, 4);
+    }
+
+    #[test]
+    fn from_cli_overrides_batch_size() {
+        let config = ResolvedConfig::from_cli_and_env(Some(25));
+        assert_eq!(config.batch_size, 25);
+    }
+}

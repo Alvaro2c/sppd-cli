@@ -156,7 +156,7 @@ pub async fn cli(
 
 /// Parses a yes/no string value (case-insensitive) and returns a boolean.
 /// Accepts "yes", "y", "no", "n". Returns an error for unrecognized values.
-pub(crate) fn parse_yes_no(value: &str) -> AppResult<bool> {
+fn parse_yes_no(value: &str) -> AppResult<bool> {
     match value.trim().to_lowercase().as_str() {
         "yes" | "y" => Ok(true),
         "no" | "n" => Ok(false),
