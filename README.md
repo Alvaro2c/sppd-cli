@@ -20,7 +20,7 @@ The binary will be available at `target/release/sppd-cli`.
 
 ## Documentation
 
-API documentation is published via GitHub Pages: https://alvaro2c.github.io/sppd-cli/sppd_cli/
+Docs are published via GitHub Pages: https://alvaro2c.github.io/sppd-cli/sppd_cli/
 
 ## Library Usage
 
