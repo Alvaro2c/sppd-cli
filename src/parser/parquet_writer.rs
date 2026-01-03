@@ -1,12 +1,15 @@
 use crate::errors::{AppError, AppResult};
 use crate::models::Entry;
 use crate::utils::{format_duration, mb_from_bytes, round_two_decimals};
+use futures::stream::{self, StreamExt, TryStreamExt};
 use polars::prelude::*;
 use rayon::prelude::*;
 use std::collections::BTreeMap;
-use std::fs::{self, File};
+use std::fs::{self as std_fs, File};
 use std::mem;
+use std::path::PathBuf;
 use std::time::Instant;
+use tokio::fs as tokio_fs;
 use tracing::info;
 
 use super::file_finder::find_xmls;
@@ -61,6 +64,19 @@ fn entries_to_dataframe(entries: Vec<Entry>) -> AppResult<DataFrame> {
     .map_err(|e| AppError::ParseError(format!("Failed to create DataFrame: {e}")))
 }
 
+async fn read_xml_contents(paths: &[PathBuf]) -> AppResult<Vec<Vec<u8>>> {
+    const READ_CONCURRENCY: usize = 32;
+    stream::iter(paths.iter().cloned())
+        .map(|path| async move {
+            tokio_fs::read(&path)
+                .await
+                .map_err(|e| AppError::IoError(format!("Failed to read XML file {path:?}: {e}")))
+        })
+        .buffered(READ_CONCURRENCY)
+        .try_collect()
+        .await
+}
+
 /// Parses XML/Atom files and converts them to Parquet format.
 ///
 /// This function processes extracted XML/Atom files from the extraction directory,
@@ -100,7 +116,7 @@ fn entries_to_dataframe(entries: Vec<Entry>) -> AppResult<DataFrame> {
 /// - XML parsing fails
 /// - DataFrame creation fails
 /// - Parquet file writing fails
-pub fn parse_xmls(
+pub async fn parse_xmls(
     target_links: &BTreeMap<String, String>,
     procurement_type: &crate::models::ProcurementType,
     batch_size: usize,
@@ -110,7 +126,7 @@ pub fn parse_xmls(
     let parquet_dir = procurement_type.parquet_dir(config);
 
     // Create parquet directory if it doesn't exist
-    fs::create_dir_all(&parquet_dir)
+    std_fs::create_dir_all(&parquet_dir)
         .map_err(|e| AppError::IoError(format!("Failed to create parquet directory: {e}")))?;
 
     // Find all subdirectories with XML/atom files
@@ -145,56 +161,44 @@ pub fn parse_xmls(
 
     // Process each subdirectory
     for (subdir_name, xml_files) in subdirs_to_process {
-        // Process XML files in batches, writing each batch to temporary Parquet file
-        let mut batch_dataframes: Vec<DataFrame> = Vec::new();
+        // Read XML files concurrently, then parse in parallel
+        let xml_contents = read_xml_contents(&xml_files).await?;
+        let parsed_entry_batches: Vec<Vec<Entry>> = xml_contents
+            .par_iter()
+            .map(|content| parse_xml_bytes(content))
+            .collect::<AppResult<Vec<_>>>()?;
 
-        let rayon_chunk_size = (rayon::current_num_threads() * 4).max(32);
-        let chunk_results: Vec<AppResult<Vec<Entry>>> = xml_files
-            .par_chunks(rayon_chunk_size)
-            .map(move |chunk| {
-                let mut chunk_entries = Vec::new();
-                for xml_path in chunk {
-                    let content = fs::read(xml_path)?;
-                    chunk_entries.extend(parse_xml_bytes(&content)?);
-                }
-                Ok(chunk_entries)
-            })
-            .collect();
-
-        let mut pending_entries: Vec<Entry> = Vec::new();
-        for result in chunk_results {
-            let mut entries = result?;
+        let mut entry_batches: Vec<Vec<Entry>> = Vec::new();
+        let mut pending_entries: Vec<Entry> = Vec::with_capacity(batch_size.max(1));
+        for mut entries in parsed_entry_batches {
             if entries.is_empty() {
                 continue;
             }
             pending_entries.append(&mut entries);
             while pending_entries.len() >= batch_size {
-                let drained: Vec<Entry> = pending_entries.drain(..batch_size).collect();
-                batch_dataframes.push(entries_to_dataframe(drained)?);
+                entry_batches.push(pending_entries.drain(..batch_size).collect());
             }
         }
 
         if !pending_entries.is_empty() {
-            let leftover = mem::take(&mut pending_entries);
-            batch_dataframes.push(entries_to_dataframe(leftover)?);
+            entry_batches.push(mem::take(&mut pending_entries));
         }
 
-        // Handle empty case
-        if batch_dataframes.is_empty() {
+        if entry_batches.is_empty() {
             skipped_count += 1;
             continue;
         }
 
-        // Concatenate all DataFrames using optimized vstack
+        let batch_dataframes = entry_batches
+            .into_par_iter()
+            .map(entries_to_dataframe)
+            .collect::<AppResult<Vec<_>>>()?;
+
         let mut df = if batch_dataframes.len() == 1 {
-            batch_dataframes.into_iter().next().ok_or_else(|| {
-                AppError::ParseError("Failed to get DataFrame from iterator".to_string())
-            })?
+            batch_dataframes.into_iter().next().unwrap()
         } else {
             let mut iter = batch_dataframes.into_iter();
-            let mut result = iter.next().ok_or_else(|| {
-                AppError::ParseError("Failed to get first DataFrame from iterator".to_string())
-            })?;
+            let mut result = iter.next().unwrap();
             for other_df in iter {
                 result = result.vstack(&other_df).map_err(|e| {
                     AppError::ParseError(format!("Failed to concatenate DataFrames: {e}"))
@@ -216,7 +220,7 @@ pub fn parse_xmls(
             .map_err(|e| AppError::ParseError(format!("Failed to write Parquet file: {e}")))?;
 
         processed_count += 1;
-        let metadata = fs::metadata(&parquet_path).map_err(|e| {
+        let metadata = std_fs::metadata(&parquet_path).map_err(|e| {
             AppError::IoError(format!(
                 "Failed to read Parquet file metadata {parquet_path:?}: {e}"
             ))
