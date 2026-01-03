@@ -139,4 +139,24 @@ mod tests {
 
         assert!(ResolvedConfigFile::from_toml_file(tmp.path()).is_err());
     }
+
+    #[test]
+    fn toml_file_parses_retry_options() {
+        let mut tmp = NamedTempFile::new().unwrap();
+        write!(
+            tmp,
+            r#"
+            type = "mc"
+            max_retries = 5
+            retry_initial_delay_ms = 2000
+            retry_max_delay_ms = 20000
+            "#,
+        )
+        .unwrap();
+
+        let config = ResolvedConfigFile::from_toml_file(tmp.path()).unwrap();
+        assert_eq!(config.resolved.max_retries, 5);
+        assert_eq!(config.resolved.retry_initial_delay_ms, 2000);
+        assert_eq!(config.resolved.retry_max_delay_ms, 20000);
+    }
 }
