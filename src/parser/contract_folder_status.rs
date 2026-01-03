@@ -127,3 +127,28 @@ impl ContractFolderStatusHandler {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use quick_xml::events::{BytesStart, Event};
+
+    fn start_event() -> Event<'static> {
+        Event::Start(BytesStart::new("ContractFolderStatus"))
+    }
+
+    #[test]
+    fn start_marks_handler_active() {
+        let mut handler = ContractFolderStatusHandler::new();
+        handler.start(start_event()).unwrap();
+        assert!(handler.is_active());
+    }
+
+    #[test]
+    fn reset_marks_handler_inactive() {
+        let mut handler = ContractFolderStatusHandler::new();
+        handler.start(start_event()).unwrap();
+        handler.reset();
+        assert!(!handler.is_active());
+    }
+}

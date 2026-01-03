@@ -1,11 +1,12 @@
 use crate::errors::{AppError, AppResult};
 use crate::models::Entry;
+use crate::utils::{format_duration, mb_from_bytes, round_two_decimals};
 use polars::prelude::*;
 use rayon::prelude::*;
 use std::collections::BTreeMap;
 use std::fs::{self, File};
 use std::mem;
-use std::time::{Duration, Instant};
+use std::time::Instant;
 use tracing::info;
 
 use super::file_finder::find_xmls;
@@ -248,18 +249,31 @@ pub fn parse_xmls(
     Ok(())
 }
 
-fn format_duration(duration: Duration) -> String {
-    let total_secs = duration.as_secs();
-    let hours = total_secs / 3600;
-    let minutes = (total_secs % 3600) / 60;
-    let seconds = total_secs % 60;
-    format!("{hours:02}:{minutes:02}:{seconds:02}")
-}
+#[cfg(test)]
+mod tests {
+    use super::*;
 
-fn mb_from_bytes(bytes: u64) -> f64 {
-    bytes as f64 / 1_048_576.0
-}
+    #[test]
+    fn entries_to_dataframe_empty_yields_zero_rows() {
+        let df = entries_to_dataframe(vec![]).unwrap();
+        assert_eq!(df.height(), 0);
+        assert_eq!(df.width(), 6);
+    }
 
-fn round_two_decimals(value: f64) -> f64 {
-    (value * 100.0).round() / 100.0
+    #[test]
+    fn entries_to_dataframe_single_entry() {
+        let entry = Entry {
+            id: Some("id".to_string()),
+            title: Some("title".to_string()),
+            link: Some("link".to_string()),
+            summary: Some("summary".to_string()),
+            updated: Some("2023-01-01".to_string()),
+            contract_folder_status: Some("{}".to_string()),
+        };
+
+        let df = entries_to_dataframe(vec![entry]).unwrap();
+        assert_eq!(df.height(), 1);
+        let value = df.column("id").unwrap().get(0).unwrap();
+        assert_eq!(value, AnyValue::String("id"));
+    }
 }

@@ -19,3 +19,4 @@ pub mod errors;
 pub mod extractor;
 pub mod models;
 pub mod parser;
+mod utils;

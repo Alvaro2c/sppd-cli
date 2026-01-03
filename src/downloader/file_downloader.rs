@@ -1,8 +1,9 @@
 use crate::errors::{AppError, AppResult};
 use crate::models::ProcurementType;
+use crate::utils::{format_duration, mb_from_bytes, round_two_decimals};
 use std::path::Path;
 use std::sync::Arc;
-use std::time::{Duration, Instant};
+use std::time::Instant;
 use tokio::fs;
 use tokio::fs::File;
 use tokio::io::AsyncWriteExt;
@@ -424,18 +425,44 @@ pub async fn download_files(
     Ok(())
 }
 
-fn format_duration(duration: Duration) -> String {
-    let total_secs = duration.as_secs();
-    let hours = total_secs / 3600;
-    let minutes = (total_secs % 3600) / 60;
-    let seconds = total_secs % 60;
-    format!("{hours:02}:{minutes:02}:{seconds:02}")
-}
+#[cfg(test)]
+mod tests {
+    use super::*;
 
-fn mb_from_bytes(bytes: u64) -> f64 {
-    bytes as f64 / 1_048_576.0
-}
+    #[test]
+    fn extract_status_code_no_prefix() {
+        assert!(extract_status_code("network error").is_none());
+    }
 
-fn round_two_decimals(value: f64) -> f64 {
-    (value * 100.0).round() / 100.0
+    #[test]
+    fn extract_status_code_with_http() {
+        assert_eq!(extract_status_code("HTTP 404: not found"), Some(404));
+        assert_eq!(extract_status_code("HTTP 500: oh no"), Some(500));
+    }
+
+    #[test]
+    fn should_retry_network_5xx() {
+        let err = AppError::NetworkError("HTTP 500: server".to_string());
+        assert!(should_retry(&err));
+    }
+
+    #[test]
+    fn should_not_retry_network_4xx() {
+        let err = AppError::NetworkError("HTTP 404: client".to_string());
+        assert!(!should_retry(&err));
+    }
+
+    #[test]
+    fn should_not_retry_io_error() {
+        let err = AppError::IoError("disk full".to_string());
+        assert!(!should_retry(&err));
+    }
+
+    #[test]
+    fn calculate_backoff_capped() {
+        let config = RetryConfig::default();
+        assert_eq!(calculate_backoff(0, &config), 1000);
+        assert_eq!(calculate_backoff(1, &config), 2000);
+        assert_eq!(calculate_backoff(10, &config), 10000);
+    }
 }
