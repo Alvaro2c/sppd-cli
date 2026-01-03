@@ -1,14 +1,12 @@
 use crate::errors::{AppError, AppResult};
 use crate::models::ProcurementType;
-use crate::ui;
 use rayon::{prelude::*, ThreadPoolBuilder};
 use std::collections::{BTreeMap, HashSet};
-use std::fs::File;
+use std::fs::{self, File};
 use std::io::{copy, BufWriter, Write};
 use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 use tracing::{debug, info, warn};
 use zip::ZipArchive;
 
@@ -25,7 +23,7 @@ use zip::ZipArchive;
 ///   ZIP file is skipped.
 /// - **Missing files**: Missing ZIP files are logged as warnings but don't fail the
 ///   operation.
-/// - **Progress tracking**: A progress bar is displayed during extraction.
+/// - **Progress tracking**: Elapsed time and throughput are logged after extraction.
 ///
 /// # Arguments
 ///
@@ -108,8 +106,6 @@ pub async fn extract_all_zips(
         );
     }
 
-    // Create progress bar and atomic counter for thread-safe progress tracking
-    let pb = ui::create_progress_bar(total_zips as u64)?;
     info!(
         total = total_zips,
         skipped = skipped_count,
@@ -117,22 +113,7 @@ pub async fn extract_all_zips(
         "Starting extraction"
     );
 
-    let progress_counter = Arc::new(AtomicUsize::new(0));
-    let monitor_pb = pb.clone();
-    let monitor_counter = progress_counter.clone();
-    let monitor_total = total_zips as u64;
-    let monitor_handle = tokio::spawn(async move {
-        use tokio::time::sleep;
-
-        loop {
-            let current = monitor_counter.load(Ordering::Relaxed) as u64;
-            monitor_pb.set_position(current);
-            if current >= monitor_total {
-                break;
-            }
-            sleep(Duration::from_millis(50)).await;
-        }
-    });
+    let start = Instant::now();
 
     let cpu_count = std::thread::available_parallelism()
         .map(|p| p.get())
@@ -143,8 +124,6 @@ pub async fn extract_all_zips(
         .build()
         .map_err(|e| AppError::IoError(format!("Failed to configure rayon thread pool: {e}")))?;
 
-    let counter_for_workers = progress_counter.clone();
-
     // Run parallel extraction using rayon within spawn_blocking
     let results = tokio::task::spawn_blocking(move || {
         rayon_pool.install(|| {
@@ -152,7 +131,6 @@ pub async fn extract_all_zips(
                 .par_iter()
                 .map(|zip_path| {
                     let result = extract_zip_sync(zip_path);
-                    counter_for_workers.fetch_add(1, Ordering::Relaxed);
                     (zip_path.clone(), result)
                 })
                 .collect::<Vec<(PathBuf, AppResult<()>)>>()
@@ -161,14 +139,9 @@ pub async fn extract_all_zips(
     .await
     .map_err(|e| AppError::IoError(format!("Task join error: {e}")))?;
 
-    monitor_handle
-        .await
-        .map_err(|e| AppError::IoError(format!("Progress monitor error: {e}")))?;
-
-    pb.finish_with_message(format!("Extracted {total_zips} ZIP file(s)"));
-
     // Collect errors
     let mut errors = Vec::new();
+    let mut extracted_bytes = 0u64;
     for (zip_path, result) in results {
         if let Err(e) = result {
             let error_msg = format!("Failed to extract {}: {}", zip_path.display(), e);
@@ -178,6 +151,11 @@ pub async fn extract_all_zips(
                 "Failed to extract ZIP file"
             );
             errors.push(error_msg);
+            continue;
+        }
+
+        if let Some(extract_dir) = extracted_dir_for_zip(&zip_path) {
+            extracted_bytes += directory_size(&extract_dir);
         }
     }
 
@@ -193,10 +171,24 @@ pub async fn extract_all_zips(
         debug!(skipped = skipped_count, "Skipped already extracted files");
     }
 
+    let elapsed = start.elapsed();
+    let elapsed_str = format_duration(elapsed);
+    let total_mb = mb_from_bytes(extracted_bytes);
+    let throughput = if elapsed.as_secs_f64() > 0.0 {
+        total_mb / elapsed.as_secs_f64()
+    } else {
+        total_mb
+    };
+    let size_mb = round_two_decimals(total_mb);
+    let throughput_mb_s = round_two_decimals(throughput);
+
     info!(
         extracted = total_zips,
         skipped = skipped_count,
         missing = missing_zips.len(),
+        elapsed = elapsed_str,
+        size_mb = size_mb,
+        throughput_mb_s = throughput_mb_s,
         "Extraction completed"
     );
 
@@ -358,4 +350,41 @@ fn extract_zip_sync(zip_path: &Path) -> AppResult<()> {
         .collect::<AppResult<Vec<()>>>()?;
 
     Ok(())
+}
+
+fn format_duration(duration: Duration) -> String {
+    let total_secs = duration.as_secs();
+    let hours = total_secs / 3600;
+    let minutes = (total_secs % 3600) / 60;
+    let seconds = total_secs % 60;
+    format!("{hours:02}:{minutes:02}:{seconds:02}")
+}
+
+fn mb_from_bytes(bytes: u64) -> f64 {
+    bytes as f64 / 1_048_576.0
+}
+
+fn round_two_decimals(value: f64) -> f64 {
+    (value * 100.0).round() / 100.0
+}
+
+fn extracted_dir_for_zip(zip_path: &Path) -> Option<PathBuf> {
+    let parent = zip_path.parent()?;
+    let stem = zip_path.file_stem()?;
+    Some(parent.join(stem))
+}
+
+fn directory_size(dir: &Path) -> u64 {
+    let mut total = 0;
+    if let Ok(entries) = fs::read_dir(dir) {
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if path.is_dir() {
+                total += directory_size(&path);
+            } else if let Ok(metadata) = entry.metadata() {
+                total += metadata.len();
+            }
+        }
+    }
+    total
 }

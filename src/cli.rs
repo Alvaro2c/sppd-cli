@@ -7,7 +7,7 @@ use crate::models::ProcurementType;
 use crate::parser::{cleanup_files, parse_xmls};
 use clap::{Arg, ArgAction, Command};
 use std::collections::BTreeMap;
-use tracing::{info, info_span};
+use tracing::info;
 
 /// Parses command-line arguments and executes the download command.
 ///
@@ -130,7 +130,6 @@ pub async fn cli(
         info!("Starting extraction phase");
         extract_all_zips(&target_links, &proc_type, &resolved_config).await?;
 
-        info!("Starting parsing phase");
         parse_xmls(
             &target_links,
             &proc_type,
@@ -173,20 +172,14 @@ fn print_download_info(
     end_period: Option<&str>,
     periods_count: usize,
 ) {
-    let _span = info_span!(
-        "download",
-        procurement_type = proc_type.display_name(),
-        start_period = start_period,
-        end_period = end_period
-    )
-    .entered();
-
+    let start_text = start_period.unwrap_or("first available");
+    let end_text = end_period.unwrap_or("last available");
     info!(
         procurement_type = proc_type.display_name(),
-        start_period = start_period,
-        end_period = end_period,
-        periods_count = periods_count,
-        "Starting download operation"
+        periods = periods_count,
+        start_period = start_text,
+        end_period = end_text,
+        "Starting download"
     );
 }
 
