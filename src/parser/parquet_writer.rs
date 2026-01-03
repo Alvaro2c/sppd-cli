@@ -107,7 +107,7 @@ async fn read_xml_contents(paths: &[PathBuf]) -> AppResult<Vec<Vec<u8>>> {
 ///
 /// - **Filtering**: Only processes subdirectories whose names match keys in `target_links`
 /// - **Skip empty**: Subdirectories with no entries are skipped (logged but not an error)
-/// - **Progress tracking**: A progress bar is displayed during parsing
+/// - **Progress tracking**: Elapsed time and throughput are logged after parsing completes
 ///
 /// # Errors
 ///
@@ -145,7 +145,7 @@ pub async fn parse_xmls(
         return Ok(());
     }
 
-    // Calculate total XML files across all periods for progress bar
+    // Calculate total XML files across all periods for logging
     let total_xml_files: usize = subdirs_to_process
         .iter()
         .map(|(_, files)| files.len())
