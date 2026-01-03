@@ -17,7 +17,11 @@ const PERIOD_HELP_TEXT: &str = "Period (YYYY or YYYYMM format, e.g., 202301)";
 
 /// Parses command-line arguments and executes the download command.
 ///
-/// This function handles the complete workflow for downloading and processing procurement data:
+/// This function handles two subcommands:
+/// - `cli`: Manual CLI with default configuration (cleanup always enabled)
+/// - `toml`: Run using a TOML configuration file (cleanup configurable)
+///
+/// Both subcommands execute the same workflow for downloading and processing procurement data:
 /// 1. Parses CLI arguments (procurement type, period range, cleanup options)
 /// 2. Filters available links by the specified period range
 /// 3. Downloads ZIP files from the filtered URLs

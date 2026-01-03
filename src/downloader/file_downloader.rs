@@ -200,7 +200,7 @@ async fn download_single_file(
 /// - **Atomic downloads**: Files are downloaded to temporary `.part` files and
 ///   atomically renamed when complete, preventing partial downloads.
 /// - **Skip existing**: Files that already exist are automatically skipped.
-/// - **Progress tracking**: A progress bar is displayed during downloads.
+/// - **Progress tracking**: Elapsed time and throughput are logged after downloads complete.
 ///
 /// # Arguments
 ///
@@ -330,7 +330,7 @@ pub async fn download_files(
             )
             .await;
 
-            // Update progress bar based on result
+            // Handle download result and collect errors
             match &result {
                 Ok(_) => Ok((filename_for_task, true, None)),
                 Err(e) => {
