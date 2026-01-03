@@ -13,7 +13,6 @@
 
 pub mod cli;
 pub mod config;
-pub mod constants;
 pub mod downloader;
 pub mod errors;
 pub mod extractor;

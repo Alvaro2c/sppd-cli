@@ -1,4 +1,3 @@
-use crate::constants::*;
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 
@@ -21,6 +20,10 @@ pub struct Entry {
     /// The ContractFolderStatus XML subtree as a JSON string
     pub contract_folder_status: Option<String>,
 }
+
+// Procurement type aliases
+const MINOR_CONTRACTS_ALIASES: &[&str] = &["mc", "minor-contracts", "min"];
+const PUBLIC_TENDERS_ALIASES: &[&str] = &["pt", "pub", "public-tenders"];
 
 /// Type of procurement data to download.
 ///
