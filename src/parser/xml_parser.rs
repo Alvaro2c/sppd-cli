@@ -221,7 +221,7 @@ pub fn parse_xml_bytes(content: &[u8]) -> AppResult<Vec<Entry>> {
             Event::Text(e) if inside_entry => {
                 if builder.is_inside_contract_folder_status() {
                     builder.handle_contract_folder_status_event(Event::Text(e.into_owned()))?;
-                } else {
+                } else if builder.current_field.is_some() {
                     let txt = e
                         .decode()
                         .map_err(|e| {

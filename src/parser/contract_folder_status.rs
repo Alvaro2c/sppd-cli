@@ -7,7 +7,7 @@ use std::io::Cursor;
 /// State for capturing ContractFolderStatus XML subtree
 struct ContractFolderStatusState {
     depth: u32,
-    buffer: Vec<u8>,
+    writer: Writer<Cursor<Vec<u8>>>,
     found: bool,
 }
 
@@ -48,18 +48,16 @@ impl ContractFolderStatusHandler {
             }
         }
 
-        // Pre-allocate buffer with estimated capacity (typically ContractFolderStatus is 1-10KB)
-        let mut buffer = Vec::with_capacity(4096);
-        {
-            let mut writer = Writer::new(&mut buffer);
-            writer.write_event(event).map_err(|e| {
-                AppError::ParseError(format!("Failed to write event to buffer: {e}"))
-            })?;
-        }
+        // Pre-allocate buffer with higher capacity to reduce reallocations
+        let cursor = Cursor::new(Vec::with_capacity(16 * 1024));
+        let mut writer = Writer::new(cursor);
+        writer
+            .write_event(event)
+            .map_err(|e| AppError::ParseError(format!("Failed to write event to buffer: {e}")))?;
 
         let state = ContractFolderStatusState {
             depth: 1,
-            buffer,
+            writer,
             found: true,
         };
 
@@ -70,8 +68,7 @@ impl ContractFolderStatusHandler {
     /// Handles an event while inside ContractFolderStatus (generic event).
     pub fn handle_event(&mut self, event: Event) -> AppResult<()> {
         if let Some(ref mut state) = self.state {
-            let mut writer = Writer::new(&mut state.buffer);
-            writer.write_event(event).map_err(|e| {
+            state.writer.write_event(event).map_err(|e| {
                 AppError::ParseError(format!("Failed to write event to buffer: {e}"))
             })?;
         }
@@ -82,8 +79,7 @@ impl ContractFolderStatusHandler {
     pub fn handle_start(&mut self, event: Event) -> AppResult<()> {
         if let Some(ref mut state) = self.state {
             state.depth += 1;
-            let mut writer = Writer::new(&mut state.buffer);
-            writer.write_event(event).map_err(|e| {
+            state.writer.write_event(event).map_err(|e| {
                 AppError::ParseError(format!("Failed to write event to buffer: {e}"))
             })?;
         }
@@ -95,18 +91,19 @@ impl ContractFolderStatusHandler {
     /// Returns `Some(String)` with the JSON representation when the element is complete,
     /// or `None` if still capturing nested elements.
     pub fn handle_end(&mut self, event: Event) -> AppResult<Option<String>> {
-        if let Some(ref mut state) = self.state {
-            let mut writer = Writer::new(&mut state.buffer);
-            writer.write_event(event).map_err(|e| {
+        if let Some(mut state) = self.state.take() {
+            state.writer.write_event(event).map_err(|e| {
                 AppError::ParseError(format!("Failed to write event to buffer: {e}"))
             })?;
 
             state.depth -= 1;
 
             if state.depth == 0 {
-                // Convert XML buffer to JSON
-                let mut json_output = Vec::with_capacity(state.buffer.len());
-                let mut cursor = Cursor::new(&state.buffer);
+                let cursor = state.writer.into_inner();
+                let buffer = cursor.into_inner();
+
+                let mut json_output = Vec::with_capacity(buffer.len());
+                let mut cursor = Cursor::new(&buffer);
                 xml_to_json(&mut cursor, &mut json_output).map_err(|e| {
                     AppError::ParseError(format!(
                         "Failed to convert ContractFolderStatus to JSON: {e}"
@@ -117,9 +114,9 @@ impl ContractFolderStatusHandler {
                     AppError::ParseError(format!("Failed to convert JSON to UTF-8: {e}"))
                 })?;
 
-                self.state = None;
                 Ok(Some(json_string))
             } else {
+                self.state = Some(state);
                 Ok(None)
             }
         } else {
