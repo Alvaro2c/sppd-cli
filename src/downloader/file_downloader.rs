@@ -1,8 +1,8 @@
 use crate::errors::{AppError, AppResult};
 use crate::models::ProcurementType;
-use crate::ui;
 use std::path::Path;
 use std::sync::Arc;
+use std::time::{Duration, Instant};
 use tokio::fs;
 use tokio::fs::File;
 use tokio::io::AsyncWriteExt;
@@ -251,14 +251,8 @@ pub async fn download_files(
         return Ok(());
     }
 
-    // Create progress bar
-    let pb = ui::create_progress_bar(total_files as u64)?;
-
-    info!(
-        total = total_files,
-        skipped = skipped_count,
-        "Starting download"
-    );
+    let start = Instant::now();
+    let mut total_bytes = 0u64;
 
     // Create semaphore to limit concurrent downloads
     let concurrent_downloads = config.concurrent_downloads;
@@ -266,7 +260,6 @@ pub async fn download_files(
     let client = Arc::new(client.clone());
     let download_dir_path = download_dir.clone();
     let download_dir_arc = Arc::new(download_dir_path);
-    let pb = Arc::new(pb);
 
     // Extract retry config values before moving into async blocks
     let retry_max_retries = config.max_retries;
@@ -287,7 +280,6 @@ pub async fn download_files(
         let semaphore = semaphore.clone();
         let client = client.clone();
         let download_dir = download_dir_arc.clone();
-        let pb = pb.clone();
         let period = period.clone();
         let url = url.clone();
         let filename_for_task = filename.clone();
@@ -319,9 +311,6 @@ pub async fn download_files(
                 }
             }
 
-            // Update progress bar message
-            pb.set_message(format!("Downloading {filename_for_task}..."));
-
             // Attempt download with retry logic
             // Create RetryConfig from cloned values
             let retry_config = RetryConfig {
@@ -342,10 +331,7 @@ pub async fn download_files(
 
             // Update progress bar based on result
             match &result {
-                Ok(_) => {
-                    pb.set_message(format!("Completed {filename_for_task}"));
-                    Ok((filename_for_task, true, None))
-                }
+                Ok(_) => Ok((filename_for_task, true, None)),
                 Err(e) => {
                     let error_msg = format!("Failed to download {filename_for_task}: {e}");
                     warn!(
@@ -353,7 +339,6 @@ pub async fn download_files(
                         error = %e,
                         "Failed to download file"
                     );
-                    pb.set_message(format!("Failed {filename_for_task}"));
                     Ok((filename_for_task, false, Some(error_msg)))
                 }
             }
@@ -364,13 +349,19 @@ pub async fn download_files(
 
     // Await all tasks and collect results
     for handle in handles {
-        // Update progress bar for each completed download
-        pb.inc(1);
-
         match handle.await {
-            Ok(Ok((_filename, success, error_msg))) => {
+            Ok(Ok((filename, success, error_msg))) => {
                 if success {
                     success_count += 1;
+                    let file_path = download_dir.join(&filename);
+                    match fs::metadata(&file_path).await {
+                        Ok(metadata) => total_bytes += metadata.len(),
+                        Err(e) => warn!(
+                            file = %file_path.display(),
+                            error = %e,
+                            "Failed to read downloaded file metadata"
+                        ),
+                    }
                 } else if let Some(msg) = error_msg {
                     errors.push(msg);
                 }
@@ -384,23 +375,35 @@ pub async fn download_files(
         }
     }
 
-    // Report results
+    let elapsed = start.elapsed();
+    let elapsed_str = format_duration(elapsed);
+    let total_mb = mb_from_bytes(total_bytes);
+    let throughput = if elapsed.as_secs_f64() > 0.0 {
+        total_mb / elapsed.as_secs_f64()
+    } else {
+        total_mb
+    };
+    let size_mb = round_two_decimals(total_mb);
+    let throughput_mb_s = round_two_decimals(throughput);
+
     if errors.is_empty() {
-        pb.finish_with_message(format!("Downloaded {success_count} file(s)"));
         info!(
             downloaded = success_count,
             skipped = skipped_count,
+            failed = 0,
+            elapsed = elapsed_str,
+            size_mb = size_mb,
+            throughput_mb_s = throughput_mb_s,
             "Download completed"
         );
     } else {
-        pb.finish_with_message(format!(
-            "Downloaded {success_count} file(s), {} failed",
-            errors.len()
-        ));
         info!(
             downloaded = success_count,
             failed = errors.len(),
             skipped = skipped_count,
+            elapsed = elapsed_str,
+            size_mb = size_mb,
+            throughput_mb_s = throughput_mb_s,
             "Download completed with errors"
         );
     }
@@ -419,4 +422,20 @@ pub async fn download_files(
     }
 
     Ok(())
+}
+
+fn format_duration(duration: Duration) -> String {
+    let total_secs = duration.as_secs();
+    let hours = total_secs / 3600;
+    let minutes = (total_secs % 3600) / 60;
+    let seconds = total_secs % 60;
+    format!("{hours:02}:{minutes:02}:{seconds:02}")
+}
+
+fn mb_from_bytes(bytes: u64) -> f64 {
+    bytes as f64 / 1_048_576.0
+}
+
+fn round_two_decimals(value: f64) -> f64 {
+    (value * 100.0).round() / 100.0
 }

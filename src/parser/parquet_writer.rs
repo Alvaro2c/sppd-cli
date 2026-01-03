@@ -1,15 +1,11 @@
 use crate::errors::{AppError, AppResult};
 use crate::models::Entry;
-use crate::ui;
 use polars::prelude::*;
 use rayon::prelude::*;
 use std::collections::BTreeMap;
 use std::fs::{self, File};
 use std::mem;
-use std::sync::{
-    atomic::{AtomicUsize, Ordering},
-    Arc,
-};
+use std::time::{Duration, Instant};
 use tracing::info;
 
 use super::file_finder::find_xmls;
@@ -138,10 +134,8 @@ pub fn parse_xmls(
         .map(|(_, files)| files.len())
         .sum();
 
-    // Create progress bar with total files instead of total periods
-    let pb = ui::create_progress_bar(total_xml_files as u64)?;
-    let progress_counter = Arc::new(AtomicUsize::new(0));
-    let mut last_reported = 0usize;
+    let start = Instant::now();
+    let mut total_parquet_bytes = 0u64;
 
     info!(total = total_subdirs, "Starting XML parsing");
 
@@ -150,14 +144,10 @@ pub fn parse_xmls(
 
     // Process each subdirectory
     for (subdir_name, xml_files) in subdirs_to_process {
-        // Update progress bar message
-        pb.set_message(format!("Processing {subdir_name}..."));
-
         // Process XML files in batches, writing each batch to temporary Parquet file
         let mut batch_dataframes: Vec<DataFrame> = Vec::new();
 
         let rayon_chunk_size = (rayon::current_num_threads() * 4).max(32);
-        let counter = progress_counter.clone();
         let chunk_results: Vec<AppResult<Vec<Entry>>> = xml_files
             .par_chunks(rayon_chunk_size)
             .map(move |chunk| {
@@ -165,7 +155,6 @@ pub fn parse_xmls(
                 for xml_path in chunk {
                     let content = fs::read(xml_path)?;
                     chunk_entries.extend(parse_xml_bytes(&content)?);
-                    counter.fetch_add(1, Ordering::Relaxed);
                 }
                 Ok(chunk_entries)
             })
@@ -189,17 +178,9 @@ pub fn parse_xmls(
             batch_dataframes.push(entries_to_dataframe(leftover)?);
         }
 
-        let completed = progress_counter.load(Ordering::Relaxed);
-        let delta = completed.saturating_sub(last_reported);
-        if delta > 0 {
-            pb.inc(delta as u64);
-            last_reported = completed;
-        }
-
         // Handle empty case
         if batch_dataframes.is_empty() {
             skipped_count += 1;
-            pb.set_message(format!("Skipped {subdir_name} (no entries)"));
             continue;
         }
 
@@ -234,16 +215,51 @@ pub fn parse_xmls(
             .map_err(|e| AppError::ParseError(format!("Failed to write Parquet file: {e}")))?;
 
         processed_count += 1;
-        pb.set_message(format!("Completed {subdir_name}"));
+        let metadata = fs::metadata(&parquet_path).map_err(|e| {
+            AppError::IoError(format!(
+                "Failed to read Parquet file metadata {parquet_path:?}: {e}"
+            ))
+        })?;
+        total_parquet_bytes += metadata.len();
     }
 
-    pb.finish_with_message(format!("Processed {processed_count} period(s)"));
+    let elapsed = start.elapsed();
+    let elapsed_str = format_duration(elapsed);
+    let total_mb = mb_from_bytes(total_parquet_bytes);
+    let throughput = if elapsed.as_secs_f64() > 0.0 {
+        total_mb / elapsed.as_secs_f64()
+    } else {
+        total_mb
+    };
+    let size_mb = round_two_decimals(total_mb);
+    let throughput_mb_s = round_two_decimals(throughput);
 
     info!(
         processed = processed_count,
         skipped = skipped_count,
+        xml_files = total_xml_files,
+        parquet_files = processed_count,
+        elapsed = elapsed_str,
+        output_size_mb = size_mb,
+        throughput_mb_s = throughput_mb_s,
         "Parsing completed"
     );
 
     Ok(())
+}
+
+fn format_duration(duration: Duration) -> String {
+    let total_secs = duration.as_secs();
+    let hours = total_secs / 3600;
+    let minutes = (total_secs % 3600) / 60;
+    let seconds = total_secs % 60;
+    format!("{hours:02}:{minutes:02}:{seconds:02}")
+}
+
+fn mb_from_bytes(bytes: u64) -> f64 {
+    bytes as f64 / 1_048_576.0
+}
+
+fn round_two_decimals(value: f64) -> f64 {
+    (value * 100.0).round() / 100.0
 }
