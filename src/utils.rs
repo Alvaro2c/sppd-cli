@@ -1,5 +1,6 @@
 use std::time::Duration;
 
+/// Formats a `Duration` as `HH:MM:SS`.
 pub fn format_duration(duration: Duration) -> String {
     let total_secs = duration.as_secs();
     let hours = total_secs / 3600;
@@ -8,10 +9,12 @@ pub fn format_duration(duration: Duration) -> String {
     format!("{hours:02}:{minutes:02}:{seconds:02}")
 }
 
+/// Converts bytes to megabytes (1 MB = 1,048,576 bytes).
 pub fn mb_from_bytes(bytes: u64) -> f64 {
     bytes as f64 / 1_048_576.0
 }
 
+/// Rounds a floating-point value to two decimal places.
 pub fn round_two_decimals(value: f64) -> f64 {
     (value * 100.0).round() / 100.0
 }
