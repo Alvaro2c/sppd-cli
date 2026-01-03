@@ -20,10 +20,10 @@ The binary will be available at `target/release/sppd-cli`.
 
 ## Usage
 
-### Basic Command
+### Manual CLI
 
 ```bash
-cargo run -- download [OPTIONS]
+cargo run -- cli [OPTIONS]
 ```
 
 ### Options
@@ -33,32 +33,52 @@ cargo run -- download [OPTIONS]
   - `minor-contracts` (aliases: `mc`, `min`)
 - `-s, --start <PERIOD>`: Start period (format: `YYYY` or `YYYYMM`)
 - `-e, --end <PERIOD>`: End period (format: `YYYY` or `YYYYMM`)
-- `--cleanup <yes|no>`: Delete intermediate files (ZIP and XML/Atom) after processing, keeping only Parquet files (default: `yes`)
-- `--batch-size <SIZE>`: Number of XML files to process per batch (default: 100). Can also be set via `SPPD_BATCH_SIZE` env var.
+
+Cleanup is always enabled for the manual CLI invocation. Use a TOML configuration file to change that behavior.
 
 **Available periods:**
 - Previous years: full years only (`YYYY`)
 - Current year: all months up to the download date (`YYYYMM`)
 
+### TOML Configuration
+
+```bash
+cargo run -- toml config/prod.toml
+```
+
+The TOML file lets you declare both the run parameters (`type`, `start`, `end`, `cleanup`) and the pipeline defaults (batch size, retry/backoff, directories, etc.). For example:
+
+```toml
+type = "public-tenders"
+start = "202301"
+end = "202312"
+cleanup = false
+
+batch_size = 100
+concurrent_downloads = 4
+retry_initial_delay_ms = 1000
+retry_max_delay_ms = 10000
+
+download_dir_mc = "data/tmp/mc"
+download_dir_pt = "data/tmp/pt"
+parquet_dir_mc = "data/parquet/mc"
+parquet_dir_pt = "data/parquet/pt"
+```
+
+Only `type`, `start`, and `end` are required; the rest default to the built-in values.
+
 ### Environment Variables
 
-- `SPPD_BATCH_SIZE`: XML files per batch (overrides default, not CLI)
 - `RUST_LOG`: Log level (`debug`, `info`, `warn`)
 
 ### Examples
 
 ```bash
-# Download all available public tenders
-cargo run -- download
+# Manual download (default cleanup, defaults for batch size, retries, etc.)
+cargo run -- cli -t public-tenders -s 2023 -e 2023
 
-# Download public tenders for 2023
-cargo run -- download -t public-tenders -s 2023 -e 2023
-
-# Download minor contracts for January 2025
-cargo run -- download -t mc -s 202501 -e 202501
-
-# Keep intermediate files (don't cleanup)
-cargo run -- download --cleanup no
+# Run with a TOML configuration file (for automation/orchestration)
+cargo run -- toml config/prod.toml
 ```
 
 ### Output
@@ -71,8 +91,8 @@ cargo run -- download --cleanup no
 Control log levels with `RUST_LOG`:
 
 ```bash
-RUST_LOG=debug cargo run -- download  # Detailed output
-RUST_LOG=warn cargo run -- download   # Warnings and errors only
+RUST_LOG=debug cargo run -- cli  # Detailed output
+RUST_LOG=warn cargo run -- cli   # Warnings and errors only
 ```
 
 ## Contributing
@@ -85,5 +105,3 @@ This project is dual-licensed under either:
 
 - Apache License, Version 2.0 ([LICENSE](LICENSE) or http://www.apache.org/licenses/LICENSE-2.0)
 - MIT License (http://opensource.org/licenses/MIT)
-
-at your option.
