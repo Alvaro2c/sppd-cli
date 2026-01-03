@@ -1,4 +1,3 @@
-use crate::constants::{PERIOD_REGEX_PATTERN, ZIP_LINK_SELECTOR};
 use crate::errors::AppResult;
 use regex::Regex;
 use scraper::{Html, Selector};
@@ -6,6 +5,14 @@ use std::collections::BTreeMap;
 use std::sync::OnceLock;
 use tracing::info;
 use url::Url;
+
+// Data source URLs
+const MINOR_CONTRACTS_URL: &str = "https://www.hacienda.gob.es/es-es/gobiernoabierto/datos%20abiertos/paginas/contratosmenores.aspx";
+const PUBLIC_TENDERS_URL: &str = "https://www.hacienda.gob.es/es-ES/GobiernoAbierto/Datos%20Abiertos/Paginas/LicitacionesContratante.aspx";
+
+// Selectors and Patterns
+const ZIP_LINK_SELECTOR: &str = r#"a[href$=".zip"]"#;
+const PERIOD_REGEX_PATTERN: &str = r"_(\d+)\.zip$";
 
 /// Cached regex for extracting period identifiers from ZIP filenames.
 /// Compiled once at initialization for performance.
@@ -35,19 +42,17 @@ static ZIP_LINK_SELECTOR_CACHED: OnceLock<Selector> = OnceLock::new();
 /// - URLs cannot be parsed
 ///
 pub async fn fetch_all_links() -> AppResult<(BTreeMap<String, String>, BTreeMap<String, String>)> {
-    use crate::constants::{MINOR_CONTRACTS, PUBLIC_TENDERS};
-
     let client = reqwest::Client::new();
     // Sequential fetch: simple and reliable for two landing pages.
     info!("Fetching minor contracts links");
-    let minor_links = fetch_zip(&client, MINOR_CONTRACTS).await?;
+    let minor_links = fetch_zip(&client, MINOR_CONTRACTS_URL).await?;
     info!(
         periods_found = minor_links.len(),
         "Minor contracts links fetched"
     );
 
     info!("Fetching public tenders links");
-    let public_links = fetch_zip(&client, PUBLIC_TENDERS).await?;
+    let public_links = fetch_zip(&client, PUBLIC_TENDERS_URL).await?;
     info!(
         periods_found = public_links.len(),
         "Public tenders links fetched"

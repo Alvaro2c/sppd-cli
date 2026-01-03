@@ -10,6 +10,12 @@ use std::collections::BTreeMap;
 use std::path::PathBuf;
 use tracing::info;
 
+// CLI metadata constants
+const APP_VERSION: &str = env!("CARGO_PKG_VERSION");
+const APP_AUTHOR: &str = env!("CARGO_PKG_AUTHORS");
+const APP_ABOUT: &str = env!("CARGO_PKG_DESCRIPTION");
+const PERIOD_HELP_TEXT: &str = "Period (YYYY or YYYYMM format, e.g., 202301)";
+
 /// Parses command-line arguments and executes the download command.
 ///
 /// This function handles the complete workflow for downloading and processing procurement data:
