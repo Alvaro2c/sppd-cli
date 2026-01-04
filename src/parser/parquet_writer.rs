@@ -86,7 +86,7 @@ async fn read_xml_contents(paths: &[PathBuf]) -> AppResult<Vec<Vec<u8>>> {
 ///
 /// 1. Finds all subdirectories in the extraction directory that contain XML/Atom files
 /// 2. Filters to only process subdirectories matching periods in `target_links`
-/// 3. Parses all XML/Atom files in each matching subdirectory
+/// 3. Parses XML/Atom files in each matching subdirectory in batches to limit memory
 /// 4. Converts parsed entries to a Polars DataFrame
 /// 5. Writes the DataFrame as a Parquet file named after the period (e.g., `202301.parquet`)
 ///
@@ -161,22 +161,27 @@ pub async fn parse_xmls(
 
     // Process each subdirectory
     for (subdir_name, xml_files) in subdirs_to_process {
-        // Read XML files concurrently, then parse in parallel
-        let xml_contents = read_xml_contents(&xml_files).await?;
-        let parsed_entry_batches: Vec<Vec<Entry>> = xml_contents
-            .par_iter()
-            .map(|content| parse_xml_bytes(content))
-            .collect::<AppResult<Vec<_>>>()?;
-
         let mut entry_batches: Vec<Vec<Entry>> = Vec::new();
         let mut pending_entries: Vec<Entry> = Vec::with_capacity(batch_size.max(1));
-        for mut entries in parsed_entry_batches {
-            if entries.is_empty() {
-                continue;
-            }
-            pending_entries.append(&mut entries);
-            while pending_entries.len() >= batch_size {
-                entry_batches.push(pending_entries.drain(..batch_size).collect());
+
+        let file_chunk_size = batch_size.max(1);
+        for xml_chunk in xml_files.chunks(file_chunk_size) {
+            // Read XML files for this chunk before parsing to limit concurrent memory usage.
+            let xml_contents = read_xml_contents(xml_chunk).await?;
+            let parsed_entry_batches: Vec<Vec<Entry>> = xml_contents
+                .par_iter()
+                .map(|content| parse_xml_bytes(content))
+                .collect::<AppResult<Vec<_>>>()?;
+            drop(xml_contents);
+
+            for mut entries in parsed_entry_batches {
+                if entries.is_empty() {
+                    continue;
+                }
+                pending_entries.append(&mut entries);
+                while pending_entries.len() >= batch_size {
+                    entry_batches.push(pending_entries.drain(..batch_size).collect());
+                }
             }
         }
 
