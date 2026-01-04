@@ -83,7 +83,7 @@ Optional overrides:
 
 - `cleanup` (bool, defaults to `true`)
 - Pipeline defaults:
-  - `batch_size` (default `100`)
+  - `batch_size` (files per chunk when parsing; default `100`)
   - `max_retries` (default `3`)
   - `retry_initial_delay_ms` (default `1000`)
   - `retry_max_delay_ms` (default `10000`)

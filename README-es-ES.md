@@ -83,7 +83,7 @@ Overrides opcionales:
 
 - `cleanup` (bool, por defecto `true`)
 - Valores por defecto de la canalización:
-  - `batch_size` (por defecto `100`)
+-  - `batch_size` (número de archivos por chunk al parsear; por defecto `100`)
   - `max_retries` (por defecto `3`)
   - `retry_initial_delay_ms` (por defecto `1000`)
   - `retry_max_delay_ms` (por defecto `10000`)
