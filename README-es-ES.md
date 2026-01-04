@@ -71,26 +71,45 @@ La limpieza (`cleanup`) está activada siempre en la CLI manual. Usa un archivo 
 cargo run -- toml config/prod.toml
 ```
 
-El archivo TOML te permite definir tanto los parámetros de ejecución (`type`, `start`, `end`, `cleanup`) como los valores por defecto de la canalización (tamaño de lote, reintentos, rutas, etc.). Por ejemplo:
+El archivo TOML te permite declarar los parámetros de ejecución de la CLI y, opcionalmente, anular cualquiera de los valores predeterminados de la canalización. El parser falla si omites una clave **obligatoria** (`type`, `start` o `end`) o incluyes una clave desconocida (las erratas se rechazan). Todo lo demás usa los valores incorporados a menos que lo cambies.
+
+Campos obligatorios:
+
+- `type`: `public-tenders` (`pt`, `pub`) o `minor-contracts` (`mc`, `min`)
+- `start`: periodo en formato `YYYY` o `YYYYMM`
+- `end`: periodo en formato `YYYY` o `YYYYMM`
+
+Overrides opcionales:
+
+- `cleanup` (bool, por defecto `true`)
+- Valores por defecto de la canalización:
+  - `batch_size` (por defecto `100`)
+  - `max_retries` (por defecto `3`)
+  - `retry_initial_delay_ms` (por defecto `1000`)
+  - `retry_max_delay_ms` (por defecto `10000`)
+  - `concurrent_downloads` (por defecto `4`)
+  - `download_dir_mc`, `download_dir_pt`
+  - `parquet_dir_mc`, `parquet_dir_pt`
+
+Ejemplo:
 
 ```toml
 type = "public-tenders"
-start = "202301"
-end = "202312"
+start = "202501"
+end = "202502"
 cleanup = false
 
-batch_size = 100
-concurrent_downloads = 4
+batch_size = 150
+max_retries = 5
 retry_initial_delay_ms = 1000
 retry_max_delay_ms = 10000
+concurrent_downloads = 4
 
 download_dir_mc = "data/tmp/mc"
 download_dir_pt = "data/tmp/pt"
 parquet_dir_mc = "data/parquet/mc"
 parquet_dir_pt = "data/parquet/pt"
 ```
-
-Solo `type`, `start` y `end` son obligatorios; el resto hereda los valores integrados.
 
 ### Variables de Entorno
 
