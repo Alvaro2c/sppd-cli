@@ -478,11 +478,11 @@ mod tests {
         let result = filter_periods_by_range(&links, Some("2023"), None);
         assert!(result.is_ok());
         let filtered = result.unwrap();
-        assert_eq!(filtered.len(), 4); // 2023, 202301, 202302, 202303
+        assert_eq!(filtered.len(), 5); // 2023, 202301, 202302, 202303, 202401
         assert!(filtered.contains_key("2023"));
         assert!(filtered.contains_key("202301"));
         assert!(filtered.contains_key("202303"));
-        assert!(!filtered.contains_key("202401"));
+        assert!(filtered.contains_key("202401"));
     }
 
     #[test]
