@@ -6,7 +6,6 @@ use polars::prelude::*;
 use rayon::prelude::*;
 use std::collections::BTreeMap;
 use std::fs::{self as std_fs, File};
-use std::mem;
 use std::path::PathBuf;
 use std::time::Instant;
 use tokio::fs as tokio_fs;
@@ -65,7 +64,7 @@ fn entries_to_dataframe(entries: Vec<Entry>) -> AppResult<DataFrame> {
 }
 
 async fn read_xml_contents(paths: &[PathBuf]) -> AppResult<Vec<Vec<u8>>> {
-    const READ_CONCURRENCY: usize = 32;
+    const READ_CONCURRENCY: usize = 16;
     stream::iter(paths.iter().cloned())
         .map(|path| async move {
             tokio_fs::read(&path)
@@ -100,7 +99,7 @@ async fn read_xml_contents(paths: &[PathBuf]) -> AppResult<Vec<Vec<u8>>> {
 ///
 /// * `target_links` - Map of period strings to URLs (used to filter which periods to process)
 /// * `procurement_type` - Procurement type determining the extract and parquet directories
-/// * `batch_size` - Number of XML files to process per batch (affects memory usage)
+/// * `batch_size` - Number of XML files to process per chunk (affects memory usage)
 /// * `config` - Resolved configuration containing directory paths
 ///
 /// # Behavior
@@ -161,56 +160,45 @@ pub async fn parse_xmls(
 
     // Process each subdirectory
     for (subdir_name, xml_files) in subdirs_to_process {
-        let mut entry_batches: Vec<Vec<Entry>> = Vec::new();
-        let mut pending_entries: Vec<Entry> = Vec::with_capacity(batch_size.max(1));
+        let chunk_size = batch_size.max(1);
+        let mut df: Option<DataFrame> = None;
+        let mut has_entries = false;
 
-        let file_chunk_size = batch_size.max(1);
-        for xml_chunk in xml_files.chunks(file_chunk_size) {
-            // Read XML files for this chunk before parsing to limit concurrent memory usage.
+        for xml_chunk in xml_files.chunks(chunk_size) {
             let xml_contents = read_xml_contents(xml_chunk).await?;
             let parsed_entry_batches: Vec<Vec<Entry>> = xml_contents
                 .par_iter()
                 .map(|content| parse_xml_bytes(content))
                 .collect::<AppResult<Vec<_>>>()?;
-            drop(xml_contents);
 
+            let mut chunk_entries = Vec::new();
             for mut entries in parsed_entry_batches {
                 if entries.is_empty() {
                     continue;
                 }
-                pending_entries.append(&mut entries);
-                while pending_entries.len() >= batch_size {
-                    entry_batches.push(pending_entries.drain(..batch_size).collect());
-                }
+                chunk_entries.append(&mut entries);
             }
+
+            if chunk_entries.is_empty() {
+                continue;
+            }
+
+            has_entries = true;
+            let chunk_df = entries_to_dataframe(chunk_entries)?;
+            df = Some(match df {
+                Some(existing) => existing.vstack(&chunk_df).map_err(|e| {
+                    AppError::ParseError(format!("Failed to concatenate DataFrames: {e}"))
+                })?,
+                None => chunk_df,
+            });
         }
 
-        if !pending_entries.is_empty() {
-            entry_batches.push(mem::take(&mut pending_entries));
-        }
-
-        if entry_batches.is_empty() {
+        if !has_entries {
             skipped_count += 1;
             continue;
         }
 
-        let batch_dataframes = entry_batches
-            .into_par_iter()
-            .map(entries_to_dataframe)
-            .collect::<AppResult<Vec<_>>>()?;
-
-        let mut df = if batch_dataframes.len() == 1 {
-            batch_dataframes.into_iter().next().unwrap()
-        } else {
-            let mut iter = batch_dataframes.into_iter();
-            let mut result = iter.next().unwrap();
-            for other_df in iter {
-                result = result.vstack(&other_df).map_err(|e| {
-                    AppError::ParseError(format!("Failed to concatenate DataFrames: {e}"))
-                })?;
-            }
-            result
-        };
+        let mut df = df.unwrap();
 
         // Create final parquet file
         let parquet_path = parquet_dir.join(format!("{subdir_name}.parquet"));

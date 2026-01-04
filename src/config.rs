@@ -17,6 +17,7 @@ pub struct ResolvedConfig {
     pub parquet_dir_pt: PathBuf,
 
     // Processing
+    /// Number of XML files processed per chunk during parsing.
     pub batch_size: usize,
     pub max_retries: u32,
     pub retry_initial_delay_ms: u64,
