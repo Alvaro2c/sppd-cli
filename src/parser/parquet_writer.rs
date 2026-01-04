@@ -85,7 +85,7 @@ async fn read_xml_contents(paths: &[PathBuf]) -> AppResult<Vec<Vec<u8>>> {
 ///
 /// 1. Finds all subdirectories in the extraction directory that contain XML/Atom files
 /// 2. Filters to only process subdirectories matching periods in `target_links`
-/// 3. Parses all XML/Atom files in each matching subdirectory
+/// 3. Parses XML/Atom files in each matching subdirectory in batches to limit memory
 /// 4. Converts parsed entries to a Polars DataFrame
 /// 5. Writes the DataFrame as a Parquet file named after the period (e.g., `202301.parquet`)
 ///
