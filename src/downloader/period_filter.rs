@@ -89,12 +89,7 @@ fn period_in_range(period: &str, start: Option<&str>, end: Option<&str>) -> bool
                 match p_year.cmp(&s_year) {
                     std::cmp::Ordering::Less => return false,
                     std::cmp::Ordering::Greater => {
-                        // Period is in a later year
-                        // If start is YYYY format, only match periods in that exact year
-                        if s_month_opt.is_none() {
-                            return false; // Start is YYYY, period is in later year, don't match
-                        }
-                        // Start is YYYYMM, period is in later year, so it matches (continue)
+                        // Period is in a later year than the start; continue checking end boundary
                     }
                     std::cmp::Ordering::Equal => {
                         // Same year, check month
@@ -483,11 +478,11 @@ mod tests {
         let result = filter_periods_by_range(&links, Some("2023"), None);
         assert!(result.is_ok());
         let filtered = result.unwrap();
-        assert_eq!(filtered.len(), 4); // 2023, 202301, 202302, 202303
+        assert_eq!(filtered.len(), 5); // 2023, 202301, 202302, 202303, 202401
         assert!(filtered.contains_key("2023"));
         assert!(filtered.contains_key("202301"));
         assert!(filtered.contains_key("202303"));
-        assert!(!filtered.contains_key("202401"));
+        assert!(filtered.contains_key("202401"));
     }
 
     #[test]
