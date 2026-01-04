@@ -122,8 +122,8 @@ pub async fn cli(
 
             let file_config = ResolvedConfigFile::from_toml_file(config_path)?;
             let proc_type = ProcurementType::from(file_config.procurement_type.as_str());
-            let start_period = file_config.start.as_deref();
-            let end_period = file_config.end.as_deref();
+            let start_period = Some(file_config.start.as_str());
+            let end_period = Some(file_config.end.as_str());
 
             run_workflow(
                 minor_contracts_links,

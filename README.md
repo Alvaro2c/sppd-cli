@@ -71,26 +71,45 @@ Cleanup is always enabled for the manual CLI invocation. Use a TOML configuratio
 cargo run -- toml config/prod.toml
 ```
 
-The TOML file lets you declare both the run parameters (`type`, `start`, `end`, `cleanup`) and the pipeline defaults (batch size, retry/backoff, directories, etc.). For example:
+The TOML file lets you declare the CLI run parameters and, optionally, any of the pipeline defaults. The parser fails if you omit any **required** field (`type`, `start`, or `end`) or include an unknown key (typos get rejected). Everything else uses the built-in defaults unless you override it.
+
+Required keys:
+
+- `type`: `public-tenders` (`pt`, `pub`) or `minor-contracts` (`mc`, `min`)
+- `start`: period in `YYYY` or `YYYYMM`
+- `end`: period in `YYYY` or `YYYYMM`
+
+Optional overrides:
+
+- `cleanup` (bool, defaults to `true`)
+- Pipeline defaults:
+  - `batch_size` (default `100`)
+  - `max_retries` (default `3`)
+  - `retry_initial_delay_ms` (default `1000`)
+  - `retry_max_delay_ms` (default `10000`)
+  - `concurrent_downloads` (default `4`)
+  - `download_dir_mc`, `download_dir_pt`
+  - `parquet_dir_mc`, `parquet_dir_pt`
+
+Example:
 
 ```toml
 type = "public-tenders"
-start = "202301"
-end = "202312"
+start = "202501"
+end = "202502"
 cleanup = false
 
-batch_size = 100
-concurrent_downloads = 4
+batch_size = 150
+max_retries = 5
 retry_initial_delay_ms = 1000
 retry_max_delay_ms = 10000
+concurrent_downloads = 4
 
 download_dir_mc = "data/tmp/mc"
 download_dir_pt = "data/tmp/pt"
 parquet_dir_mc = "data/parquet/mc"
 parquet_dir_pt = "data/parquet/pt"
 ```
-
-Only `type`, `start`, and `end` are required; the rest default to the built-in values.
 
 ### Environment Variables
 

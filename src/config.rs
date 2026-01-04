@@ -8,7 +8,7 @@ use std::path::{Path, PathBuf};
 /// This struct represents the pipeline defaults and can be deserialized by the TOML
 /// loader. All fields have concrete values, making it safe to access directly without unwrapping.
 #[derive(Debug, Clone, Deserialize)]
-#[serde(default)]
+#[serde(default, deny_unknown_fields)]
 pub struct ResolvedConfig {
     // Paths
     pub download_dir_mc: PathBuf,
@@ -44,28 +44,16 @@ impl Default for ResolvedConfig {
 
 /// Configuration that can be loaded from a TOML file.
 #[derive(Debug, Clone, Deserialize)]
-#[serde(default)]
+#[serde(deny_unknown_fields)]
 pub struct ResolvedConfigFile {
     #[serde(rename = "type")]
     pub procurement_type: String,
-    pub start: Option<String>,
-    pub end: Option<String>,
+    pub start: String,
+    pub end: String,
     #[serde(default = "default_cleanup")]
     pub cleanup: bool,
     #[serde(flatten)]
     pub resolved: ResolvedConfig,
-}
-
-impl Default for ResolvedConfigFile {
-    fn default() -> Self {
-        Self {
-            procurement_type: default_procurement_type(),
-            start: None,
-            end: None,
-            cleanup: default_cleanup(),
-            resolved: ResolvedConfig::default(),
-        }
-    }
 }
 
 impl ResolvedConfigFile {
@@ -82,10 +70,6 @@ impl ResolvedConfigFile {
 
         Ok(config)
     }
-}
-
-fn default_procurement_type() -> String {
-    "public-tenders".to_string()
 }
 
 fn default_cleanup() -> bool {
@@ -106,33 +90,52 @@ mod tests {
     }
 
     #[test]
-    fn toml_file_parses_custom_values() {
+    fn minimal_toml_is_parsed_and_defaults_apply() {
         let mut tmp = NamedTempFile::new().unwrap();
         write!(
             tmp,
             r#"
             type = "mc"
-            batch_size = 42
-            concurrent_downloads = 2
-            cleanup = false
+            start = "202301"
+            end = "202312"
             "#,
         )
         .unwrap();
 
         let config = ResolvedConfigFile::from_toml_file(tmp.path()).unwrap();
         assert_eq!(config.procurement_type, "mc");
-        assert_eq!(config.resolved.batch_size, 42);
-        assert_eq!(config.resolved.concurrent_downloads, 2);
-        assert!(!config.cleanup);
+        assert_eq!(config.start, "202301");
+        assert_eq!(config.end, "202312");
+        assert!(config.cleanup);
+        assert_eq!(config.resolved.max_retries, 3);
+        assert_eq!(config.resolved.concurrent_downloads, 4);
     }
 
     #[test]
-    fn toml_file_batch_size_zero_is_error() {
+    fn missing_required_toml_field_errors() {
         let mut tmp = NamedTempFile::new().unwrap();
         write!(
             tmp,
             r#"
-            batch_size = 0
+            type = "pt"
+            start = "202301"
+            "#,
+        )
+        .unwrap();
+
+        assert!(ResolvedConfigFile::from_toml_file(tmp.path()).is_err());
+    }
+
+    #[test]
+    fn unknown_key_errors() {
+        let mut tmp = NamedTempFile::new().unwrap();
+        write!(
+            tmp,
+            r#"
+            type = "pt"
+            start = "202301"
+            end = "202302"
+            extra_flag = true
             "#,
         )
         .unwrap();
