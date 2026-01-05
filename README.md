@@ -58,6 +58,8 @@ cargo run -- cli [OPTIONS]
   - `minor-contracts` (aliases: `mc`, `min`)
 - `-s, --start <PERIOD>`: Start period (format: `YYYY` or `YYYYMM`)
 - `-e, --end <PERIOD>`: End period (format: `YYYY` or `YYYYMM`)
+- `-r, --read-concurrency <N>` (alias `--rc`): Number of XML files read concurrently during parsing (default: `16`)
+- `-c, --concat-batches` (alias `--cb`): Merge per-batch Parquet files back into a single file per period
 
 Cleanup is always enabled for the manual CLI invocation. Use a TOML configuration file to change that behavior.
 
@@ -83,7 +85,9 @@ Optional overrides:
 
 - `cleanup` (bool, defaults to `true`)
 - Pipeline defaults:
-  - `batch_size` (files per chunk when parsing; default `100`)
+  - `batch_size` (files per batch when parsing; default `150`; bounds the peak in-memory DataFrame)
+  - `read_concurrency` (number of XML files read in parallel; default `16`)
+  - `concat_batches` (bool, default `false`; merge per-batch parquet files into a single period file)
   - `max_retries` (default `3`)
   - `retry_initial_delay_ms` (default `1000`)
   - `retry_max_delay_ms` (default `10000`)
@@ -100,6 +104,8 @@ end = "202502"
 cleanup = false
 
 batch_size = 150
+read_concurrency = 16
+concat_batches = false
 max_retries = 5
 retry_initial_delay_ms = 1000
 retry_max_delay_ms = 10000
@@ -129,6 +135,20 @@ cargo run -- toml config/prod.toml
 
 - ZIP files: `data/tmp/{mc,pt}/`
 - Parquet files: `data/parquet/{mc,pt}/`
+
+### Memory Tuning
+
+The parser writes Parquet files in batches so each period only keeps `batch_size` worth of entries in memory. Configure the following parameters depending on your available resources:
+
+| Parameter | Default | Effect |
+|-----------|---------|--------|
+| `batch_size` | 150 | Primary control. Lower values reduce peak memory at the cost of more parquet files. |
+| `read_concurrency` | 16 | Controls how many XML files are read simultaneously. Lower values reduce I/O pressure. |
+| `concat_batches` | false | When enabled, batch files are merged back into `data/parquet/{mc,pt}/{period}.parquet`. Use only if the period fits comfortably in RAM. |
+
+Output structure:
+- Default: `data/parquet/{mc,pt}/{period}/batch_*.parquet`
+- With `concat_batches`: `data/parquet/{mc,pt}/{period}.parquet`
 
 ### Logging
 
