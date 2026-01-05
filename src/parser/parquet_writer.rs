@@ -2,6 +2,7 @@ use crate::errors::{AppError, AppResult};
 use crate::models::Entry;
 use crate::utils::{format_duration, mb_from_bytes, round_two_decimals};
 use futures::stream::{self, StreamExt, TryStreamExt};
+use polars::lazy::prelude::{LazyFrame, ScanArgsParquet};
 use polars::prelude::*;
 use rayon::prelude::*;
 use std::collections::BTreeMap;
@@ -63,15 +64,15 @@ fn entries_to_dataframe(entries: Vec<Entry>) -> AppResult<DataFrame> {
     .map_err(|e| AppError::ParseError(format!("Failed to create DataFrame: {e}")))
 }
 
-async fn read_xml_contents(paths: &[PathBuf]) -> AppResult<Vec<Vec<u8>>> {
-    const READ_CONCURRENCY: usize = 16;
+async fn read_xml_contents(paths: &[PathBuf], concurrency: usize) -> AppResult<Vec<Vec<u8>>> {
+    let read_concurrency = concurrency.max(1);
     stream::iter(paths.iter().cloned())
         .map(|path| async move {
             tokio_fs::read(&path)
                 .await
                 .map_err(|e| AppError::IoError(format!("Failed to read XML file {path:?}: {e}")))
         })
-        .buffered(READ_CONCURRENCY)
+        .buffered(read_concurrency)
         .try_collect()
         .await
 }
@@ -85,9 +86,8 @@ async fn read_xml_contents(paths: &[PathBuf]) -> AppResult<Vec<Vec<u8>>> {
 ///
 /// 1. Finds all subdirectories in the extraction directory that contain XML/Atom files
 /// 2. Filters to only process subdirectories matching periods in `target_links`
-/// 3. Parses XML/Atom files in each matching subdirectory in batches to limit memory
-/// 4. Converts parsed entries to a Polars DataFrame
-/// 5. Writes the DataFrame as a Parquet file named after the period (e.g., `202301.parquet`)
+/// 3. Parses XML/Atom files in each matching subdirectory in batches, bounded by `batch_size`
+/// 4. Writes each batch to Parquet and optionally concatenates the batches per period
 ///
 /// # Directory Structure
 ///
@@ -106,6 +106,8 @@ async fn read_xml_contents(paths: &[PathBuf]) -> AppResult<Vec<Vec<u8>>> {
 ///
 /// - **Filtering**: Only processes subdirectories whose names match keys in `target_links`
 /// - **Skip empty**: Subdirectories with no entries are skipped (logged but not an error)
+/// - **Batch output**: Each chunk results in `data/parquet/{period}/batch_<n>.parquet`, `concat_batches` merges them afterwards
+/// - **Memory controls**: `batch_size` bounds the in-flight DataFrame and `read_concurrency` limits parallel reads
 /// - **Progress tracking**: Elapsed time and throughput are logged after parsing completes
 ///
 /// # Errors
@@ -161,11 +163,14 @@ pub async fn parse_xmls(
     // Process each subdirectory
     for (subdir_name, xml_files) in subdirs_to_process {
         let chunk_size = batch_size.max(1);
-        let mut df: Option<DataFrame> = None;
         let mut has_entries = false;
+        let mut batch_index = 0;
+        let period_dir = parquet_dir.join(&subdir_name);
+        let mut period_dir_created = false;
+        let mut batch_paths: Vec<PathBuf> = Vec::new();
 
         for xml_chunk in xml_files.chunks(chunk_size) {
-            let xml_contents = read_xml_contents(xml_chunk).await?;
+            let xml_contents = read_xml_contents(xml_chunk, config.read_concurrency).await?;
             let parsed_entry_batches: Vec<Vec<Entry>> = xml_contents
                 .par_iter()
                 .map(|content| parse_xml_bytes(content))
@@ -183,42 +188,101 @@ pub async fn parse_xmls(
                 continue;
             }
 
+            if !period_dir_created {
+                if period_dir.exists() {
+                    std_fs::remove_dir_all(&period_dir).map_err(|e| {
+                        AppError::IoError(format!(
+                            "Failed to remove previous parquet directory {period_dir:?}: {e}"
+                        ))
+                    })?;
+                }
+                std_fs::create_dir_all(&period_dir).map_err(|e| {
+                    AppError::IoError(format!(
+                        "Failed to create parquet period directory {period_dir:?}: {e}"
+                    ))
+                })?;
+                period_dir_created = true;
+            }
+
             has_entries = true;
-            let chunk_df = entries_to_dataframe(chunk_entries)?;
-            df = Some(match df {
-                Some(existing) => existing.vstack(&chunk_df).map_err(|e| {
-                    AppError::ParseError(format!("Failed to concatenate DataFrames: {e}"))
-                })?,
-                None => chunk_df,
-            });
+            let mut chunk_df = entries_to_dataframe(chunk_entries)?;
+            let batch_path = period_dir.join(format!("batch_{batch_index}.parquet"));
+            let mut file = File::create(&batch_path).map_err(|e| {
+                AppError::IoError(format!(
+                    "Failed to create Parquet batch file {batch_path:?}: {e}"
+                ))
+            })?;
+
+            ParquetWriter::new(&mut file)
+                .finish(&mut chunk_df)
+                .map_err(|e| AppError::ParseError(format!("Failed to write Parquet batch: {e}")))?;
+
+            batch_paths.push(batch_path);
+            batch_index += 1;
         }
 
         if !has_entries {
             skipped_count += 1;
+            if period_dir_created {
+                std_fs::remove_dir_all(&period_dir).map_err(|e| {
+                    AppError::IoError(format!(
+                        "Failed to remove empty parquet directory {period_dir:?}: {e}"
+                    ))
+                })?;
+            }
             continue;
         }
 
-        let mut df = df.unwrap();
+        let mut output_paths = Vec::new();
+        if config.concat_batches {
+            let glob_path = period_dir.join("batch_*.parquet");
+            let glob_str = glob_path.to_string_lossy().into_owned();
+            let mut combined = LazyFrame::scan_parquet(&glob_str, ScanArgsParquet::default())
+                .map_err(|e| {
+                    AppError::ParseError(format!(
+                        "Failed to scan parquet batches for {subdir_name}: {e}"
+                    ))
+                })?
+                .collect()
+                .map_err(|e| {
+                    AppError::ParseError(format!(
+                        "Failed to collect combined DataFrame for {subdir_name}: {e}"
+                    ))
+                })?;
 
-        // Create final parquet file
-        let parquet_path = parquet_dir.join(format!("{subdir_name}.parquet"));
-        let mut file = File::create(&parquet_path).map_err(|e| {
-            AppError::IoError(format!(
-                "Failed to create Parquet file {parquet_path:?}: {e}"
-            ))
-        })?;
+            let final_path = parquet_dir.join(format!("{subdir_name}.parquet"));
+            let mut final_file = File::create(&final_path).map_err(|e| {
+                AppError::IoError(format!(
+                    "Failed to create final Parquet file {final_path:?}: {e}"
+                ))
+            })?;
 
-        ParquetWriter::new(&mut file)
-            .finish(&mut df)
-            .map_err(|e| AppError::ParseError(format!("Failed to write Parquet file: {e}")))?;
+            ParquetWriter::new(&mut final_file)
+                .finish(&mut combined)
+                .map_err(|e| {
+                    AppError::ParseError(format!("Failed to write final Parquet file: {e}"))
+                })?;
+
+            output_paths.push(final_path);
+            std_fs::remove_dir_all(&period_dir).map_err(|e| {
+                AppError::IoError(format!(
+                    "Failed to remove temporary parquet directory {period_dir:?}: {e}"
+                ))
+            })?;
+        } else {
+            output_paths.extend(batch_paths.iter().cloned());
+        }
+
+        for output_path in output_paths {
+            let metadata = std_fs::metadata(&output_path).map_err(|e| {
+                AppError::IoError(format!(
+                    "Failed to read Parquet file metadata {output_path:?}: {e}"
+                ))
+            })?;
+            total_parquet_bytes += metadata.len();
+        }
 
         processed_count += 1;
-        let metadata = std_fs::metadata(&parquet_path).map_err(|e| {
-            AppError::IoError(format!(
-                "Failed to read Parquet file metadata {parquet_path:?}: {e}"
-            ))
-        })?;
-        total_parquet_bytes += metadata.len();
     }
 
     let elapsed = start.elapsed();

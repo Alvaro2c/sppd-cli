@@ -13,8 +13,6 @@ use tracing::info;
 const APP_VERSION: &str = env!("CARGO_PKG_VERSION");
 const APP_AUTHOR: &str = env!("CARGO_PKG_AUTHORS");
 const APP_ABOUT: &str = env!("CARGO_PKG_DESCRIPTION");
-const PERIOD_HELP_TEXT: &str = "Period (YYYY or YYYYMM format, e.g., 202301)";
-
 /// Parses command-line arguments and executes the download command.
 ///
 /// This function handles two subcommands:
@@ -46,16 +44,14 @@ pub async fn cli(
     minor_contracts_links: &BTreeMap<String, String>,
     public_tenders_links: &BTreeMap<String, String>,
 ) -> AppResult<()> {
-    let start_help = format!("Start {PERIOD_HELP_TEXT}");
-    let end_help = format!("End {PERIOD_HELP_TEXT}");
-
     let cmd = Command::new("sppd-cli")
         .version(APP_VERSION)
         .author(APP_AUTHOR)
         .about(APP_ABOUT)
         .subcommand(
             Command::new("cli")
-                .about("Manual download using default configuration")
+                .about("Download, extract, parse, and clean a period range")
+                .after_help("Uses batch_size=150, concat disabled by default.\nExample:\n  sppd-cli cli -t public-tenders -s 2023 -e 2023 --concat-batches")
                 .arg(
                     Arg::new("type")
                         .short('t')
@@ -68,15 +64,32 @@ pub async fn cli(
                     Arg::new("start")
                         .short('s')
                         .long("start")
-                        .help(start_help.as_str())
+                        .help("First period to download and parse (YYYY or YYYYMM)")
                         .action(ArgAction::Set),
                 )
                 .arg(
                     Arg::new("end")
                         .short('e')
                         .long("end")
-                        .help(end_help.as_str())
+                        .help("Last period to download and parse (YYYY or YYYYMM)")
                         .action(ArgAction::Set),
+                )
+                .arg(
+                    Arg::new("read_concurrency")
+                        .short('r')
+                        .long("read-concurrency")
+                        .alias("rc")
+                        .help("Files read in parallel while parsing XML")
+                        .value_parser(clap::value_parser!(usize))
+                        .action(ArgAction::Set),
+                )
+                .arg(
+                    Arg::new("concat_batches")
+                        .short('c')
+                        .long("concat-batches")
+                        .alias("cb")
+                        .help("Merge the per-batch parquet files after parsing")
+                        .action(ArgAction::SetTrue),
                 ),
         )
         .subcommand(
@@ -102,7 +115,13 @@ pub async fn cli(
             );
             let start_period = sub.get_one::<String>("start").map(|s| s.as_str());
             let end_period = sub.get_one::<String>("end").map(|s| s.as_str());
-            let resolved_config = ResolvedConfig::default();
+            let mut resolved_config = ResolvedConfig::default();
+            if let Some(&concurrency) = sub.get_one::<usize>("read_concurrency") {
+                resolved_config.read_concurrency = concurrency;
+            }
+            if sub.get_flag("concat_batches") {
+                resolved_config.concat_batches = true;
+            }
 
             run_workflow(
                 minor_contracts_links,

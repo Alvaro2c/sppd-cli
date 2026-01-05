@@ -18,7 +18,12 @@ pub struct ResolvedConfig {
 
     // Processing
     /// Number of XML files processed per chunk during parsing.
+    /// This also bounds the peak in-memory DataFrame size.
     pub batch_size: usize,
+    /// Number of concurrent XML file reads during parsing.
+    pub read_concurrency: usize,
+    /// Whether to concatenate per-batch parquet files into a single period file.
+    pub concat_batches: bool,
     pub max_retries: u32,
     pub retry_initial_delay_ms: u64,
     pub retry_max_delay_ms: u64,
@@ -34,7 +39,9 @@ impl Default for ResolvedConfig {
             download_dir_pt: PathBuf::from("data/tmp/pt"),
             parquet_dir_mc: PathBuf::from("data/parquet/mc"),
             parquet_dir_pt: PathBuf::from("data/parquet/pt"),
-            batch_size: 100,
+            batch_size: 150,
+            read_concurrency: 16,
+            concat_batches: false,
             max_retries: 3,
             retry_initial_delay_ms: 1000,
             retry_max_delay_ms: 10000,
@@ -68,6 +75,11 @@ impl ResolvedConfigFile {
                 "Batch size must be greater than 0".into(),
             ));
         }
+        if config.resolved.read_concurrency == 0 {
+            return Err(AppError::InvalidInput(
+                "Read concurrency must be greater than 0".into(),
+            ));
+        }
 
         Ok(config)
     }
@@ -86,7 +98,9 @@ mod tests {
     #[test]
     fn default_config_values() {
         let config = ResolvedConfig::default();
-        assert_eq!(config.batch_size, 100);
+        assert_eq!(config.batch_size, 150);
+        assert_eq!(config.read_concurrency, 16);
+        assert!(!config.concat_batches);
         assert_eq!(config.concurrent_downloads, 4);
     }
 

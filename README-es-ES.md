@@ -58,6 +58,8 @@ cargo run -- cli [OPCIONES]
   - `minor-contracts` (alias: `mc`, `min`)
 - `-s, --start <PERIODO>`: Período inicial (formato: `YYYY` o `YYYYMM`)
 - `-e, --end <PERIODO>`: Período final (formato: `YYYY` o `YYYYMM`)
+- `-r, --read-concurrency <N>` (alias `--rc`): Número de archivos XML leídos en paralelo durante el parsing (por defecto: `16`)
+- `-c, --concat-batches` (alias `--cb`): Fusiona los archivos Parquet por lotes en un único archivo por período
 
 La limpieza (`cleanup`) está activada siempre en la CLI manual. Usa un archivo TOML si necesitas cambiar ese comportamiento.
 
@@ -83,7 +85,9 @@ Overrides opcionales:
 
 - `cleanup` (bool, por defecto `true`)
 - Valores por defecto de la canalización:
--  - `batch_size` (número de archivos por chunk al parsear; por defecto `100`)
+-  - `batch_size` (número de archivos por lote al parsear; por defecto `150`; controla la memoria máxima)
+-  - `read_concurrency` (número de archivos XML leídos en paralelo; por defecto `16`)
+-  - `concat_batches` (bool, por defecto `false`; fusiona los archivos Parquet por lotes en uno solo)
   - `max_retries` (por defecto `3`)
   - `retry_initial_delay_ms` (por defecto `1000`)
   - `retry_max_delay_ms` (por defecto `10000`)
@@ -100,6 +104,8 @@ end = "202502"
 cleanup = false
 
 batch_size = 150
+read_concurrency = 16
+concat_batches = false
 max_retries = 5
 retry_initial_delay_ms = 1000
 retry_max_delay_ms = 10000
@@ -129,6 +135,20 @@ cargo run -- toml config/prod.toml
 
 - Archivos ZIP: `data/tmp/{mc,pt}/`
 - Archivos Parquet: `data/parquet/{mc,pt}/`
+
+### Ajuste de Memoria
+
+El parser escribe archivos Parquet por lotes para que cada período solo tenga en memoria `batch_size` entradas a la vez. Configura los siguientes parámetros según los recursos disponibles:
+
+| Parámetro | Por defecto | Efecto |
+|-----------|-------------|--------|
+| `batch_size` | 150 | Control principal. Valores más bajos reducen la memoria a costa de más archivos Parquet. |
+| `read_concurrency` | 16 | Cuántos archivos XML se leen simultáneamente. Reduce este valor si el almacenamiento es lento o la RAM escasa. |
+| `concat_batches` | false | Fusiona los archivos por lotes y genera `data/parquet/{mc,pt}/{period}.parquet`. Úsalo solo si el período entero cabe en RAM. |
+
+Estructura de salida:
+- Por defecto: `data/parquet/{mc,pt}/{period}/batch_*.parquet`
+- Con `concat_batches`: `data/parquet/{mc,pt}/{period}.parquet`
 
 ### Registro
 
