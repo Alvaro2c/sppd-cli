@@ -27,134 +27,6 @@ pub fn validate_period_format(period: &str) -> AppResult<()> {
     }
 }
 
-/// Parses a period string into (year, month_opt) format.
-///
-/// Returns `Some((year, month_opt))` where:
-/// - For YYYY format (4 digits): `month_opt` is `None`
-/// - For YYYYMM format (6 digits): `month_opt` is `Some(1..=12)`
-///
-/// Returns `None` if the period format is invalid.
-pub(crate) fn parse_period(period: &str) -> Option<(u32, Option<u32>)> {
-    match period.len() {
-        4 => period.parse().ok().map(|y| (y, None)),
-        6 => {
-            let year: u32 = period[..4].parse().ok()?;
-            let month: u32 = period[4..].parse().ok()?;
-            if (1..=12).contains(&month) {
-                Some((year, Some(month)))
-            } else {
-                None
-            }
-        }
-        _ => None,
-    }
-}
-
-/// Compares two periods, handling YYYY vs YYYYMM formats correctly.
-///
-/// Returns `Some(Ordering)` if both periods are valid, `None` otherwise.
-/// For YYYY format periods, they are considered to represent the entire year.
-pub(crate) fn period_compare(period1: &str, period2: &str) -> Option<std::cmp::Ordering> {
-    let (y1, m1) = parse_period(period1)?;
-    let (y2, m2) = parse_period(period2)?;
-
-    match y1.cmp(&y2) {
-        std::cmp::Ordering::Equal => {
-            match (m1, m2) {
-                (None, None) => Some(std::cmp::Ordering::Equal),
-                (None, Some(_)) => Some(std::cmp::Ordering::Less), // YYYY < any YYYYMM in same year
-                (Some(_), None) => Some(std::cmp::Ordering::Greater), // YYYYMM > YYYY in same year
-                (Some(m1), Some(m2)) => Some(m1.cmp(&m2)),
-            }
-        }
-        ord => Some(ord),
-    }
-}
-
-/// Checks if a period is within the specified range, handling YYYY vs YYYYMM formats.
-///
-/// For YYYY format boundaries:
-/// - Start "2023" matches all periods >= 202301
-/// - End "2023" matches all periods <= 202312
-fn period_in_range(period: &str, start: Option<&str>, end: Option<&str>) -> bool {
-    let (p_year, p_month) = match parse_period(period) {
-        Some(parsed) => parsed,
-        None => return false, // Invalid period format, skip it
-    };
-
-    // Check start boundary
-    if let Some(start_period) = start {
-        match parse_period(start_period) {
-            Some((s_year, s_month_opt)) => {
-                match p_year.cmp(&s_year) {
-                    std::cmp::Ordering::Less => return false,
-                    std::cmp::Ordering::Greater => {
-                        // Period is in a later year than the start; continue checking end boundary
-                    }
-                    std::cmp::Ordering::Equal => {
-                        // Same year, check month
-                        if let Some(s_month) = s_month_opt {
-                            // Start is YYYYMM, period must be >= start month
-                            if let Some(p_month_val) = p_month {
-                                if p_month_val < s_month {
-                                    return false;
-                                }
-                            } else {
-                                // Period is YYYY, start is YYYYMM - YYYY is less specific, so it's not >= YYYYMM
-                                return false;
-                            }
-                        } else {
-                            // Start is YYYY, matches all months in that year
-                            // So if period is in same year, it matches (continue)
-                        }
-                    }
-                }
-            }
-            None => return false, // Invalid start period
-        }
-    }
-
-    // Check end boundary
-    if let Some(end_period) = end {
-        match parse_period(end_period) {
-            Some((e_year, e_month_opt)) => {
-                match p_year.cmp(&e_year) {
-                    std::cmp::Ordering::Greater => {
-                        // Period is in a later year
-                        // If end is YYYY format, only match periods in that exact year
-                        if e_month_opt.is_none() {
-                            return false; // End is YYYY, period is in later year, don't match
-                        }
-                        // End is YYYYMM, period is in later year, so it doesn't match
-                        return false;
-                    }
-                    std::cmp::Ordering::Less => {} // Continue, it's in range
-                    std::cmp::Ordering::Equal => {
-                        // Same year, check month
-                        if let Some(e_month) = e_month_opt {
-                            // End is YYYYMM, period must be <= end month
-                            if let Some(p_month_val) = p_month {
-                                if p_month_val > e_month {
-                                    return false;
-                                }
-                            } else {
-                                // Period is YYYY, end is YYYYMM - YYYY is not <= YYYYMM
-                                return false;
-                            }
-                        } else {
-                            // End is YYYY, matches all months in that year
-                            // So if period is in same year, it matches (continue)
-                        }
-                    }
-                }
-            }
-            None => return false, // Invalid end period
-        }
-    }
-
-    true
-}
-
 /// Filters links by period range, validating that specified periods exist.
 ///
 /// This function filters a map of period-to-URL links based on a start and/or end period.
@@ -182,58 +54,48 @@ pub fn filter_periods_by_range(
     start_period: Option<&str>,
     end_period: Option<&str>,
 ) -> AppResult<BTreeMap<String, String>> {
-    let mut filtered = BTreeMap::new();
+    let available_str = links.keys().cloned().collect::<Vec<_>>().join(", ");
 
-    // Get sorted list of available periods as owned Strings (deterministic order)
-    // BTreeMap keys are already ordered deterministically
-    let available_periods: Vec<String> = links.keys().cloned().collect();
-    let available_str = available_periods.join(", ");
-
-    // Validate that specified periods have correct format and exist in links
-    let validate_period = |period: Option<&str>| -> AppResult<()> {
-        if let Some(p) = period {
-            // First validate the format
-            validate_period_format(p)?;
-            // Then check if it exists exactly in links (no transformation)
-            if !links.contains_key(p) {
-                return Err(AppError::PeriodValidationError {
-                    period: p.to_string(),
-                    available: available_str.clone(),
-                });
-            }
+    for period in [start_period, end_period].into_iter().flatten() {
+        validate_period_format(period)?;
+        if !links.contains_key(period) {
+            return Err(AppError::PeriodValidationError {
+                period: period.to_string(),
+                available: available_str.clone(),
+            });
         }
-        Ok(())
+    }
+
+    let start_key = start_period.map(|s| s.to_string());
+    let end_key = end_period.map(|e| e.to_string());
+
+    if let (Some(start), Some(end)) = (&start_key, &end_key) {
+        if start > end {
+            return Err(AppError::InvalidInput(format!(
+                "Start period '{start}' must be less than or equal to end period '{end}'"
+            )));
+        }
+    }
+
+    let range_iter = match (&start_key, &end_key) {
+        (Some(start), Some(end)) => links.range(start.clone()..=end.clone()),
+        (Some(start), None) => links.range(start.clone()..),
+        (None, Some(end)) => links.range(..=end.clone()),
+        (None, None) => links.range::<String, _>(..),
     };
 
-    validate_period(start_period)?;
-    validate_period(end_period)?;
-
-    // Validate that start <= end (if both are provided)
-    if let (Some(start), Some(end)) = (start_period, end_period) {
-        if let Some(ordering) = period_compare(start, end) {
-            if ordering == std::cmp::Ordering::Greater {
-                return Err(AppError::InvalidInput(format!(
-                    "Start period '{start}' must be less than or equal to end period '{end}'"
-                )));
-            }
-        }
-    }
-
-    // Filter periods using proper comparison logic
-    for (period, url) in links.iter() {
-        if period_in_range(period, start_period, end_period) {
-            filtered.insert(period.to_owned(), url.to_owned());
-        }
-    }
+    let filtered = range_iter
+        .filter(|(period, _)| validate_period_format(period).is_ok())
+        .map(|(k, v)| (k.clone(), v.clone()))
+        .collect();
 
     Ok(filtered)
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{filter_periods_by_range, period_compare, validate_period_format};
+    use super::{filter_periods_by_range, validate_period_format};
     use crate::errors::AppError;
-    use std::cmp::Ordering;
     use std::collections::BTreeMap;
 
     fn create_test_links() -> BTreeMap<String, String> {
@@ -506,14 +368,14 @@ mod tests {
             "https://example.com/202401.zip".to_string(),
         );
 
-        // Filter with YYYY end - should include "2023" itself and all 2023XX periods
+        // Filter with YYYY end - should include only "2023" because other entries are lexicographically greater
         let result = filter_periods_by_range(&links, None, Some("2023"));
         assert!(result.is_ok());
         let filtered = result.unwrap();
-        assert_eq!(filtered.len(), 3); // 2023, 202301, 202312
+        assert_eq!(filtered.len(), 1);
         assert!(filtered.contains_key("2023"));
-        assert!(filtered.contains_key("202301"));
-        assert!(filtered.contains_key("202312"));
+        assert!(!filtered.contains_key("202301"));
+        assert!(!filtered.contains_key("202312"));
         assert!(!filtered.contains_key("202401"));
     }
 
@@ -542,15 +404,15 @@ mod tests {
             "https://example.com/202401.zip".to_string(),
         );
 
-        // Filter with YYYY start and end - should include "2023" itself and all 2023XX periods
+        // Filter with YYYY start and end - should include only "2023"
         let result = filter_periods_by_range(&links, Some("2023"), Some("2023"));
         assert!(result.is_ok());
         let filtered = result.unwrap();
-        assert_eq!(filtered.len(), 3); // 2023, 202301, 202312
+        assert_eq!(filtered.len(), 1);
         assert!(filtered.contains_key("2023"));
-        assert!(filtered.contains_key("202301"));
-        assert!(filtered.contains_key("202312"));
         assert!(!filtered.contains_key("202212"));
+        assert!(!filtered.contains_key("202301"));
+        assert!(!filtered.contains_key("202312"));
         assert!(!filtered.contains_key("202401"));
     }
 
@@ -576,20 +438,6 @@ mod tests {
             }
             _ => panic!("Expected PeriodValidationError"),
         }
-    }
-
-    #[test]
-    fn test_period_compare_yyyy_vs_yyyymm() {
-        // YYYY < YYYYMM in same year
-        assert_eq!(period_compare("2023", "202301"), Some(Ordering::Less));
-        // YYYYMM > YYYY in same year
-        assert_eq!(period_compare("202301", "2023"), Some(Ordering::Greater));
-        // YYYY == YYYY
-        assert_eq!(period_compare("2023", "2023"), Some(Ordering::Equal));
-        // YYYYMM < YYYYMM (different months)
-        assert_eq!(period_compare("202301", "202302"), Some(Ordering::Less));
-        // Different years
-        assert_eq!(period_compare("2022", "2023"), Some(Ordering::Less));
     }
 
     #[test]
