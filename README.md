@@ -136,6 +136,37 @@ cargo run -- toml config/prod.toml
 - ZIP files: `data/tmp/{mc,pt}/`
 - Parquet files: `data/parquet/{mc,pt}/`
 
+### Output Schema
+
+Each Parquet record mirrors an Atom `<entry>` plus the extracted `ContractFolderStatus` data, resulting in 22 columns:
+
+| Column | Description |
+|--------|-------------|
+| `id` | Atom entry ID |
+| `title` | Entry title |
+| `link` | Entry link URL |
+| `summary` | Entry summary text |
+| `updated` | Last updated timestamp |
+| `cfs_status_code` | `<cbc-place-ext:ContractFolderStatusCode>` |
+| `cfs_id` | `<cbc:ContractFolderID>` |
+| `cfs_project_name` | First `<cbc:Name>` inside `<cac:ProcurementProject>` |
+| `cfs_project_type_code` | `<cac:ProcurementProject>/<cbc:TypeCode>` |
+| `cfs_project_budget_amount` | Raw `<cac:BudgetAmount>` subtree |
+| `cfs_project_cpv_codes` | Raw `<cac:RequiredCommodityClassification>` subtree |
+| `cfs_project_country_code` | `<cac:RealizedLocation>/<cac:Address>/<cac:Country>/<cbc:IdentificationCode>` |
+| `cfs_contracting_party_name` | `<cac:LocatedContractingParty>/<cac:Party>/<cac:PartyName>/<cbc:Name>` |
+| `cfs_contracting_party_website` | `<cac:LocatedContractingParty>/<cac:Party>/<cbc:WebsiteURI>` |
+| `cfs_contracting_party_type_code` | `<cac:LocatedContractingParty>/<cbc:ContractingPartyTypeCode>` |
+| `cfs_tender_result_code` | `<cac:TenderResult>/<cbc:ResultCode>` |
+| `cfs_tender_result_description` | `<cac:TenderResult>/<cbc:Description>` |
+| `cfs_tender_result_winning_party` | `<cac:TenderResult>/<cac:WinningParty>/<cac:PartyName>/<cbc:Name>` |
+| `cfs_tender_result_awarded` | Raw `<cac:TenderResult>/<cac:AwardedTenderedProject>` subtree |
+| `cfs_tendering_process_procedure_code` | `<cac:TenderingProcess>/<cbc:ProcedureCode>` |
+| `cfs_tendering_process_urgency_code` | `<cac:TenderingProcess>/<cbc:UrgencyCode>` |
+| `cfs_raw_xml` | Entire `<cac-place-ext:ContractFolderStatus>` payload |
+
+Fields labelled “Raw ... subtree” retain the exact XML so nested structures can be inspected later.
+
 ### Memory Tuning
 
 The parser writes Parquet files in batches so each period only keeps `batch_size` worth of entries in memory. Configure the following parameters depending on your available resources:
