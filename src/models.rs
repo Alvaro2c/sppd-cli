@@ -7,18 +7,50 @@ use std::path::PathBuf;
 /// All fields are optional to handle variations in the source data format.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Entry {
-    /// The entry ID
+    /// Atom entry ID
     pub id: Option<String>,
-    /// The entry title
+    /// Entry title text
     pub title: Option<String>,
-    /// The link href attribute
+    /// Link href
     pub link: Option<String>,
-    /// The entry summary
+    /// Entry summary
     pub summary: Option<String>,
-    /// The last updated timestamp
+    /// Last updated timestamp
     pub updated: Option<String>,
-    /// The ContractFolderStatus XML subtree as a JSON string
-    pub contract_folder_status: Option<String>,
+    /// `<cbc-place-ext:ContractFolderStatusCode>`
+    pub cfs_status_code: Option<String>,
+    /// `<cbc:ContractFolderID>`
+    pub cfs_id: Option<String>,
+    /// First `<cbc:Name>` inside `<cac:ProcurementProject>`
+    pub cfs_project_name: Option<String>,
+    /// `<cac:ProcurementProject>/<cbc:TypeCode>`
+    pub cfs_project_type_code: Option<String>,
+    /// Raw `<cac:BudgetAmount>` subtree
+    pub cfs_project_budget_amount: Option<String>,
+    /// Raw `<cac:RequiredCommodityClassification>` subtree
+    pub cfs_project_cpv_codes: Option<String>,
+    /// `<cac:RealizedLocation>/<c:Country>/<cbc:IdentificationCode>`
+    pub cfs_project_country_code: Option<String>,
+    /// `<cac:LocatedContractingParty>/<cac:Party>/<cac:PartyName>/<cbc:Name>`
+    pub cfs_contracting_party_name: Option<String>,
+    /// `<cac:LocatedContractingParty>/<cac:Party>/<cbc:WebsiteURI>`
+    pub cfs_contracting_party_website: Option<String>,
+    /// `<cac:LocatedContractingParty>/<cbc:ContractingPartyTypeCode>`
+    pub cfs_contracting_party_type_code: Option<String>,
+    /// `<cac:TenderResult>/<cbc:ResultCode>`
+    pub cfs_tender_result_code: Option<String>,
+    /// `<cac:TenderResult>/<cbc:Description>`
+    pub cfs_tender_result_description: Option<String>,
+    /// `<cac:TenderResult>/<cac:WinningParty>/<cac:PartyName>/<cbc:Name>`
+    pub cfs_tender_result_winning_party: Option<String>,
+    /// Raw `<cac:TenderResult>/<cac:AwardedTenderedProject>` subtree
+    pub cfs_tender_result_awarded: Option<String>,
+    /// `<cac:TenderingProcess>/<cbc:ProcedureCode>`
+    pub cfs_tendering_process_procedure_code: Option<String>,
+    /// `<cac:TenderingProcess>/<cbc:UrgencyCode>`
+    pub cfs_tendering_process_urgency_code: Option<String>,
+    /// Entire `<cac-place-ext:ContractFolderStatus>` XML
+    pub cfs_raw_xml: Option<String>,
 }
 
 // Procurement type aliases

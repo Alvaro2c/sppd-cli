@@ -18,14 +18,29 @@ enum EntryField {
 }
 
 /// Builder for constructing Entry structs during XML parsing.
-/// Encapsulates the state needed to parse a single entry element.
 struct EntryBuilder {
     id: Option<String>,
     title: Option<String>,
     link: Option<String>,
     summary: Option<String>,
     updated: Option<String>,
-    contract_folder_status: Option<String>,
+    cfs_status_code: Option<String>,
+    cfs_id: Option<String>,
+    cfs_project_name: Option<String>,
+    cfs_project_type_code: Option<String>,
+    cfs_project_budget_amount: Option<String>,
+    cfs_project_cpv_codes: Option<String>,
+    cfs_project_country_code: Option<String>,
+    cfs_contracting_party_name: Option<String>,
+    cfs_contracting_party_website: Option<String>,
+    cfs_contracting_party_type_code: Option<String>,
+    cfs_tender_result_code: Option<String>,
+    cfs_tender_result_description: Option<String>,
+    cfs_tender_result_winning_party: Option<String>,
+    cfs_tender_result_awarded: Option<String>,
+    cfs_tendering_process_procedure_code: Option<String>,
+    cfs_tendering_process_urgency_code: Option<String>,
+    cfs_raw_xml: Option<String>,
     current_field: Option<EntryField>,
     contract_folder_status_handler: ContractFolderStatusHandler,
 }
@@ -38,7 +53,23 @@ impl EntryBuilder {
             link: None,
             summary: None,
             updated: None,
-            contract_folder_status: None,
+            cfs_status_code: None,
+            cfs_id: None,
+            cfs_project_name: None,
+            cfs_project_type_code: None,
+            cfs_project_budget_amount: None,
+            cfs_project_cpv_codes: None,
+            cfs_project_country_code: None,
+            cfs_contracting_party_name: None,
+            cfs_contracting_party_website: None,
+            cfs_contracting_party_type_code: None,
+            cfs_tender_result_code: None,
+            cfs_tender_result_description: None,
+            cfs_tender_result_winning_party: None,
+            cfs_tender_result_awarded: None,
+            cfs_tendering_process_procedure_code: None,
+            cfs_tendering_process_urgency_code: None,
+            cfs_raw_xml: None,
             current_field: None,
             contract_folder_status_handler: ContractFolderStatusHandler::new(),
         }
@@ -50,7 +81,23 @@ impl EntryBuilder {
         self.link = None;
         self.summary = None;
         self.updated = None;
-        self.contract_folder_status = None;
+        self.cfs_status_code = None;
+        self.cfs_id = None;
+        self.cfs_project_name = None;
+        self.cfs_project_type_code = None;
+        self.cfs_project_budget_amount = None;
+        self.cfs_project_cpv_codes = None;
+        self.cfs_project_country_code = None;
+        self.cfs_contracting_party_name = None;
+        self.cfs_contracting_party_website = None;
+        self.cfs_contracting_party_type_code = None;
+        self.cfs_tender_result_code = None;
+        self.cfs_tender_result_description = None;
+        self.cfs_tender_result_winning_party = None;
+        self.cfs_tender_result_awarded = None;
+        self.cfs_tendering_process_procedure_code = None;
+        self.cfs_tendering_process_urgency_code = None;
+        self.cfs_raw_xml = None;
         self.current_field = None;
         self.contract_folder_status_handler.reset();
     }
@@ -90,19 +137,30 @@ impl EntryBuilder {
         self.contract_folder_status_handler.handle_event(event)
     }
 
-    fn handle_contract_folder_status_start(&mut self, event: Event) -> AppResult<()> {
-        self.contract_folder_status_handler.handle_start(event)
-    }
-
     fn handle_contract_folder_status_end(&mut self, event: Event) -> AppResult<()> {
-        if let Some(json_string) = self.contract_folder_status_handler.handle_end(event)? {
-            self.contract_folder_status = Some(json_string);
+        if let Some(p) = self.contract_folder_status_handler.handle_end(event)? {
+            self.cfs_status_code = p.cfs_status_code;
+            self.cfs_id = p.cfs_id;
+            self.cfs_project_name = p.cfs_project_name;
+            self.cfs_project_type_code = p.cfs_project_type_code;
+            self.cfs_project_budget_amount = p.cfs_project_budget_amount;
+            self.cfs_project_cpv_codes = p.cfs_project_cpv_codes;
+            self.cfs_project_country_code = p.cfs_project_country_code;
+            self.cfs_contracting_party_name = p.cfs_contracting_party_name;
+            self.cfs_contracting_party_website = p.cfs_contracting_party_website;
+            self.cfs_contracting_party_type_code = p.cfs_contracting_party_type_code;
+            self.cfs_tender_result_code = p.cfs_tender_result_code;
+            self.cfs_tender_result_description = p.cfs_tender_result_description;
+            self.cfs_tender_result_winning_party = p.cfs_tender_result_winning_party;
+            self.cfs_tender_result_awarded = p.cfs_tender_result_awarded;
+            self.cfs_tendering_process_procedure_code = p.cfs_tendering_process_procedure_code;
+            self.cfs_tendering_process_urgency_code = p.cfs_tendering_process_urgency_code;
+            self.cfs_raw_xml = Some(p.cfs_raw_xml);
         }
         Ok(())
     }
 
     fn build(&mut self) -> Option<Entry> {
-        // Only build if at least one key field (id or title) exists
         if self.id.is_some() || self.title.is_some() {
             Some(Entry {
                 id: self.id.take(),
@@ -110,7 +168,25 @@ impl EntryBuilder {
                 link: self.link.take(),
                 summary: self.summary.take(),
                 updated: self.updated.take(),
-                contract_folder_status: self.contract_folder_status.take(),
+                cfs_status_code: self.cfs_status_code.take(),
+                cfs_id: self.cfs_id.take(),
+                cfs_project_name: self.cfs_project_name.take(),
+                cfs_project_type_code: self.cfs_project_type_code.take(),
+                cfs_project_budget_amount: self.cfs_project_budget_amount.take(),
+                cfs_project_cpv_codes: self.cfs_project_cpv_codes.take(),
+                cfs_project_country_code: self.cfs_project_country_code.take(),
+                cfs_contracting_party_name: self.cfs_contracting_party_name.take(),
+                cfs_contracting_party_website: self.cfs_contracting_party_website.take(),
+                cfs_contracting_party_type_code: self.cfs_contracting_party_type_code.take(),
+                cfs_tender_result_code: self.cfs_tender_result_code.take(),
+                cfs_tender_result_description: self.cfs_tender_result_description.take(),
+                cfs_tender_result_winning_party: self.cfs_tender_result_winning_party.take(),
+                cfs_tender_result_awarded: self.cfs_tender_result_awarded.take(),
+                cfs_tendering_process_procedure_code: self
+                    .cfs_tendering_process_procedure_code
+                    .take(),
+                cfs_tendering_process_urgency_code: self.cfs_tendering_process_urgency_code.take(),
+                cfs_raw_xml: self.cfs_raw_xml.take(),
             })
         } else {
             None
@@ -141,7 +217,7 @@ pub fn parse_xml_bytes(content: &[u8]) -> AppResult<Vec<Entry>> {
                 }
 
                 if builder.is_inside_contract_folder_status() {
-                    builder.handle_contract_folder_status_start(Event::Start(e.into_owned()))?;
+                    builder.handle_contract_folder_status_event(Event::Start(e.into_owned()))?;
                     continue;
                 }
 
@@ -200,7 +276,11 @@ pub fn parse_xml_bytes(content: &[u8]) -> AppResult<Vec<Entry>> {
             }
             Event::End(e) => {
                 if builder.is_inside_contract_folder_status() {
-                    builder.handle_contract_folder_status_end(Event::End(e.into_owned()))?;
+                    if e.name().as_ref().ends_with(b":ContractFolderStatus") {
+                        builder.handle_contract_folder_status_end(Event::End(e.into_owned()))?;
+                    } else {
+                        builder.handle_contract_folder_status_event(Event::End(e.into_owned()))?;
+                    }
                     continue;
                 }
 
