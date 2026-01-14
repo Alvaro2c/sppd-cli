@@ -25,12 +25,34 @@ pub struct Entry {
     pub cfs_project_name: Option<String>,
     /// `<cac:ProcurementProject>/<cbc:TypeCode>`
     pub cfs_project_type_code: Option<String>,
-    /// Raw `<cac:BudgetAmount>` subtree
-    pub cfs_project_budget_amount: Option<String>,
-    /// Raw `<cac:RequiredCommodityClassification>` subtree
+    /// `<cac:ProcurementProject>/<cac:BudgetAmount>/<cbc:TotalAmount>`
+    pub cfs_project_total_amount: Option<String>,
+    /// Currency of `cfs_project_total_amount`
+    pub cfs_project_total_currency: Option<String>,
+    /// `<cac:ProcurementProject>/<cac:BudgetAmount>/<cbc:TaxExclusiveAmount>`
+    pub cfs_project_tax_exclusive_amount: Option<String>,
+    /// Currency of `cfs_project_tax_exclusive_amount`
+    pub cfs_project_tax_exclusive_currency: Option<String>,
+    /// Concatenated `<cbc:ItemClassificationCode>` values
     pub cfs_project_cpv_codes: Option<String>,
     /// `<cac:RealizedLocation>/<c:Country>/<cbc:IdentificationCode>`
     pub cfs_project_country_code: Option<String>,
+    /// First `<cbc:Name>` inside `<cac:ProcurementProjectLot>`
+    pub cfs_project_lot_name: Option<String>,
+    /// `<cac:ProcurementProjectLot>/<cbc:TypeCode>`
+    pub cfs_project_lot_type_code: Option<String>,
+    /// `<cac:ProcurementProjectLot>/<cac:BudgetAmount>/<cbc:TotalAmount>`
+    pub cfs_project_lot_total_amount: Option<String>,
+    /// Currency of `cfs_project_lot_total_amount`
+    pub cfs_project_lot_total_currency: Option<String>,
+    /// `<cac:ProcurementProjectLot>/<cac:BudgetAmount>/<cbc:TaxExclusiveAmount>`
+    pub cfs_project_lot_tax_exclusive_amount: Option<String>,
+    /// Currency of `cfs_project_lot_tax_exclusive_amount`
+    pub cfs_project_lot_tax_exclusive_currency: Option<String>,
+    /// Concatenated `<cbc:ItemClassificationCode>` values from ProcurementProjectLot
+    pub cfs_project_lot_cpv_codes: Option<String>,
+    /// `<cac:ProcurementProjectLot>/<cac:RealizedLocation>/.../cbc:IdentificationCode>`
+    pub cfs_project_lot_country_code: Option<String>,
     /// `<cac:LocatedContractingParty>/<cac:Party>/<cac:PartyName>/<cbc:Name>`
     pub cfs_contracting_party_name: Option<String>,
     /// `<cac:LocatedContractingParty>/<cac:Party>/<cbc:WebsiteURI>`
@@ -38,17 +60,23 @@ pub struct Entry {
     /// `<cac:LocatedContractingParty>/<cbc:ContractingPartyTypeCode>`
     pub cfs_contracting_party_type_code: Option<String>,
     /// `<cac:TenderResult>/<cbc:ResultCode>`
-    pub cfs_tender_result_code: Option<String>,
+    pub cfs_result_code: Option<String>,
     /// `<cac:TenderResult>/<cbc:Description>`
-    pub cfs_tender_result_description: Option<String>,
+    pub cfs_result_description: Option<String>,
     /// `<cac:TenderResult>/<cac:WinningParty>/<cac:PartyName>/<cbc:Name>`
-    pub cfs_tender_result_winning_party: Option<String>,
-    /// Raw `<cac:TenderResult>/<cac:AwardedTenderedProject>` subtree
-    pub cfs_tender_result_awarded: Option<String>,
+    pub cfs_result_winning_party: Option<String>,
+    /// `<cac:TenderResult>/<cac:AwardedTenderedProject>/<cac:LegalMonetaryTotal>/<cbc:TaxExclusiveAmount>`
+    pub cfs_result_tax_exclusive_amount: Option<String>,
+    /// Currency of `cfs_result_tax_exclusive_amount`
+    pub cfs_result_tax_exclusive_currency: Option<String>,
+    /// `<cac:TenderResult>/<cac:AwardedTenderedProject>/<cac:LegalMonetaryTotal>/<cbc:PayableAmount>`
+    pub cfs_result_payable_amount: Option<String>,
+    /// Currency of `cfs_result_payable_amount`
+    pub cfs_result_payable_currency: Option<String>,
     /// `<cac:TenderingProcess>/<cbc:ProcedureCode>`
-    pub cfs_tendering_process_procedure_code: Option<String>,
+    pub cfs_process_procedure_code: Option<String>,
     /// `<cac:TenderingProcess>/<cbc:UrgencyCode>`
-    pub cfs_tendering_process_urgency_code: Option<String>,
+    pub cfs_process_urgency_code: Option<String>,
     /// Entire `<cac-place-ext:ContractFolderStatus>` XML
     pub cfs_raw_xml: Option<String>,
 }
