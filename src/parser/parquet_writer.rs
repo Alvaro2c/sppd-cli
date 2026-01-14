@@ -33,18 +33,32 @@ fn entries_to_dataframe(entries: Vec<Entry>) -> AppResult<DataFrame> {
             Series::new("cfs_id", empty.clone()),
             Series::new("cfs_project_name", empty.clone()),
             Series::new("cfs_project_type_code", empty.clone()),
-            Series::new("cfs_project_budget_amount", empty.clone()),
+            Series::new("cfs_project_total_amount", empty.clone()),
+            Series::new("cfs_project_total_currency", empty.clone()),
+            Series::new("cfs_project_tax_exclusive_amount", empty.clone()),
+            Series::new("cfs_project_tax_exclusive_currency", empty.clone()),
             Series::new("cfs_project_cpv_codes", empty.clone()),
             Series::new("cfs_project_country_code", empty.clone()),
+            Series::new("cfs_project_lot_name", empty.clone()),
+            Series::new("cfs_project_lot_type_code", empty.clone()),
+            Series::new("cfs_project_lot_total_amount", empty.clone()),
+            Series::new("cfs_project_lot_total_currency", empty.clone()),
+            Series::new("cfs_project_lot_tax_exclusive_amount", empty.clone()),
+            Series::new("cfs_project_lot_tax_exclusive_currency", empty.clone()),
+            Series::new("cfs_project_lot_cpv_codes", empty.clone()),
+            Series::new("cfs_project_lot_country_code", empty.clone()),
             Series::new("cfs_contracting_party_name", empty.clone()),
             Series::new("cfs_contracting_party_website", empty.clone()),
             Series::new("cfs_contracting_party_type_code", empty.clone()),
-            Series::new("cfs_tender_result_code", empty.clone()),
-            Series::new("cfs_tender_result_description", empty.clone()),
-            Series::new("cfs_tender_result_winning_party", empty.clone()),
-            Series::new("cfs_tender_result_awarded", empty.clone()),
-            Series::new("cfs_tendering_process_procedure_code", empty.clone()),
-            Series::new("cfs_tendering_process_urgency_code", empty.clone()),
+            Series::new("cfs_result_code", empty.clone()),
+            Series::new("cfs_result_description", empty.clone()),
+            Series::new("cfs_result_winning_party", empty.clone()),
+            Series::new("cfs_result_tax_exclusive_amount", empty.clone()),
+            Series::new("cfs_result_tax_exclusive_currency", empty.clone()),
+            Series::new("cfs_result_payable_amount", empty.clone()),
+            Series::new("cfs_result_payable_currency", empty.clone()),
+            Series::new("cfs_process_procedure_code", empty.clone()),
+            Series::new("cfs_process_urgency_code", empty.clone()),
             Series::new("cfs_raw_xml", empty),
         ])
         .map_err(|e| AppError::ParseError(format!("Failed to create DataFrame: {e}")));
@@ -60,18 +74,32 @@ fn entries_to_dataframe(entries: Vec<Entry>) -> AppResult<DataFrame> {
     let mut cfs_ids = Vec::with_capacity(len);
     let mut cfs_project_names = Vec::with_capacity(len);
     let mut cfs_project_type_codes = Vec::with_capacity(len);
-    let mut cfs_project_budget_amounts = Vec::with_capacity(len);
+    let mut cfs_project_total_amounts = Vec::with_capacity(len);
+    let mut cfs_project_total_currencies = Vec::with_capacity(len);
+    let mut cfs_project_tax_exclusive_amounts = Vec::with_capacity(len);
+    let mut cfs_project_tax_exclusive_currencies = Vec::with_capacity(len);
     let mut cfs_project_cpv_codes_vec = Vec::with_capacity(len);
     let mut cfs_project_country_codes = Vec::with_capacity(len);
+    let mut cfs_project_lot_names = Vec::with_capacity(len);
+    let mut cfs_project_lot_type_codes = Vec::with_capacity(len);
+    let mut cfs_project_lot_total_amounts = Vec::with_capacity(len);
+    let mut cfs_project_lot_total_currencies = Vec::with_capacity(len);
+    let mut cfs_project_lot_tax_exclusive_amounts = Vec::with_capacity(len);
+    let mut cfs_project_lot_tax_exclusive_currencies = Vec::with_capacity(len);
+    let mut cfs_project_lot_cpv_codes_vec = Vec::with_capacity(len);
+    let mut cfs_project_lot_country_codes = Vec::with_capacity(len);
     let mut cfs_contracting_party_names = Vec::with_capacity(len);
     let mut cfs_contracting_party_websites = Vec::with_capacity(len);
     let mut cfs_contracting_party_type_codes = Vec::with_capacity(len);
-    let mut cfs_tender_result_codes = Vec::with_capacity(len);
-    let mut cfs_tender_result_descriptions = Vec::with_capacity(len);
-    let mut cfs_tender_result_winning_parties = Vec::with_capacity(len);
-    let mut cfs_tender_result_awardeds = Vec::with_capacity(len);
-    let mut cfs_tendering_process_procedure_codes = Vec::with_capacity(len);
-    let mut cfs_tendering_process_urgency_codes = Vec::with_capacity(len);
+    let mut cfs_result_codes = Vec::with_capacity(len);
+    let mut cfs_result_descriptions = Vec::with_capacity(len);
+    let mut cfs_result_winning_parties = Vec::with_capacity(len);
+    let mut cfs_result_tax_exclusive_amounts = Vec::with_capacity(len);
+    let mut cfs_result_tax_exclusive_currencies = Vec::with_capacity(len);
+    let mut cfs_result_payable_amounts = Vec::with_capacity(len);
+    let mut cfs_result_payable_currencies = Vec::with_capacity(len);
+    let mut cfs_process_procedure_codes = Vec::with_capacity(len);
+    let mut cfs_process_urgency_codes = Vec::with_capacity(len);
     let mut cfs_raw_xmls = Vec::with_capacity(len);
 
     for entry in entries {
@@ -84,18 +112,32 @@ fn entries_to_dataframe(entries: Vec<Entry>) -> AppResult<DataFrame> {
         cfs_ids.push(entry.cfs_id);
         cfs_project_names.push(entry.cfs_project_name);
         cfs_project_type_codes.push(entry.cfs_project_type_code);
-        cfs_project_budget_amounts.push(entry.cfs_project_budget_amount);
+        cfs_project_total_amounts.push(entry.cfs_project_total_amount);
+        cfs_project_total_currencies.push(entry.cfs_project_total_currency);
+        cfs_project_tax_exclusive_amounts.push(entry.cfs_project_tax_exclusive_amount);
+        cfs_project_tax_exclusive_currencies.push(entry.cfs_project_tax_exclusive_currency);
         cfs_project_cpv_codes_vec.push(entry.cfs_project_cpv_codes);
         cfs_project_country_codes.push(entry.cfs_project_country_code);
+        cfs_project_lot_names.push(entry.cfs_project_lot_name);
+        cfs_project_lot_type_codes.push(entry.cfs_project_lot_type_code);
+        cfs_project_lot_total_amounts.push(entry.cfs_project_lot_total_amount);
+        cfs_project_lot_total_currencies.push(entry.cfs_project_lot_total_currency);
+        cfs_project_lot_tax_exclusive_amounts.push(entry.cfs_project_lot_tax_exclusive_amount);
+        cfs_project_lot_tax_exclusive_currencies.push(entry.cfs_project_lot_tax_exclusive_currency);
+        cfs_project_lot_cpv_codes_vec.push(entry.cfs_project_lot_cpv_codes);
+        cfs_project_lot_country_codes.push(entry.cfs_project_lot_country_code);
         cfs_contracting_party_names.push(entry.cfs_contracting_party_name);
         cfs_contracting_party_websites.push(entry.cfs_contracting_party_website);
         cfs_contracting_party_type_codes.push(entry.cfs_contracting_party_type_code);
-        cfs_tender_result_codes.push(entry.cfs_tender_result_code);
-        cfs_tender_result_descriptions.push(entry.cfs_tender_result_description);
-        cfs_tender_result_winning_parties.push(entry.cfs_tender_result_winning_party);
-        cfs_tender_result_awardeds.push(entry.cfs_tender_result_awarded);
-        cfs_tendering_process_procedure_codes.push(entry.cfs_tendering_process_procedure_code);
-        cfs_tendering_process_urgency_codes.push(entry.cfs_tendering_process_urgency_code);
+        cfs_result_codes.push(entry.cfs_result_code);
+        cfs_result_descriptions.push(entry.cfs_result_description);
+        cfs_result_winning_parties.push(entry.cfs_result_winning_party);
+        cfs_result_tax_exclusive_amounts.push(entry.cfs_result_tax_exclusive_amount);
+        cfs_result_tax_exclusive_currencies.push(entry.cfs_result_tax_exclusive_currency);
+        cfs_result_payable_amounts.push(entry.cfs_result_payable_amount);
+        cfs_result_payable_currencies.push(entry.cfs_result_payable_currency);
+        cfs_process_procedure_codes.push(entry.cfs_process_procedure_code);
+        cfs_process_urgency_codes.push(entry.cfs_process_urgency_code);
         cfs_raw_xmls.push(entry.cfs_raw_xml);
     }
 
@@ -109,9 +151,41 @@ fn entries_to_dataframe(entries: Vec<Entry>) -> AppResult<DataFrame> {
         Series::new("cfs_id", cfs_ids),
         Series::new("cfs_project_name", cfs_project_names),
         Series::new("cfs_project_type_code", cfs_project_type_codes),
-        Series::new("cfs_project_budget_amount", cfs_project_budget_amounts),
+        Series::new("cfs_project_total_amount", cfs_project_total_amounts),
+        Series::new("cfs_project_total_currency", cfs_project_total_currencies),
+        Series::new(
+            "cfs_project_tax_exclusive_amount",
+            cfs_project_tax_exclusive_amounts,
+        ),
+        Series::new(
+            "cfs_project_tax_exclusive_currency",
+            cfs_project_tax_exclusive_currencies,
+        ),
         Series::new("cfs_project_cpv_codes", cfs_project_cpv_codes_vec),
         Series::new("cfs_project_country_code", cfs_project_country_codes),
+        Series::new("cfs_project_lot_name", cfs_project_lot_names),
+        Series::new("cfs_project_lot_type_code", cfs_project_lot_type_codes),
+        Series::new(
+            "cfs_project_lot_total_amount",
+            cfs_project_lot_total_amounts,
+        ),
+        Series::new(
+            "cfs_project_lot_total_currency",
+            cfs_project_lot_total_currencies,
+        ),
+        Series::new(
+            "cfs_project_lot_tax_exclusive_amount",
+            cfs_project_lot_tax_exclusive_amounts,
+        ),
+        Series::new(
+            "cfs_project_lot_tax_exclusive_currency",
+            cfs_project_lot_tax_exclusive_currencies,
+        ),
+        Series::new("cfs_project_lot_cpv_codes", cfs_project_lot_cpv_codes_vec),
+        Series::new(
+            "cfs_project_lot_country_code",
+            cfs_project_lot_country_codes,
+        ),
         Series::new("cfs_contracting_party_name", cfs_contracting_party_names),
         Series::new(
             "cfs_contracting_party_website",
@@ -121,24 +195,21 @@ fn entries_to_dataframe(entries: Vec<Entry>) -> AppResult<DataFrame> {
             "cfs_contracting_party_type_code",
             cfs_contracting_party_type_codes,
         ),
-        Series::new("cfs_tender_result_code", cfs_tender_result_codes),
+        Series::new("cfs_result_code", cfs_result_codes),
+        Series::new("cfs_result_description", cfs_result_descriptions),
+        Series::new("cfs_result_winning_party", cfs_result_winning_parties),
         Series::new(
-            "cfs_tender_result_description",
-            cfs_tender_result_descriptions,
+            "cfs_result_tax_exclusive_amount",
+            cfs_result_tax_exclusive_amounts,
         ),
         Series::new(
-            "cfs_tender_result_winning_party",
-            cfs_tender_result_winning_parties,
+            "cfs_result_tax_exclusive_currency",
+            cfs_result_tax_exclusive_currencies,
         ),
-        Series::new("cfs_tender_result_awarded", cfs_tender_result_awardeds),
-        Series::new(
-            "cfs_tendering_process_procedure_code",
-            cfs_tendering_process_procedure_codes,
-        ),
-        Series::new(
-            "cfs_tendering_process_urgency_code",
-            cfs_tendering_process_urgency_codes,
-        ),
+        Series::new("cfs_result_payable_amount", cfs_result_payable_amounts),
+        Series::new("cfs_result_payable_currency", cfs_result_payable_currencies),
+        Series::new("cfs_process_procedure_code", cfs_process_procedure_codes),
+        Series::new("cfs_process_urgency_code", cfs_process_urgency_codes),
         Series::new("cfs_raw_xml", cfs_raw_xmls),
     ])
     .map_err(|e| AppError::ParseError(format!("Failed to create DataFrame: {e}")))
@@ -398,7 +469,7 @@ mod tests {
     fn entries_to_dataframe_empty_yields_zero_rows() {
         let df = entries_to_dataframe(vec![]).unwrap();
         assert_eq!(df.height(), 0);
-        assert_eq!(df.width(), 22);
+        assert_eq!(df.width(), 36);
     }
 
     #[test]
@@ -413,24 +484,38 @@ mod tests {
             cfs_id: None,
             cfs_project_name: None,
             cfs_project_type_code: None,
-            cfs_project_budget_amount: None,
+            cfs_project_total_amount: None,
+            cfs_project_total_currency: None,
+            cfs_project_tax_exclusive_amount: None,
+            cfs_project_tax_exclusive_currency: None,
             cfs_project_cpv_codes: None,
             cfs_project_country_code: None,
+            cfs_project_lot_name: None,
+            cfs_project_lot_type_code: None,
+            cfs_project_lot_total_amount: None,
+            cfs_project_lot_total_currency: None,
+            cfs_project_lot_tax_exclusive_amount: None,
+            cfs_project_lot_tax_exclusive_currency: None,
+            cfs_project_lot_cpv_codes: None,
+            cfs_project_lot_country_code: None,
             cfs_contracting_party_name: None,
             cfs_contracting_party_website: None,
             cfs_contracting_party_type_code: None,
-            cfs_tender_result_code: None,
-            cfs_tender_result_description: None,
-            cfs_tender_result_winning_party: None,
-            cfs_tender_result_awarded: None,
-            cfs_tendering_process_procedure_code: None,
-            cfs_tendering_process_urgency_code: None,
+            cfs_result_code: None,
+            cfs_result_description: None,
+            cfs_result_winning_party: None,
+            cfs_result_tax_exclusive_amount: None,
+            cfs_result_tax_exclusive_currency: None,
+            cfs_result_payable_amount: None,
+            cfs_result_payable_currency: None,
+            cfs_process_procedure_code: None,
+            cfs_process_urgency_code: None,
             cfs_raw_xml: Some("<xml/>".to_string()),
         };
 
         let df = entries_to_dataframe(vec![entry]).unwrap();
         assert_eq!(df.height(), 1);
-        assert_eq!(df.width(), 22);
+        assert_eq!(df.width(), 36);
         let value = df.column("id").unwrap().get(0).unwrap();
         assert_eq!(value, AnyValue::String("id"));
     }

@@ -28,18 +28,32 @@ struct EntryBuilder {
     cfs_id: Option<String>,
     cfs_project_name: Option<String>,
     cfs_project_type_code: Option<String>,
-    cfs_project_budget_amount: Option<String>,
+    cfs_project_total_amount: Option<String>,
+    cfs_project_total_currency: Option<String>,
+    cfs_project_tax_exclusive_amount: Option<String>,
+    cfs_project_tax_exclusive_currency: Option<String>,
     cfs_project_cpv_codes: Option<String>,
     cfs_project_country_code: Option<String>,
+    cfs_project_lot_name: Option<String>,
+    cfs_project_lot_type_code: Option<String>,
+    cfs_project_lot_total_amount: Option<String>,
+    cfs_project_lot_total_currency: Option<String>,
+    cfs_project_lot_tax_exclusive_amount: Option<String>,
+    cfs_project_lot_tax_exclusive_currency: Option<String>,
+    cfs_project_lot_cpv_codes: Option<String>,
+    cfs_project_lot_country_code: Option<String>,
     cfs_contracting_party_name: Option<String>,
     cfs_contracting_party_website: Option<String>,
     cfs_contracting_party_type_code: Option<String>,
-    cfs_tender_result_code: Option<String>,
-    cfs_tender_result_description: Option<String>,
-    cfs_tender_result_winning_party: Option<String>,
-    cfs_tender_result_awarded: Option<String>,
-    cfs_tendering_process_procedure_code: Option<String>,
-    cfs_tendering_process_urgency_code: Option<String>,
+    cfs_result_code: Option<String>,
+    cfs_result_description: Option<String>,
+    cfs_result_winning_party: Option<String>,
+    cfs_result_tax_exclusive_amount: Option<String>,
+    cfs_result_tax_exclusive_currency: Option<String>,
+    cfs_result_payable_amount: Option<String>,
+    cfs_result_payable_currency: Option<String>,
+    cfs_process_procedure_code: Option<String>,
+    cfs_process_urgency_code: Option<String>,
     cfs_raw_xml: Option<String>,
     current_field: Option<EntryField>,
     contract_folder_status_handler: ContractFolderStatusHandler,
@@ -57,18 +71,32 @@ impl EntryBuilder {
             cfs_id: None,
             cfs_project_name: None,
             cfs_project_type_code: None,
-            cfs_project_budget_amount: None,
+            cfs_project_total_amount: None,
+            cfs_project_total_currency: None,
+            cfs_project_tax_exclusive_amount: None,
+            cfs_project_tax_exclusive_currency: None,
             cfs_project_cpv_codes: None,
             cfs_project_country_code: None,
+            cfs_project_lot_name: None,
+            cfs_project_lot_type_code: None,
+            cfs_project_lot_total_amount: None,
+            cfs_project_lot_total_currency: None,
+            cfs_project_lot_tax_exclusive_amount: None,
+            cfs_project_lot_tax_exclusive_currency: None,
+            cfs_project_lot_cpv_codes: None,
+            cfs_project_lot_country_code: None,
             cfs_contracting_party_name: None,
             cfs_contracting_party_website: None,
             cfs_contracting_party_type_code: None,
-            cfs_tender_result_code: None,
-            cfs_tender_result_description: None,
-            cfs_tender_result_winning_party: None,
-            cfs_tender_result_awarded: None,
-            cfs_tendering_process_procedure_code: None,
-            cfs_tendering_process_urgency_code: None,
+            cfs_result_code: None,
+            cfs_result_description: None,
+            cfs_result_winning_party: None,
+            cfs_result_tax_exclusive_amount: None,
+            cfs_result_tax_exclusive_currency: None,
+            cfs_result_payable_amount: None,
+            cfs_result_payable_currency: None,
+            cfs_process_procedure_code: None,
+            cfs_process_urgency_code: None,
             cfs_raw_xml: None,
             current_field: None,
             contract_folder_status_handler: ContractFolderStatusHandler::new(),
@@ -85,18 +113,32 @@ impl EntryBuilder {
         self.cfs_id = None;
         self.cfs_project_name = None;
         self.cfs_project_type_code = None;
-        self.cfs_project_budget_amount = None;
+        self.cfs_project_total_amount = None;
+        self.cfs_project_total_currency = None;
+        self.cfs_project_tax_exclusive_amount = None;
+        self.cfs_project_tax_exclusive_currency = None;
         self.cfs_project_cpv_codes = None;
         self.cfs_project_country_code = None;
+        self.cfs_project_lot_name = None;
+        self.cfs_project_lot_type_code = None;
+        self.cfs_project_lot_total_amount = None;
+        self.cfs_project_lot_total_currency = None;
+        self.cfs_project_lot_tax_exclusive_amount = None;
+        self.cfs_project_lot_tax_exclusive_currency = None;
+        self.cfs_project_lot_cpv_codes = None;
+        self.cfs_project_lot_country_code = None;
         self.cfs_contracting_party_name = None;
         self.cfs_contracting_party_website = None;
         self.cfs_contracting_party_type_code = None;
-        self.cfs_tender_result_code = None;
-        self.cfs_tender_result_description = None;
-        self.cfs_tender_result_winning_party = None;
-        self.cfs_tender_result_awarded = None;
-        self.cfs_tendering_process_procedure_code = None;
-        self.cfs_tendering_process_urgency_code = None;
+        self.cfs_result_code = None;
+        self.cfs_result_description = None;
+        self.cfs_result_winning_party = None;
+        self.cfs_result_tax_exclusive_amount = None;
+        self.cfs_result_tax_exclusive_currency = None;
+        self.cfs_result_payable_amount = None;
+        self.cfs_result_payable_currency = None;
+        self.cfs_process_procedure_code = None;
+        self.cfs_process_urgency_code = None;
         self.cfs_raw_xml = None;
         self.current_field = None;
         self.contract_folder_status_handler.reset();
@@ -105,7 +147,14 @@ impl EntryBuilder {
     fn set_field_text(&mut self, text: String) {
         if let Some(ref field) = self.current_field {
             match field {
-                EntryField::Id => self.id = Some(text),
+                EntryField::Id => {
+                    let cleaned = text
+                        .rsplit('/')
+                        .find(|segment| !segment.is_empty())
+                        .unwrap_or(&text)
+                        .to_string();
+                    self.id = Some(cleaned);
+                }
                 EntryField::Title => self.title = Some(text),
                 EntryField::Summary => self.summary = Some(text),
                 EntryField::Updated => self.updated = Some(text),
@@ -143,18 +192,32 @@ impl EntryBuilder {
             self.cfs_id = p.cfs_id;
             self.cfs_project_name = p.cfs_project_name;
             self.cfs_project_type_code = p.cfs_project_type_code;
-            self.cfs_project_budget_amount = p.cfs_project_budget_amount;
+            self.cfs_project_total_amount = p.cfs_project_total_amount;
+            self.cfs_project_total_currency = p.cfs_project_total_currency;
+            self.cfs_project_tax_exclusive_amount = p.cfs_project_tax_exclusive_amount;
+            self.cfs_project_tax_exclusive_currency = p.cfs_project_tax_exclusive_currency;
             self.cfs_project_cpv_codes = p.cfs_project_cpv_codes;
             self.cfs_project_country_code = p.cfs_project_country_code;
+            self.cfs_project_lot_name = p.cfs_project_lot_name;
+            self.cfs_project_lot_type_code = p.cfs_project_lot_type_code;
+            self.cfs_project_lot_total_amount = p.cfs_project_lot_total_amount;
+            self.cfs_project_lot_total_currency = p.cfs_project_lot_total_currency;
+            self.cfs_project_lot_tax_exclusive_amount = p.cfs_project_lot_tax_exclusive_amount;
+            self.cfs_project_lot_tax_exclusive_currency = p.cfs_project_lot_tax_exclusive_currency;
+            self.cfs_project_lot_cpv_codes = p.cfs_project_lot_cpv_codes;
+            self.cfs_project_lot_country_code = p.cfs_project_lot_country_code;
             self.cfs_contracting_party_name = p.cfs_contracting_party_name;
             self.cfs_contracting_party_website = p.cfs_contracting_party_website;
             self.cfs_contracting_party_type_code = p.cfs_contracting_party_type_code;
-            self.cfs_tender_result_code = p.cfs_tender_result_code;
-            self.cfs_tender_result_description = p.cfs_tender_result_description;
-            self.cfs_tender_result_winning_party = p.cfs_tender_result_winning_party;
-            self.cfs_tender_result_awarded = p.cfs_tender_result_awarded;
-            self.cfs_tendering_process_procedure_code = p.cfs_tendering_process_procedure_code;
-            self.cfs_tendering_process_urgency_code = p.cfs_tendering_process_urgency_code;
+            self.cfs_result_code = p.cfs_result_code;
+            self.cfs_result_description = p.cfs_result_description;
+            self.cfs_result_winning_party = p.cfs_result_winning_party;
+            self.cfs_result_tax_exclusive_amount = p.cfs_result_tax_exclusive_amount;
+            self.cfs_result_tax_exclusive_currency = p.cfs_result_tax_exclusive_currency;
+            self.cfs_result_payable_amount = p.cfs_result_payable_amount;
+            self.cfs_result_payable_currency = p.cfs_result_payable_currency;
+            self.cfs_process_procedure_code = p.cfs_process_procedure_code;
+            self.cfs_process_urgency_code = p.cfs_process_urgency_code;
             self.cfs_raw_xml = Some(p.cfs_raw_xml);
         }
         Ok(())
@@ -172,20 +235,36 @@ impl EntryBuilder {
                 cfs_id: self.cfs_id.take(),
                 cfs_project_name: self.cfs_project_name.take(),
                 cfs_project_type_code: self.cfs_project_type_code.take(),
-                cfs_project_budget_amount: self.cfs_project_budget_amount.take(),
+                cfs_project_total_amount: self.cfs_project_total_amount.take(),
+                cfs_project_total_currency: self.cfs_project_total_currency.take(),
+                cfs_project_tax_exclusive_amount: self.cfs_project_tax_exclusive_amount.take(),
+                cfs_project_tax_exclusive_currency: self.cfs_project_tax_exclusive_currency.take(),
                 cfs_project_cpv_codes: self.cfs_project_cpv_codes.take(),
                 cfs_project_country_code: self.cfs_project_country_code.take(),
+                cfs_project_lot_name: self.cfs_project_lot_name.take(),
+                cfs_project_lot_type_code: self.cfs_project_lot_type_code.take(),
+                cfs_project_lot_total_amount: self.cfs_project_lot_total_amount.take(),
+                cfs_project_lot_total_currency: self.cfs_project_lot_total_currency.take(),
+                cfs_project_lot_tax_exclusive_amount: self
+                    .cfs_project_lot_tax_exclusive_amount
+                    .take(),
+                cfs_project_lot_tax_exclusive_currency: self
+                    .cfs_project_lot_tax_exclusive_currency
+                    .take(),
+                cfs_project_lot_cpv_codes: self.cfs_project_lot_cpv_codes.take(),
+                cfs_project_lot_country_code: self.cfs_project_lot_country_code.take(),
                 cfs_contracting_party_name: self.cfs_contracting_party_name.take(),
                 cfs_contracting_party_website: self.cfs_contracting_party_website.take(),
                 cfs_contracting_party_type_code: self.cfs_contracting_party_type_code.take(),
-                cfs_tender_result_code: self.cfs_tender_result_code.take(),
-                cfs_tender_result_description: self.cfs_tender_result_description.take(),
-                cfs_tender_result_winning_party: self.cfs_tender_result_winning_party.take(),
-                cfs_tender_result_awarded: self.cfs_tender_result_awarded.take(),
-                cfs_tendering_process_procedure_code: self
-                    .cfs_tendering_process_procedure_code
-                    .take(),
-                cfs_tendering_process_urgency_code: self.cfs_tendering_process_urgency_code.take(),
+                cfs_result_code: self.cfs_result_code.take(),
+                cfs_result_description: self.cfs_result_description.take(),
+                cfs_result_winning_party: self.cfs_result_winning_party.take(),
+                cfs_result_tax_exclusive_amount: self.cfs_result_tax_exclusive_amount.take(),
+                cfs_result_tax_exclusive_currency: self.cfs_result_tax_exclusive_currency.take(),
+                cfs_result_payable_amount: self.cfs_result_payable_amount.take(),
+                cfs_result_payable_currency: self.cfs_result_payable_currency.take(),
+                cfs_process_procedure_code: self.cfs_process_procedure_code.take(),
+                cfs_process_urgency_code: self.cfs_process_urgency_code.take(),
                 cfs_raw_xml: self.cfs_raw_xml.take(),
             })
         } else {
