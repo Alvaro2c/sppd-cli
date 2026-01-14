@@ -1,5 +1,5 @@
 use crate::errors::{AppError, AppResult};
-use quick_xml::events::Event;
+use quick_xml::events::{BytesStart, Event};
 use quick_xml::writer::Writer;
 use std::io::Cursor;
 
@@ -9,18 +9,32 @@ pub struct ScopeResult {
     pub cfs_id: Option<String>,
     pub cfs_project_name: Option<String>,
     pub cfs_project_type_code: Option<String>,
-    pub cfs_project_budget_amount: Option<String>,
+    pub cfs_project_total_amount: Option<String>,
+    pub cfs_project_total_currency: Option<String>,
+    pub cfs_project_tax_exclusive_amount: Option<String>,
+    pub cfs_project_tax_exclusive_currency: Option<String>,
     pub cfs_project_cpv_codes: Option<String>,
     pub cfs_project_country_code: Option<String>,
+    pub cfs_project_lot_name: Option<String>,
+    pub cfs_project_lot_type_code: Option<String>,
+    pub cfs_project_lot_total_amount: Option<String>,
+    pub cfs_project_lot_total_currency: Option<String>,
+    pub cfs_project_lot_tax_exclusive_amount: Option<String>,
+    pub cfs_project_lot_tax_exclusive_currency: Option<String>,
+    pub cfs_project_lot_cpv_codes: Option<String>,
+    pub cfs_project_lot_country_code: Option<String>,
     pub cfs_contracting_party_name: Option<String>,
     pub cfs_contracting_party_website: Option<String>,
     pub cfs_contracting_party_type_code: Option<String>,
-    pub cfs_tender_result_code: Option<String>,
-    pub cfs_tender_result_description: Option<String>,
-    pub cfs_tender_result_winning_party: Option<String>,
-    pub cfs_tender_result_awarded: Option<String>,
-    pub cfs_tendering_process_procedure_code: Option<String>,
-    pub cfs_tendering_process_urgency_code: Option<String>,
+    pub cfs_result_code: Option<String>,
+    pub cfs_result_description: Option<String>,
+    pub cfs_result_winning_party: Option<String>,
+    pub cfs_result_tax_exclusive_amount: Option<String>,
+    pub cfs_result_tax_exclusive_currency: Option<String>,
+    pub cfs_result_payable_amount: Option<String>,
+    pub cfs_result_payable_currency: Option<String>,
+    pub cfs_process_procedure_code: Option<String>,
+    pub cfs_process_urgency_code: Option<String>,
     pub cfs_raw_xml: String,
 }
 
@@ -31,18 +45,26 @@ enum ActiveField {
     Id,
     ProjectName,
     ProjectTypeCode,
-    ProjectBudgetAmount,
-    ProjectCpvCodes,
+    ProjectTotalAmount,
+    ProjectTaxExclusiveAmount,
+    ProjectCpvCode,
     ProjectCountryCode,
+    ProjectLotName,
+    ProjectLotTypeCode,
+    ProjectLotTotalAmount,
+    ProjectLotTaxExclusiveAmount,
+    ProjectLotCpvCode,
+    ProjectLotCountryCode,
     ContractingPartyName,
     ContractingPartyWebsite,
     ContractingPartyTypeCode,
-    TenderResultCode,
-    TenderResultDescription,
-    TenderResultWinningParty,
-    TenderResultAwarded,
-    TenderingProcedureCode,
-    TenderingUrgencyCode,
+    ResultCode,
+    ResultDescription,
+    ResultWinningParty,
+    ResultTaxExclusiveAmount,
+    ResultPayableAmount,
+    ProcessProcedureCode,
+    ProcessUrgencyCode,
 }
 
 /// Captures the `<ContractFolderStatus>` subtree and extracts specific fields.
@@ -52,21 +74,36 @@ pub struct ContractFolderStatusScope {
     pub cfs_id: Option<String>,
     pub cfs_project_name: Option<String>,
     pub cfs_project_type_code: Option<String>,
-    pub cfs_project_budget_amount: Option<String>,
+    pub cfs_project_total_amount: Option<String>,
+    pub cfs_project_total_currency: Option<String>,
+    pub cfs_project_tax_exclusive_amount: Option<String>,
+    pub cfs_project_tax_exclusive_currency: Option<String>,
     pub cfs_project_cpv_codes: Option<String>,
     pub cfs_project_country_code: Option<String>,
+    pub cfs_project_lot_name: Option<String>,
+    pub cfs_project_lot_type_code: Option<String>,
+    pub cfs_project_lot_total_amount: Option<String>,
+    pub cfs_project_lot_total_currency: Option<String>,
+    pub cfs_project_lot_tax_exclusive_amount: Option<String>,
+    pub cfs_project_lot_tax_exclusive_currency: Option<String>,
+    pub cfs_project_lot_cpv_codes: Option<String>,
+    pub cfs_project_lot_country_code: Option<String>,
     pub cfs_contracting_party_name: Option<String>,
     pub cfs_contracting_party_website: Option<String>,
     pub cfs_contracting_party_type_code: Option<String>,
-    pub cfs_tender_result_code: Option<String>,
-    pub cfs_tender_result_description: Option<String>,
-    pub cfs_tender_result_winning_party: Option<String>,
-    pub cfs_tender_result_awarded: Option<String>,
-    pub cfs_tendering_process_procedure_code: Option<String>,
-    pub cfs_tendering_process_urgency_code: Option<String>,
+    pub cfs_result_code: Option<String>,
+    pub cfs_result_description: Option<String>,
+    pub cfs_result_winning_party: Option<String>,
+    pub cfs_result_tax_exclusive_amount: Option<String>,
+    pub cfs_result_tax_exclusive_currency: Option<String>,
+    pub cfs_result_payable_amount: Option<String>,
+    pub cfs_result_payable_currency: Option<String>,
+    pub cfs_process_procedure_code: Option<String>,
+    pub cfs_process_urgency_code: Option<String>,
 
     // Major scope flags
     in_project: bool,
+    in_project_lot: bool,
     in_contracting_party: bool,
     in_tender_result: bool,
     in_tendering_process: bool,
@@ -76,15 +113,18 @@ pub struct ContractFolderStatusScope {
     in_party_name: bool,
     in_winning_party: bool,
     in_country: bool,
+    in_budget_amount: bool,
+    in_required_classification: bool,
+    in_awarded_tendered_project: bool,
+    in_legal_monetary_total: bool,
+    in_lot_budget_amount: bool,
+    in_lot_required_classification: bool,
+    in_lot_country: bool,
 
     // Currently capturing (for leaf elements with text)
     active_field: Option<ActiveField>,
     project_name_captured: bool,
-
-    // Container capture (for cac: elements with nested children)
-    container_capture: Option<ActiveField>,
-    container_writer: Option<Writer<Cursor<Vec<u8>>>>,
-    container_depth: u32,
+    project_lot_name_captured: bool,
 
     // Raw XML capture
     depth: u32,
@@ -105,19 +145,34 @@ impl ContractFolderStatusScope {
             cfs_id: None,
             cfs_project_name: None,
             cfs_project_type_code: None,
-            cfs_project_budget_amount: None,
+            cfs_project_total_amount: None,
+            cfs_project_total_currency: None,
+            cfs_project_tax_exclusive_amount: None,
+            cfs_project_tax_exclusive_currency: None,
             cfs_project_cpv_codes: None,
             cfs_project_country_code: None,
+            cfs_project_lot_name: None,
+            cfs_project_lot_type_code: None,
+            cfs_project_lot_total_amount: None,
+            cfs_project_lot_total_currency: None,
+            cfs_project_lot_tax_exclusive_amount: None,
+            cfs_project_lot_tax_exclusive_currency: None,
+            cfs_project_lot_cpv_codes: None,
+            cfs_project_lot_country_code: None,
             cfs_contracting_party_name: None,
             cfs_contracting_party_website: None,
             cfs_contracting_party_type_code: None,
-            cfs_tender_result_code: None,
-            cfs_tender_result_description: None,
-            cfs_tender_result_winning_party: None,
-            cfs_tender_result_awarded: None,
-            cfs_tendering_process_procedure_code: None,
-            cfs_tendering_process_urgency_code: None,
+            cfs_result_code: None,
+            cfs_result_description: None,
+            cfs_result_winning_party: None,
+            cfs_result_tax_exclusive_amount: None,
+            cfs_result_tax_exclusive_currency: None,
+            cfs_result_payable_amount: None,
+            cfs_result_payable_currency: None,
+            cfs_process_procedure_code: None,
+            cfs_process_urgency_code: None,
             in_project: false,
+            in_project_lot: false,
             in_contracting_party: false,
             in_tender_result: false,
             in_tendering_process: false,
@@ -125,11 +180,16 @@ impl ContractFolderStatusScope {
             in_party_name: false,
             in_winning_party: false,
             in_country: false,
+            in_budget_amount: false,
+            in_required_classification: false,
+            in_awarded_tendered_project: false,
+            in_legal_monetary_total: false,
+            in_lot_budget_amount: false,
+            in_lot_required_classification: false,
+            in_lot_country: false,
             active_field: None,
             project_name_captured: false,
-            container_capture: None,
-            container_writer: None,
-            container_depth: 0,
+            project_lot_name_captured: false,
             depth: 1,
             writer,
         })
@@ -137,53 +197,26 @@ impl ContractFolderStatusScope {
 
     /// Handles an event within the `<ContractFolderStatus>` subtree.
     pub fn handle_event(&mut self, event: Event) -> AppResult<()> {
-        // Container capture takes precedence - route all events to container writer
-        if self.container_capture.is_some() {
-            return self.handle_container_event(event);
-        }
-
         match &event {
             Event::Start(e) => {
                 self.depth = self.depth.saturating_add(1);
                 let qname = e.name();
                 let name = qname.as_ref();
-
-                // Check for container element start
-                if let Some(field) = self.check_container_start(name) {
-                    self.start_container_capture(field, &event)?;
-                    return self.write_main_event(event);
-                }
-
-                // Major scope entry
-                if matches_local_name(name, b"ProcurementProject") {
-                    self.in_project = true;
-                } else if matches_local_name(name, b"LocatedContractingParty") {
-                    self.in_contracting_party = true;
-                } else if matches_local_name(name, b"TenderResult") {
-                    self.in_tender_result = true;
-                } else if matches_local_name(name, b"TenderingProcess") {
-                    self.in_tendering_process = true;
-                }
-                // Sub-scope entry
-                else if matches_local_name(name, b"Party") {
-                    self.in_party = true;
-                } else if matches_local_name(name, b"PartyName") {
-                    self.in_party_name = true;
-                } else if matches_local_name(name, b"WinningParty") {
-                    self.in_winning_party = true;
-                } else if matches_local_name(name, b"Country") {
-                    self.in_country = true;
-                }
-                // Leaf elements - set active field
-                else {
-                    self.active_field = self.determine_active_field(name);
+                self.update_scope_flags_on_start(name);
+                if let Some(field) = self.determine_active_field(name) {
+                    self.prepare_multivalue(field);
+                    self.capture_currency(field, e);
+                    self.active_field = Some(field);
+                } else {
+                    self.active_field = None;
                 }
             }
             Event::Empty(e) => {
                 let qname = e.name();
                 let name = qname.as_ref();
-                // Handle self-closing tags as empty captures
+                self.update_scope_flags_on_start(name);
                 if let Some(field) = self.determine_active_field(name) {
+                    self.prepare_multivalue(field);
                     self.ensure_field_exists(field);
                 }
             }
@@ -204,38 +237,20 @@ impl ContractFolderStatusScope {
             Event::End(e) => {
                 let qname = e.name();
                 let name = qname.as_ref();
-
-                // Clear active field on any end tag
-                self.active_field = None;
-
-                // Major scope exit
-                if matches_local_name(name, b"ProcurementProject") {
-                    self.in_project = false;
-                } else if matches_local_name(name, b"LocatedContractingParty") {
-                    self.in_contracting_party = false;
-                } else if matches_local_name(name, b"TenderResult") {
-                    self.in_tender_result = false;
-                } else if matches_local_name(name, b"TenderingProcess") {
-                    self.in_tendering_process = false;
-                }
-                // Sub-scope exit
-                else if matches_local_name(name, b"Party") {
-                    self.in_party = false;
-                } else if matches_local_name(name, b"PartyName") {
-                    self.in_party_name = false;
-                } else if matches_local_name(name, b"WinningParty") {
-                    self.in_winning_party = false;
-                } else if matches_local_name(name, b"Country") {
-                    self.in_country = false;
-                }
-                // Mark project name as captured when exiting Name in project scope
-                else if self.in_project
+                if self.in_project_lot
+                    && matches_local_name(name, b"Name")
+                    && self.cfs_project_lot_name.is_some()
+                {
+                    self.project_lot_name_captured = true;
+                } else if self.in_project
+                    && !self.in_project_lot
                     && matches_local_name(name, b"Name")
                     && self.cfs_project_name.is_some()
                 {
                     self.project_name_captured = true;
                 }
-
+                self.update_scope_flags_on_end(name);
+                self.active_field = None;
                 self.depth = self.depth.checked_sub(1).ok_or_else(|| {
                     AppError::ParseError("ContractFolderStatus depth underflow".to_string())
                 })?;
@@ -246,87 +261,169 @@ impl ContractFolderStatusScope {
         self.write_main_event(event)
     }
 
-    /// Checks if an element should trigger container capture.
-    fn check_container_start(&self, name: &[u8]) -> Option<ActiveField> {
-        if self.in_project {
+    fn update_scope_flags_on_start(&mut self, name: &[u8]) {
+        if matches_local_name(name, b"ProcurementProjectLot") {
+            self.in_project_lot = true;
+        } else if matches_local_name(name, b"ProcurementProject") {
+            self.in_project = true;
+        } else if matches_local_name(name, b"LocatedContractingParty") {
+            self.in_contracting_party = true;
+        } else if matches_local_name(name, b"TenderResult") {
+            self.in_tender_result = true;
+        } else if matches_local_name(name, b"TenderingProcess") {
+            self.in_tendering_process = true;
+        } else if matches_local_name(name, b"Party") {
+            self.in_party = true;
+        } else if matches_local_name(name, b"PartyName") {
+            self.in_party_name = true;
+        } else if matches_local_name(name, b"WinningParty") {
+            self.in_winning_party = true;
+        } else if matches_local_name(name, b"Country") {
+            if self.in_project_lot {
+                self.in_lot_country = true;
+            } else {
+                self.in_country = true;
+            }
+        }
+
+        if self.in_project && !self.in_project_lot {
             if matches_local_name(name, b"BudgetAmount") {
-                return Some(ActiveField::ProjectBudgetAmount);
-            }
-            if matches_local_name(name, b"RequiredCommodityClassification") {
-                return Some(ActiveField::ProjectCpvCodes);
+                self.in_budget_amount = true;
+            } else if matches_local_name(name, b"RequiredCommodityClassification") {
+                self.in_required_classification = true;
             }
         }
-        if self.in_tender_result && matches_local_name(name, b"AwardedTenderedProject") {
-            return Some(ActiveField::TenderResultAwarded);
+
+        if self.in_project_lot {
+            if matches_local_name(name, b"BudgetAmount") {
+                self.in_lot_budget_amount = true;
+            } else if matches_local_name(name, b"RequiredCommodityClassification") {
+                self.in_lot_required_classification = true;
+            }
         }
-        None
+
+        if self.in_tender_result {
+            if matches_local_name(name, b"AwardedTenderedProject") {
+                self.in_awarded_tendered_project = true;
+            }
+            if self.in_awarded_tendered_project && matches_local_name(name, b"LegalMonetaryTotal") {
+                self.in_legal_monetary_total = true;
+            }
+        }
     }
 
-    /// Starts capturing a container element's raw XML.
-    fn start_container_capture(&mut self, field: ActiveField, event: &Event) -> AppResult<()> {
-        let cursor = Cursor::new(Vec::with_capacity(1024));
-        let mut writer = Writer::new(cursor);
-        writer
-            .write_event(event.clone())
-            .map_err(|e| AppError::ParseError(format!("Failed to start container capture: {e}")))?;
-        self.container_capture = Some(field);
-        self.container_writer = Some(writer);
-        self.container_depth = 1;
-        Ok(())
+    fn update_scope_flags_on_end(&mut self, name: &[u8]) {
+        if matches_local_name(name, b"ProcurementProjectLot") {
+            self.in_project_lot = false;
+            self.in_lot_budget_amount = false;
+            self.in_lot_required_classification = false;
+            self.in_lot_country = false;
+        } else if matches_local_name(name, b"ProcurementProject") {
+            self.in_project = false;
+            self.in_budget_amount = false;
+            self.in_required_classification = false;
+        } else if matches_local_name(name, b"LocatedContractingParty") {
+            self.in_contracting_party = false;
+        } else if matches_local_name(name, b"TenderResult") {
+            self.in_tender_result = false;
+            self.in_awarded_tendered_project = false;
+            self.in_legal_monetary_total = false;
+        } else if matches_local_name(name, b"TenderingProcess") {
+            self.in_tendering_process = false;
+        } else if matches_local_name(name, b"Party") {
+            self.in_party = false;
+        } else if matches_local_name(name, b"PartyName") {
+            self.in_party_name = false;
+        } else if matches_local_name(name, b"WinningParty") {
+            self.in_winning_party = false;
+        } else if matches_local_name(name, b"Country") {
+            self.in_country = false;
+            self.in_lot_country = false;
+        }
+
+        if matches_local_name(name, b"BudgetAmount") {
+            self.in_budget_amount = false;
+            self.in_lot_budget_amount = false;
+        }
+        if matches_local_name(name, b"RequiredCommodityClassification") {
+            self.in_required_classification = false;
+            self.in_lot_required_classification = false;
+        }
+        if matches_local_name(name, b"AwardedTenderedProject") {
+            self.in_awarded_tendered_project = false;
+        }
+        if matches_local_name(name, b"LegalMonetaryTotal") {
+            self.in_legal_monetary_total = false;
+        }
     }
 
-    /// Handles events while in container capture mode.
-    fn handle_container_event(&mut self, event: Event) -> AppResult<()> {
-        // Update main depth tracking
-        match &event {
-            Event::Start(_) => self.depth = self.depth.saturating_add(1),
-            Event::End(_) => {
-                self.depth = self.depth.checked_sub(1).ok_or_else(|| {
-                    AppError::ParseError("ContractFolderStatus depth underflow".to_string())
-                })?;
-            }
-            _ => {}
-        }
-
-        // Write to container buffer
-        if let Some(ref mut cw) = self.container_writer {
-            cw.write_event(event.clone())
-                .map_err(|e| AppError::ParseError(format!("Failed to capture container: {e}")))?;
-        }
-
-        // Track container depth
-        match &event {
-            Event::Start(_) => self.container_depth += 1,
-            Event::End(_) => {
-                self.container_depth -= 1;
-                if self.container_depth == 0 {
-                    self.finalize_container_capture()?;
-                }
-            }
-            _ => {}
-        }
-
-        self.write_main_event(event)
-    }
-
-    /// Finalizes container capture and stores the XML string.
-    fn finalize_container_capture(&mut self) -> AppResult<()> {
-        let field = self.container_capture.take();
-        let writer = self.container_writer.take();
-
-        if let (Some(field), Some(w)) = (field, writer) {
-            let cursor = w.into_inner();
-            let xml = String::from_utf8(cursor.into_inner())
-                .map_err(|e| AppError::ParseError(format!("Invalid UTF-8 in container: {e}")))?;
-
+    fn capture_currency(&mut self, field: ActiveField, start: &BytesStart) {
+        if let Some(attr) = start
+            .attributes()
+            .filter_map(|a| a.ok())
+            .find(|a| a.key.as_ref() == b"currencyID")
+        {
+            let currency = String::from_utf8_lossy(&attr.value).into_owned();
             match field {
-                ActiveField::ProjectBudgetAmount => self.cfs_project_budget_amount = Some(xml),
-                ActiveField::ProjectCpvCodes => self.cfs_project_cpv_codes = Some(xml),
-                ActiveField::TenderResultAwarded => self.cfs_tender_result_awarded = Some(xml),
+                ActiveField::ProjectTotalAmount => self.cfs_project_total_currency = Some(currency),
+                ActiveField::ProjectTaxExclusiveAmount => {
+                    self.cfs_project_tax_exclusive_currency = Some(currency)
+                }
+                ActiveField::ProjectLotTotalAmount => {
+                    self.cfs_project_lot_total_currency = Some(currency)
+                }
+                ActiveField::ProjectLotTaxExclusiveAmount => {
+                    self.cfs_project_lot_tax_exclusive_currency = Some(currency)
+                }
+                ActiveField::ResultTaxExclusiveAmount => {
+                    self.cfs_result_tax_exclusive_currency = Some(currency)
+                }
+                ActiveField::ResultPayableAmount => {
+                    self.cfs_result_payable_currency = Some(currency)
+                }
                 _ => {}
             }
         }
-        Ok(())
+    }
+
+    fn prepare_multivalue(&mut self, field: ActiveField) {
+        let target = self.field_ref(field);
+        if let Some(existing) = target {
+            if !existing.is_empty() {
+                existing.push('_');
+            }
+        }
+    }
+
+    fn field_ref(&mut self, field: ActiveField) -> &mut Option<String> {
+        match field {
+            ActiveField::StatusCode => &mut self.cfs_status_code,
+            ActiveField::Id => &mut self.cfs_id,
+            ActiveField::ProjectName => &mut self.cfs_project_name,
+            ActiveField::ProjectTypeCode => &mut self.cfs_project_type_code,
+            ActiveField::ProjectTotalAmount => &mut self.cfs_project_total_amount,
+            ActiveField::ProjectTaxExclusiveAmount => &mut self.cfs_project_tax_exclusive_amount,
+            ActiveField::ProjectCpvCode => &mut self.cfs_project_cpv_codes,
+            ActiveField::ProjectCountryCode => &mut self.cfs_project_country_code,
+            ActiveField::ProjectLotName => &mut self.cfs_project_lot_name,
+            ActiveField::ProjectLotTypeCode => &mut self.cfs_project_lot_type_code,
+            ActiveField::ProjectLotTotalAmount => &mut self.cfs_project_lot_total_amount,
+            ActiveField::ProjectLotTaxExclusiveAmount => {
+                &mut self.cfs_project_lot_tax_exclusive_amount
+            }
+            ActiveField::ProjectLotCpvCode => &mut self.cfs_project_lot_cpv_codes,
+            ActiveField::ProjectLotCountryCode => &mut self.cfs_project_lot_country_code,
+            ActiveField::ContractingPartyName => &mut self.cfs_contracting_party_name,
+            ActiveField::ContractingPartyWebsite => &mut self.cfs_contracting_party_website,
+            ActiveField::ContractingPartyTypeCode => &mut self.cfs_contracting_party_type_code,
+            ActiveField::ResultCode => &mut self.cfs_result_code,
+            ActiveField::ResultDescription => &mut self.cfs_result_description,
+            ActiveField::ResultWinningParty => &mut self.cfs_result_winning_party,
+            ActiveField::ResultTaxExclusiveAmount => &mut self.cfs_result_tax_exclusive_amount,
+            ActiveField::ResultPayableAmount => &mut self.cfs_result_payable_amount,
+            ActiveField::ProcessProcedureCode => &mut self.cfs_process_procedure_code,
+            ActiveField::ProcessUrgencyCode => &mut self.cfs_process_urgency_code,
+        }
     }
 
     /// Writes an event to the main XML writer.
@@ -352,25 +449,38 @@ impl ContractFolderStatusScope {
             cfs_id: self.cfs_id,
             cfs_project_name: self.cfs_project_name,
             cfs_project_type_code: self.cfs_project_type_code,
-            cfs_project_budget_amount: self.cfs_project_budget_amount,
+            cfs_project_total_amount: self.cfs_project_total_amount,
+            cfs_project_total_currency: self.cfs_project_total_currency,
+            cfs_project_tax_exclusive_amount: self.cfs_project_tax_exclusive_amount,
+            cfs_project_tax_exclusive_currency: self.cfs_project_tax_exclusive_currency,
             cfs_project_cpv_codes: self.cfs_project_cpv_codes,
             cfs_project_country_code: self.cfs_project_country_code,
+            cfs_project_lot_name: self.cfs_project_lot_name,
+            cfs_project_lot_type_code: self.cfs_project_lot_type_code,
+            cfs_project_lot_total_amount: self.cfs_project_lot_total_amount,
+            cfs_project_lot_total_currency: self.cfs_project_lot_total_currency,
+            cfs_project_lot_tax_exclusive_amount: self.cfs_project_lot_tax_exclusive_amount,
+            cfs_project_lot_tax_exclusive_currency: self.cfs_project_lot_tax_exclusive_currency,
+            cfs_project_lot_cpv_codes: self.cfs_project_lot_cpv_codes,
+            cfs_project_lot_country_code: self.cfs_project_lot_country_code,
             cfs_contracting_party_name: self.cfs_contracting_party_name,
             cfs_contracting_party_website: self.cfs_contracting_party_website,
             cfs_contracting_party_type_code: self.cfs_contracting_party_type_code,
-            cfs_tender_result_code: self.cfs_tender_result_code,
-            cfs_tender_result_description: self.cfs_tender_result_description,
-            cfs_tender_result_winning_party: self.cfs_tender_result_winning_party,
-            cfs_tender_result_awarded: self.cfs_tender_result_awarded,
-            cfs_tendering_process_procedure_code: self.cfs_tendering_process_procedure_code,
-            cfs_tendering_process_urgency_code: self.cfs_tendering_process_urgency_code,
+            cfs_result_code: self.cfs_result_code,
+            cfs_result_description: self.cfs_result_description,
+            cfs_result_winning_party: self.cfs_result_winning_party,
+            cfs_result_tax_exclusive_amount: self.cfs_result_tax_exclusive_amount,
+            cfs_result_tax_exclusive_currency: self.cfs_result_tax_exclusive_currency,
+            cfs_result_payable_amount: self.cfs_result_payable_amount,
+            cfs_result_payable_currency: self.cfs_result_payable_currency,
+            cfs_process_procedure_code: self.cfs_process_procedure_code,
+            cfs_process_urgency_code: self.cfs_process_urgency_code,
             cfs_raw_xml: raw_xml,
         })
     }
 
     /// Determines which field to capture based on element name and current scope.
     fn determine_active_field(&self, name: &[u8]) -> Option<ActiveField> {
-        // Direct children of ContractFolderStatus
         if matches_local_name(name, b"ContractFolderStatusCode") {
             return Some(ActiveField::StatusCode);
         }
@@ -378,8 +488,34 @@ impl ContractFolderStatusScope {
             return Some(ActiveField::Id);
         }
 
-        // ProcurementProject children (container elements handled by check_container_start)
-        if self.in_project {
+        // ProcurementProjectLot takes precedence when we're inside it
+        if self.in_project_lot {
+            if matches_local_name(name, b"Name")
+                && !self.project_lot_name_captured
+                && !self.in_lot_country
+            {
+                return Some(ActiveField::ProjectLotName);
+            }
+            if matches_local_name(name, b"TypeCode") {
+                return Some(ActiveField::ProjectLotTypeCode);
+            }
+            if self.in_lot_budget_amount && matches_local_name(name, b"TotalAmount") {
+                return Some(ActiveField::ProjectLotTotalAmount);
+            }
+            if self.in_lot_budget_amount && matches_local_name(name, b"TaxExclusiveAmount") {
+                return Some(ActiveField::ProjectLotTaxExclusiveAmount);
+            }
+            if self.in_lot_required_classification
+                && matches_local_name(name, b"ItemClassificationCode")
+            {
+                return Some(ActiveField::ProjectLotCpvCode);
+            }
+            if self.in_lot_country && matches_local_name(name, b"IdentificationCode") {
+                return Some(ActiveField::ProjectLotCountryCode);
+            }
+        }
+
+        if self.in_project && !self.in_project_lot {
             if matches_local_name(name, b"Name") && !self.project_name_captured && !self.in_country
             {
                 return Some(ActiveField::ProjectName);
@@ -387,12 +523,22 @@ impl ContractFolderStatusScope {
             if matches_local_name(name, b"TypeCode") {
                 return Some(ActiveField::ProjectTypeCode);
             }
+            if self.in_budget_amount && matches_local_name(name, b"TotalAmount") {
+                return Some(ActiveField::ProjectTotalAmount);
+            }
+            if self.in_budget_amount && matches_local_name(name, b"TaxExclusiveAmount") {
+                return Some(ActiveField::ProjectTaxExclusiveAmount);
+            }
+            if self.in_required_classification
+                && matches_local_name(name, b"ItemClassificationCode")
+            {
+                return Some(ActiveField::ProjectCpvCode);
+            }
             if self.in_country && matches_local_name(name, b"IdentificationCode") {
                 return Some(ActiveField::ProjectCountryCode);
             }
         }
 
-        // LocatedContractingParty children
         if self.in_contracting_party {
             if matches_local_name(name, b"ContractingPartyTypeCode") {
                 return Some(ActiveField::ContractingPartyTypeCode);
@@ -407,26 +553,31 @@ impl ContractFolderStatusScope {
             }
         }
 
-        // TenderResult children (AwardedTenderedProject handled by check_container_start)
         if self.in_tender_result {
             if matches_local_name(name, b"ResultCode") {
-                return Some(ActiveField::TenderResultCode);
+                return Some(ActiveField::ResultCode);
             }
             if matches_local_name(name, b"Description") {
-                return Some(ActiveField::TenderResultDescription);
+                return Some(ActiveField::ResultDescription);
             }
             if self.in_winning_party && self.in_party_name && matches_local_name(name, b"Name") {
-                return Some(ActiveField::TenderResultWinningParty);
+                return Some(ActiveField::ResultWinningParty);
             }
         }
 
-        // TenderingProcess children
+        if self.in_legal_monetary_total && matches_local_name(name, b"TaxExclusiveAmount") {
+            return Some(ActiveField::ResultTaxExclusiveAmount);
+        }
+        if self.in_legal_monetary_total && matches_local_name(name, b"PayableAmount") {
+            return Some(ActiveField::ResultPayableAmount);
+        }
+
         if self.in_tendering_process {
             if matches_local_name(name, b"ProcedureCode") {
-                return Some(ActiveField::TenderingProcedureCode);
+                return Some(ActiveField::ProcessProcedureCode);
             }
             if matches_local_name(name, b"UrgencyCode") {
-                return Some(ActiveField::TenderingUrgencyCode);
+                return Some(ActiveField::ProcessUrgencyCode);
             }
         }
 
@@ -440,25 +591,7 @@ impl ContractFolderStatusScope {
             None => return,
         };
 
-        let target = match field {
-            ActiveField::StatusCode => &mut self.cfs_status_code,
-            ActiveField::Id => &mut self.cfs_id,
-            ActiveField::ProjectName => &mut self.cfs_project_name,
-            ActiveField::ProjectTypeCode => &mut self.cfs_project_type_code,
-            ActiveField::ProjectBudgetAmount => &mut self.cfs_project_budget_amount,
-            ActiveField::ProjectCpvCodes => &mut self.cfs_project_cpv_codes,
-            ActiveField::ProjectCountryCode => &mut self.cfs_project_country_code,
-            ActiveField::ContractingPartyName => &mut self.cfs_contracting_party_name,
-            ActiveField::ContractingPartyWebsite => &mut self.cfs_contracting_party_website,
-            ActiveField::ContractingPartyTypeCode => &mut self.cfs_contracting_party_type_code,
-            ActiveField::TenderResultCode => &mut self.cfs_tender_result_code,
-            ActiveField::TenderResultDescription => &mut self.cfs_tender_result_description,
-            ActiveField::TenderResultWinningParty => &mut self.cfs_tender_result_winning_party,
-            ActiveField::TenderResultAwarded => &mut self.cfs_tender_result_awarded,
-            ActiveField::TenderingProcedureCode => &mut self.cfs_tendering_process_procedure_code,
-            ActiveField::TenderingUrgencyCode => &mut self.cfs_tendering_process_urgency_code,
-        };
-
+        let target = self.field_ref(field);
         if let Some(existing) = target {
             existing.push_str(text);
         } else {
@@ -468,25 +601,7 @@ impl ContractFolderStatusScope {
 
     /// Ensures a field exists (for empty elements).
     fn ensure_field_exists(&mut self, field: ActiveField) {
-        let target = match field {
-            ActiveField::StatusCode => &mut self.cfs_status_code,
-            ActiveField::Id => &mut self.cfs_id,
-            ActiveField::ProjectName => &mut self.cfs_project_name,
-            ActiveField::ProjectTypeCode => &mut self.cfs_project_type_code,
-            ActiveField::ProjectBudgetAmount => &mut self.cfs_project_budget_amount,
-            ActiveField::ProjectCpvCodes => &mut self.cfs_project_cpv_codes,
-            ActiveField::ProjectCountryCode => &mut self.cfs_project_country_code,
-            ActiveField::ContractingPartyName => &mut self.cfs_contracting_party_name,
-            ActiveField::ContractingPartyWebsite => &mut self.cfs_contracting_party_website,
-            ActiveField::ContractingPartyTypeCode => &mut self.cfs_contracting_party_type_code,
-            ActiveField::TenderResultCode => &mut self.cfs_tender_result_code,
-            ActiveField::TenderResultDescription => &mut self.cfs_tender_result_description,
-            ActiveField::TenderResultWinningParty => &mut self.cfs_tender_result_winning_party,
-            ActiveField::TenderResultAwarded => &mut self.cfs_tender_result_awarded,
-            ActiveField::TenderingProcedureCode => &mut self.cfs_tendering_process_procedure_code,
-            ActiveField::TenderingUrgencyCode => &mut self.cfs_tendering_process_urgency_code,
-        };
-        target.get_or_insert_with(String::new);
+        self.field_ref(field).get_or_insert_with(String::new);
     }
 }
 
