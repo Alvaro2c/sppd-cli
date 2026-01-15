@@ -9,6 +9,7 @@ pub struct ScopeResult {
     pub cfs_id: Option<String>,
     pub cfs_project_name: Option<String>,
     pub cfs_project_type_code: Option<String>,
+    pub cfs_project_sub_type_code: Option<String>,
     pub cfs_project_total_amount: Option<String>,
     pub cfs_project_total_currency: Option<String>,
     pub cfs_project_tax_exclusive_amount: Option<String>,
@@ -16,7 +17,6 @@ pub struct ScopeResult {
     pub cfs_project_cpv_codes: Option<String>,
     pub cfs_project_country_code: Option<String>,
     pub cfs_project_lot_name: Option<String>,
-    pub cfs_project_lot_type_code: Option<String>,
     pub cfs_project_lot_total_amount: Option<String>,
     pub cfs_project_lot_total_currency: Option<String>,
     pub cfs_project_lot_tax_exclusive_amount: Option<String>,
@@ -26,13 +26,24 @@ pub struct ScopeResult {
     pub cfs_contracting_party_name: Option<String>,
     pub cfs_contracting_party_website: Option<String>,
     pub cfs_contracting_party_type_code: Option<String>,
+    pub cfs_contracting_party_id: Option<String>,
+    pub cfs_contracting_party_activity_code: Option<String>,
+    pub cfs_contracting_party_city: Option<String>,
+    pub cfs_contracting_party_zip_code: Option<String>,
+    pub cfs_contracting_party_country_code: Option<String>,
     pub cfs_result_code: Option<String>,
     pub cfs_result_description: Option<String>,
     pub cfs_result_winning_party: Option<String>,
+    pub cfs_result_winning_party_id: Option<String>,
+    pub cfs_result_sme_awarded_indicator: Option<String>,
+    pub cfs_result_award_date: Option<String>,
     pub cfs_result_tax_exclusive_amount: Option<String>,
     pub cfs_result_tax_exclusive_currency: Option<String>,
     pub cfs_result_payable_amount: Option<String>,
     pub cfs_result_payable_currency: Option<String>,
+    pub cfs_terms_funding_program_code: Option<String>,
+    pub cfs_terms_award_criteria_type_code: Option<String>,
+    pub cfs_process_end_date: Option<String>,
     pub cfs_process_procedure_code: Option<String>,
     pub cfs_process_urgency_code: Option<String>,
     pub cfs_raw_xml: String,
@@ -45,12 +56,12 @@ enum ActiveField {
     Id,
     ProjectName,
     ProjectTypeCode,
+    ProjectSubTypeCode,
     ProjectTotalAmount,
     ProjectTaxExclusiveAmount,
     ProjectCpvCode,
     ProjectCountryCode,
     ProjectLotName,
-    ProjectLotTypeCode,
     ProjectLotTotalAmount,
     ProjectLotTaxExclusiveAmount,
     ProjectLotCpvCode,
@@ -58,11 +69,22 @@ enum ActiveField {
     ContractingPartyName,
     ContractingPartyWebsite,
     ContractingPartyTypeCode,
+    ContractingPartyId,
+    ContractingPartyActivityCode,
+    ContractingPartyCity,
+    ContractingPartyZipCode,
+    ContractingPartyCountryCode,
     ResultCode,
     ResultDescription,
     ResultWinningParty,
+    ResultWinningPartyId,
+    ResultSmeAwardedIndicator,
+    ResultAwardDate,
     ResultTaxExclusiveAmount,
     ResultPayableAmount,
+    TermsFundingProgramCode,
+    TermsAwardCriteriaTypeCode,
+    ProcessEndDate,
     ProcessProcedureCode,
     ProcessUrgencyCode,
 }
@@ -74,6 +96,7 @@ pub struct ContractFolderStatusScope {
     pub cfs_id: Option<String>,
     pub cfs_project_name: Option<String>,
     pub cfs_project_type_code: Option<String>,
+    pub cfs_project_sub_type_code: Option<String>,
     pub cfs_project_total_amount: Option<String>,
     pub cfs_project_total_currency: Option<String>,
     pub cfs_project_tax_exclusive_amount: Option<String>,
@@ -81,7 +104,6 @@ pub struct ContractFolderStatusScope {
     pub cfs_project_cpv_codes: Option<String>,
     pub cfs_project_country_code: Option<String>,
     pub cfs_project_lot_name: Option<String>,
-    pub cfs_project_lot_type_code: Option<String>,
     pub cfs_project_lot_total_amount: Option<String>,
     pub cfs_project_lot_total_currency: Option<String>,
     pub cfs_project_lot_tax_exclusive_amount: Option<String>,
@@ -91,13 +113,24 @@ pub struct ContractFolderStatusScope {
     pub cfs_contracting_party_name: Option<String>,
     pub cfs_contracting_party_website: Option<String>,
     pub cfs_contracting_party_type_code: Option<String>,
+    pub cfs_contracting_party_id: Option<String>,
+    pub cfs_contracting_party_activity_code: Option<String>,
+    pub cfs_contracting_party_city: Option<String>,
+    pub cfs_contracting_party_zip_code: Option<String>,
+    pub cfs_contracting_party_country_code: Option<String>,
     pub cfs_result_code: Option<String>,
     pub cfs_result_description: Option<String>,
     pub cfs_result_winning_party: Option<String>,
+    pub cfs_result_winning_party_id: Option<String>,
+    pub cfs_result_sme_awarded_indicator: Option<String>,
+    pub cfs_result_award_date: Option<String>,
     pub cfs_result_tax_exclusive_amount: Option<String>,
     pub cfs_result_tax_exclusive_currency: Option<String>,
     pub cfs_result_payable_amount: Option<String>,
     pub cfs_result_payable_currency: Option<String>,
+    pub cfs_terms_funding_program_code: Option<String>,
+    pub cfs_terms_award_criteria_type_code: Option<String>,
+    pub cfs_process_end_date: Option<String>,
     pub cfs_process_procedure_code: Option<String>,
     pub cfs_process_urgency_code: Option<String>,
 
@@ -107,12 +140,16 @@ pub struct ContractFolderStatusScope {
     in_contracting_party: bool,
     in_tender_result: bool,
     in_tendering_process: bool,
+    in_tendering_terms: bool,
 
     // Sub-scope flags for deeply nested paths
     in_party: bool,
     in_party_name: bool,
     in_winning_party: bool,
     in_country: bool,
+    in_party_identification: bool,
+    in_postal_address: bool,
+    in_postal_address_country: bool,
     in_budget_amount: bool,
     in_required_classification: bool,
     in_awarded_tendered_project: bool,
@@ -120,6 +157,9 @@ pub struct ContractFolderStatusScope {
     in_lot_budget_amount: bool,
     in_lot_required_classification: bool,
     in_lot_country: bool,
+    in_awarding_terms: bool,
+    in_awarding_criteria: bool,
+    in_deadline_period: bool,
 
     // Currently capturing (for leaf elements with text)
     active_field: Option<ActiveField>,
@@ -145,6 +185,7 @@ impl ContractFolderStatusScope {
             cfs_id: None,
             cfs_project_name: None,
             cfs_project_type_code: None,
+            cfs_project_sub_type_code: None,
             cfs_project_total_amount: None,
             cfs_project_total_currency: None,
             cfs_project_tax_exclusive_amount: None,
@@ -152,7 +193,6 @@ impl ContractFolderStatusScope {
             cfs_project_cpv_codes: None,
             cfs_project_country_code: None,
             cfs_project_lot_name: None,
-            cfs_project_lot_type_code: None,
             cfs_project_lot_total_amount: None,
             cfs_project_lot_total_currency: None,
             cfs_project_lot_tax_exclusive_amount: None,
@@ -162,13 +202,24 @@ impl ContractFolderStatusScope {
             cfs_contracting_party_name: None,
             cfs_contracting_party_website: None,
             cfs_contracting_party_type_code: None,
+            cfs_contracting_party_id: None,
+            cfs_contracting_party_activity_code: None,
+            cfs_contracting_party_city: None,
+            cfs_contracting_party_zip_code: None,
+            cfs_contracting_party_country_code: None,
             cfs_result_code: None,
             cfs_result_description: None,
             cfs_result_winning_party: None,
+            cfs_result_winning_party_id: None,
+            cfs_result_sme_awarded_indicator: None,
+            cfs_result_award_date: None,
             cfs_result_tax_exclusive_amount: None,
             cfs_result_tax_exclusive_currency: None,
             cfs_result_payable_amount: None,
             cfs_result_payable_currency: None,
+            cfs_terms_funding_program_code: None,
+            cfs_terms_award_criteria_type_code: None,
+            cfs_process_end_date: None,
             cfs_process_procedure_code: None,
             cfs_process_urgency_code: None,
             in_project: false,
@@ -176,10 +227,14 @@ impl ContractFolderStatusScope {
             in_contracting_party: false,
             in_tender_result: false,
             in_tendering_process: false,
+            in_tendering_terms: false,
             in_party: false,
             in_party_name: false,
             in_winning_party: false,
             in_country: false,
+            in_party_identification: false,
+            in_postal_address: false,
+            in_postal_address_country: false,
             in_budget_amount: false,
             in_required_classification: false,
             in_awarded_tendered_project: false,
@@ -187,6 +242,9 @@ impl ContractFolderStatusScope {
             in_lot_budget_amount: false,
             in_lot_required_classification: false,
             in_lot_country: false,
+            in_awarding_terms: false,
+            in_awarding_criteria: false,
+            in_deadline_period: false,
             active_field: None,
             project_name_captured: false,
             project_lot_name_captured: false,
@@ -278,12 +336,26 @@ impl ContractFolderStatusScope {
             self.in_party_name = true;
         } else if matches_local_name(name, b"WinningParty") {
             self.in_winning_party = true;
+        } else if matches_local_name(name, b"PartyIdentification") {
+            self.in_party_identification = true;
+        } else if matches_local_name(name, b"PostalAddress") {
+            self.in_postal_address = true;
         } else if matches_local_name(name, b"Country") {
             if self.in_project_lot {
                 self.in_lot_country = true;
+            } else if self.in_postal_address {
+                self.in_postal_address_country = true;
             } else {
                 self.in_country = true;
             }
+        } else if matches_local_name(name, b"TenderingTerms") {
+            self.in_tendering_terms = true;
+        } else if matches_local_name(name, b"AwardingTerms") {
+            self.in_awarding_terms = true;
+        } else if matches_local_name(name, b"AwardingCriteria") {
+            self.in_awarding_criteria = true;
+        } else if matches_local_name(name, b"TenderSubmissionDeadlinePeriod") {
+            self.in_deadline_period = true;
         }
 
         if self.in_project && !self.in_project_lot {
@@ -336,9 +408,27 @@ impl ContractFolderStatusScope {
             self.in_party_name = false;
         } else if matches_local_name(name, b"WinningParty") {
             self.in_winning_party = false;
+        } else if matches_local_name(name, b"PartyIdentification") {
+            self.in_party_identification = false;
+        } else if matches_local_name(name, b"PostalAddress") {
+            self.in_postal_address = false;
+            self.in_postal_address_country = false;
         } else if matches_local_name(name, b"Country") {
-            self.in_country = false;
-            self.in_lot_country = false;
+            if self.in_project_lot {
+                self.in_lot_country = false;
+            } else if self.in_postal_address {
+                self.in_postal_address_country = false;
+            } else {
+                self.in_country = false;
+            }
+        } else if matches_local_name(name, b"TenderingTerms") {
+            self.in_tendering_terms = false;
+        } else if matches_local_name(name, b"AwardingTerms") {
+            self.in_awarding_terms = false;
+        } else if matches_local_name(name, b"AwardingCriteria") {
+            self.in_awarding_criteria = false;
+        } else if matches_local_name(name, b"TenderSubmissionDeadlinePeriod") {
+            self.in_deadline_period = false;
         }
 
         if matches_local_name(name, b"BudgetAmount") {
@@ -401,12 +491,12 @@ impl ContractFolderStatusScope {
             ActiveField::Id => &mut self.cfs_id,
             ActiveField::ProjectName => &mut self.cfs_project_name,
             ActiveField::ProjectTypeCode => &mut self.cfs_project_type_code,
+            ActiveField::ProjectSubTypeCode => &mut self.cfs_project_sub_type_code,
             ActiveField::ProjectTotalAmount => &mut self.cfs_project_total_amount,
             ActiveField::ProjectTaxExclusiveAmount => &mut self.cfs_project_tax_exclusive_amount,
             ActiveField::ProjectCpvCode => &mut self.cfs_project_cpv_codes,
             ActiveField::ProjectCountryCode => &mut self.cfs_project_country_code,
             ActiveField::ProjectLotName => &mut self.cfs_project_lot_name,
-            ActiveField::ProjectLotTypeCode => &mut self.cfs_project_lot_type_code,
             ActiveField::ProjectLotTotalAmount => &mut self.cfs_project_lot_total_amount,
             ActiveField::ProjectLotTaxExclusiveAmount => {
                 &mut self.cfs_project_lot_tax_exclusive_amount
@@ -416,11 +506,26 @@ impl ContractFolderStatusScope {
             ActiveField::ContractingPartyName => &mut self.cfs_contracting_party_name,
             ActiveField::ContractingPartyWebsite => &mut self.cfs_contracting_party_website,
             ActiveField::ContractingPartyTypeCode => &mut self.cfs_contracting_party_type_code,
+            ActiveField::ContractingPartyId => &mut self.cfs_contracting_party_id,
+            ActiveField::ContractingPartyActivityCode => {
+                &mut self.cfs_contracting_party_activity_code
+            }
+            ActiveField::ContractingPartyCity => &mut self.cfs_contracting_party_city,
+            ActiveField::ContractingPartyZipCode => &mut self.cfs_contracting_party_zip_code,
+            ActiveField::ContractingPartyCountryCode => {
+                &mut self.cfs_contracting_party_country_code
+            }
             ActiveField::ResultCode => &mut self.cfs_result_code,
             ActiveField::ResultDescription => &mut self.cfs_result_description,
             ActiveField::ResultWinningParty => &mut self.cfs_result_winning_party,
+            ActiveField::ResultWinningPartyId => &mut self.cfs_result_winning_party_id,
+            ActiveField::ResultSmeAwardedIndicator => &mut self.cfs_result_sme_awarded_indicator,
+            ActiveField::ResultAwardDate => &mut self.cfs_result_award_date,
             ActiveField::ResultTaxExclusiveAmount => &mut self.cfs_result_tax_exclusive_amount,
             ActiveField::ResultPayableAmount => &mut self.cfs_result_payable_amount,
+            ActiveField::TermsFundingProgramCode => &mut self.cfs_terms_funding_program_code,
+            ActiveField::TermsAwardCriteriaTypeCode => &mut self.cfs_terms_award_criteria_type_code,
+            ActiveField::ProcessEndDate => &mut self.cfs_process_end_date,
             ActiveField::ProcessProcedureCode => &mut self.cfs_process_procedure_code,
             ActiveField::ProcessUrgencyCode => &mut self.cfs_process_urgency_code,
         }
@@ -449,6 +554,7 @@ impl ContractFolderStatusScope {
             cfs_id: self.cfs_id,
             cfs_project_name: self.cfs_project_name,
             cfs_project_type_code: self.cfs_project_type_code,
+            cfs_project_sub_type_code: self.cfs_project_sub_type_code,
             cfs_project_total_amount: self.cfs_project_total_amount,
             cfs_project_total_currency: self.cfs_project_total_currency,
             cfs_project_tax_exclusive_amount: self.cfs_project_tax_exclusive_amount,
@@ -456,7 +562,6 @@ impl ContractFolderStatusScope {
             cfs_project_cpv_codes: self.cfs_project_cpv_codes,
             cfs_project_country_code: self.cfs_project_country_code,
             cfs_project_lot_name: self.cfs_project_lot_name,
-            cfs_project_lot_type_code: self.cfs_project_lot_type_code,
             cfs_project_lot_total_amount: self.cfs_project_lot_total_amount,
             cfs_project_lot_total_currency: self.cfs_project_lot_total_currency,
             cfs_project_lot_tax_exclusive_amount: self.cfs_project_lot_tax_exclusive_amount,
@@ -466,13 +571,24 @@ impl ContractFolderStatusScope {
             cfs_contracting_party_name: self.cfs_contracting_party_name,
             cfs_contracting_party_website: self.cfs_contracting_party_website,
             cfs_contracting_party_type_code: self.cfs_contracting_party_type_code,
+            cfs_contracting_party_id: self.cfs_contracting_party_id,
+            cfs_contracting_party_activity_code: self.cfs_contracting_party_activity_code,
+            cfs_contracting_party_city: self.cfs_contracting_party_city,
+            cfs_contracting_party_zip_code: self.cfs_contracting_party_zip_code,
+            cfs_contracting_party_country_code: self.cfs_contracting_party_country_code,
             cfs_result_code: self.cfs_result_code,
             cfs_result_description: self.cfs_result_description,
             cfs_result_winning_party: self.cfs_result_winning_party,
+            cfs_result_winning_party_id: self.cfs_result_winning_party_id,
+            cfs_result_sme_awarded_indicator: self.cfs_result_sme_awarded_indicator,
+            cfs_result_award_date: self.cfs_result_award_date,
             cfs_result_tax_exclusive_amount: self.cfs_result_tax_exclusive_amount,
             cfs_result_tax_exclusive_currency: self.cfs_result_tax_exclusive_currency,
             cfs_result_payable_amount: self.cfs_result_payable_amount,
             cfs_result_payable_currency: self.cfs_result_payable_currency,
+            cfs_terms_funding_program_code: self.cfs_terms_funding_program_code,
+            cfs_terms_award_criteria_type_code: self.cfs_terms_award_criteria_type_code,
+            cfs_process_end_date: self.cfs_process_end_date,
             cfs_process_procedure_code: self.cfs_process_procedure_code,
             cfs_process_urgency_code: self.cfs_process_urgency_code,
             cfs_raw_xml: raw_xml,
@@ -495,9 +611,6 @@ impl ContractFolderStatusScope {
                 && !self.in_lot_country
             {
                 return Some(ActiveField::ProjectLotName);
-            }
-            if matches_local_name(name, b"TypeCode") {
-                return Some(ActiveField::ProjectLotTypeCode);
             }
             if self.in_lot_budget_amount && matches_local_name(name, b"TotalAmount") {
                 return Some(ActiveField::ProjectLotTotalAmount);
@@ -523,6 +636,9 @@ impl ContractFolderStatusScope {
             if matches_local_name(name, b"TypeCode") {
                 return Some(ActiveField::ProjectTypeCode);
             }
+            if matches_local_name(name, b"SubTypeCode") {
+                return Some(ActiveField::ProjectSubTypeCode);
+            }
             if self.in_budget_amount && matches_local_name(name, b"TotalAmount") {
                 return Some(ActiveField::ProjectTotalAmount);
             }
@@ -543,12 +659,31 @@ impl ContractFolderStatusScope {
             if matches_local_name(name, b"ContractingPartyTypeCode") {
                 return Some(ActiveField::ContractingPartyTypeCode);
             }
+            if matches_local_name(name, b"ActivityCode") {
+                return Some(ActiveField::ContractingPartyActivityCode);
+            }
             if self.in_party {
                 if matches_local_name(name, b"WebsiteURI") {
                     return Some(ActiveField::ContractingPartyWebsite);
                 }
                 if self.in_party_name && matches_local_name(name, b"Name") {
                     return Some(ActiveField::ContractingPartyName);
+                }
+                if self.in_party_identification && matches_local_name(name, b"ID") {
+                    return Some(ActiveField::ContractingPartyId);
+                }
+                if self.in_postal_address {
+                    if matches_local_name(name, b"CityName") {
+                        return Some(ActiveField::ContractingPartyCity);
+                    }
+                    if matches_local_name(name, b"PostalZone") {
+                        return Some(ActiveField::ContractingPartyZipCode);
+                    }
+                    if self.in_postal_address_country
+                        && matches_local_name(name, b"IdentificationCode")
+                    {
+                        return Some(ActiveField::ContractingPartyCountryCode);
+                    }
                 }
             }
         }
@@ -563,6 +698,18 @@ impl ContractFolderStatusScope {
             if self.in_winning_party && self.in_party_name && matches_local_name(name, b"Name") {
                 return Some(ActiveField::ResultWinningParty);
             }
+            if self.in_winning_party
+                && self.in_party_identification
+                && matches_local_name(name, b"ID")
+            {
+                return Some(ActiveField::ResultWinningPartyId);
+            }
+            if matches_local_name(name, b"SMEAwardedIndicator") {
+                return Some(ActiveField::ResultSmeAwardedIndicator);
+            }
+            if matches_local_name(name, b"AwardDate") {
+                return Some(ActiveField::ResultAwardDate);
+            }
         }
 
         if self.in_legal_monetary_total && matches_local_name(name, b"TaxExclusiveAmount") {
@@ -573,11 +720,26 @@ impl ContractFolderStatusScope {
         }
 
         if self.in_tendering_process {
+            if self.in_deadline_period && matches_local_name(name, b"EndDate") {
+                return Some(ActiveField::ProcessEndDate);
+            }
             if matches_local_name(name, b"ProcedureCode") {
                 return Some(ActiveField::ProcessProcedureCode);
             }
             if matches_local_name(name, b"UrgencyCode") {
                 return Some(ActiveField::ProcessUrgencyCode);
+            }
+        }
+
+        if self.in_tendering_terms {
+            if matches_local_name(name, b"FundingProgramCode") {
+                return Some(ActiveField::TermsFundingProgramCode);
+            }
+            if self.in_awarding_terms
+                && self.in_awarding_criteria
+                && matches_local_name(name, b"AwardingCriteriaTypeCode")
+            {
+                return Some(ActiveField::TermsAwardCriteriaTypeCode);
             }
         }
 

@@ -138,7 +138,7 @@ cargo run -- toml config/prod.toml
 
 ### Output Schema
 
-Each Parquet record mirrors an Atom `<entry>` plus the extracted `ContractFolderStatus` data, resulting in 36 columns:
+Each Parquet record mirrors an Atom `<entry>` plus the extracted `ContractFolderStatus` data, resulting in 47 columns:
 
 | Column | Description |
 |--------|-------------|
@@ -151,6 +151,7 @@ Each Parquet record mirrors an Atom `<entry>` plus the extracted `ContractFolder
 | `cfs_id` | `<cbc:ContractFolderID>` |
 | `cfs_project_name` | First `<cbc:Name>` inside `<cac:ProcurementProject>` |
 | `cfs_project_type_code` | `<cac:ProcurementProject>/<cbc:TypeCode>` |
+| `cfs_project_sub_type_code` | `<cac:ProcurementProject>/<cbc:SubTypeCode>` |
 | `cfs_project_total_amount` | `<cac:ProcurementProject>/<cac:BudgetAmount>/<cbc:TotalAmount>` value |
 | `cfs_project_total_currency` | `currencyID` attribute from the total amount |
 | `cfs_project_tax_exclusive_amount` | `<cac:ProcurementProject>/<cac:BudgetAmount>/<cbc:TaxExclusiveAmount>` value |
@@ -158,7 +159,6 @@ Each Parquet record mirrors an Atom `<entry>` plus the extracted `ContractFolder
 | `cfs_project_cpv_codes` | `_`-joined `<cbc:ItemClassificationCode>` values |
 | `cfs_project_country_code` | `<cac:RealizedLocation>/<cac:Address>/<cac:Country>/<cbc:IdentificationCode>` |
 | `cfs_project_lot_name` | First `<cbc:Name>` inside `<cac:ProcurementProjectLot>` |
-| `cfs_project_lot_type_code` | `<cac:ProcurementProjectLot>/<cbc:TypeCode>` |
 | `cfs_project_lot_total_amount` | `<cac:ProcurementProjectLot>/<cac:BudgetAmount>/<cbc:TotalAmount>` value |
 | `cfs_project_lot_total_currency` | `currencyID` attribute from the lot total amount |
 | `cfs_project_lot_tax_exclusive_amount` | `<cac:ProcurementProjectLot>/<cac:BudgetAmount>/<cbc:TaxExclusiveAmount>` value |
@@ -168,13 +168,24 @@ Each Parquet record mirrors an Atom `<entry>` plus the extracted `ContractFolder
 | `cfs_contracting_party_name` | `<cac:LocatedContractingParty>/<cac:Party>/<cac:PartyName>/<cbc:Name>` |
 | `cfs_contracting_party_website` | `<cac:LocatedContractingParty>/<cac:Party>/<cbc:WebsiteURI>` |
 | `cfs_contracting_party_type_code` | `<cac:LocatedContractingParty>/<cbc:ContractingPartyTypeCode>` |
+| `cfs_contracting_party_id` | `<cac:LocatedContractingParty>/<cac:Party>/<cac:PartyIdentification>/<cbc:ID>` |
+| `cfs_contracting_party_activity_code` | `<cac:LocatedContractingParty>/<cbc:ActivityCode>` |
+| `cfs_contracting_party_city` | `<cac:LocatedContractingParty>/<cac:Party>/<cac:PostalAddress>/<cbc:CityName>` |
+| `cfs_contracting_party_zip_code` | `<cac:LocatedContractingParty>/<cac:Party>/<cac:PostalAddress>/<cbc:PostalZone>` |
+| `cfs_contracting_party_country_code` | `<cac:LocatedContractingParty>/<cac:Party>/<cac:PostalAddress>/<cac:Country>/<cbc:IdentificationCode>` |
 | `cfs_result_code` | `<cac:TenderResult>/<cbc:ResultCode>` |
 | `cfs_result_description` | `<cac:TenderResult>/<cbc:Description>` |
 | `cfs_result_winning_party` | `<cac:TenderResult>/<cac:WinningParty>/<cac:PartyName>/<cbc:Name>` |
+| `cfs_result_winning_party_id` | `<cac:TenderResult>/<cac:WinningParty>/<cac:PartyIdentification>/<cbc:ID>` |
+| `cfs_result_sme_awarded_indicator` | `<cac:TenderResult>/<cbc:SMEAwardedIndicator>` |
+| `cfs_result_award_date` | `<cac:TenderResult>/<cbc:AwardDate>` |
 | `cfs_result_tax_exclusive_amount` | `<cac:TenderResult>/<cac:AwardedTenderedProject>/<cac:LegalMonetaryTotal>/<cbc:TaxExclusiveAmount>` value |
 | `cfs_result_tax_exclusive_currency` | `currencyID` attribute from the tax-exclusive amount |
 | `cfs_result_payable_amount` | `<cac:TenderResult>/<cac:AwardedTenderedProject>/<cac:LegalMonetaryTotal>/<cbc:PayableAmount>` value |
 | `cfs_result_payable_currency` | `currencyID` attribute from the payable amount |
+| `cfs_terms_funding_program_code` | `<cac:TenderingTerms>/<cbc:FundingProgramCode>` |
+| `cfs_terms_award_criteria_type_code` | `<cac:TenderingTerms>/<cac:AwardingTerms>/<cac:AwardingCriteria>/<cbc:AwardingCriteriaTypeCode>` |
+| `cfs_process_end_date` | `<cac:TenderingProcess>/<cac:TenderSubmissionDeadlinePeriod>/<cbc:EndDate>` |
 | `cfs_process_procedure_code` | `<cac:TenderingProcess>/<cbc:ProcedureCode>` |
 | `cfs_process_urgency_code` | `<cac:TenderingProcess>/<cbc:UrgencyCode>` |
 | `cfs_raw_xml` | Entire `<cac-place-ext:ContractFolderStatus>` payload |
