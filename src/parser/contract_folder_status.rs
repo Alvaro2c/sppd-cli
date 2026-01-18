@@ -100,7 +100,7 @@ mod tests {
             .unwrap()
             .expect("expected captured data");
 
-        assert_eq!(captured.cfs_project_name, Some("Project Alpha".to_string()));
+        assert_eq!(captured.project_name, Some("Project Alpha".to_string()));
         assert!(captured
             .cfs_raw_xml
             .contains("<cbc:Name>Project Alpha</cbc:Name>"));
@@ -131,7 +131,7 @@ mod tests {
             .unwrap()
             .expect("expected captured data");
 
-        assert_eq!(captured.cfs_status_code, Some("200".to_string()));
+        assert_eq!(captured.status_code, Some("200".to_string()));
     }
 
     #[test]
@@ -159,6 +159,6 @@ mod tests {
             .unwrap()
             .expect("expected captured data");
 
-        assert_eq!(captured.cfs_id, Some("ID-42".to_string()));
+        assert_eq!(captured.contract_id, Some("ID-42".to_string()));
     }
 }
