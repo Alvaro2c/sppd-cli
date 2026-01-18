@@ -29,47 +29,60 @@ fn entries_to_dataframe(entries: Vec<Entry>) -> AppResult<DataFrame> {
             Series::new("link", empty.clone()),
             Series::new("summary", empty.clone()),
             Series::new("updated", empty.clone()),
-            Series::new("cfs_status_code", empty.clone()),
-            Series::new("cfs_id", empty.clone()),
-            Series::new("cfs_project_name", empty.clone()),
-            Series::new("cfs_project_type_code", empty.clone()),
-            Series::new("cfs_project_sub_type_code", empty.clone()),
-            Series::new("cfs_project_total_amount", empty.clone()),
-            Series::new("cfs_project_total_currency", empty.clone()),
-            Series::new("cfs_project_tax_exclusive_amount", empty.clone()),
-            Series::new("cfs_project_tax_exclusive_currency", empty.clone()),
-            Series::new("cfs_project_cpv_codes", empty.clone()),
-            Series::new("cfs_project_country_code", empty.clone()),
-            Series::new("cfs_project_lot_name", empty.clone()),
-            Series::new("cfs_project_lot_total_amount", empty.clone()),
-            Series::new("cfs_project_lot_total_currency", empty.clone()),
-            Series::new("cfs_project_lot_tax_exclusive_amount", empty.clone()),
-            Series::new("cfs_project_lot_tax_exclusive_currency", empty.clone()),
-            Series::new("cfs_project_lot_cpv_codes", empty.clone()),
-            Series::new("cfs_project_lot_country_code", empty.clone()),
-            Series::new("cfs_contracting_party_name", empty.clone()),
-            Series::new("cfs_contracting_party_website", empty.clone()),
-            Series::new("cfs_contracting_party_type_code", empty.clone()),
-            Series::new("cfs_contracting_party_id", empty.clone()),
-            Series::new("cfs_contracting_party_activity_code", empty.clone()),
-            Series::new("cfs_contracting_party_city", empty.clone()),
-            Series::new("cfs_contracting_party_zip_code", empty.clone()),
-            Series::new("cfs_contracting_party_country_code", empty.clone()),
-            Series::new("cfs_result_code", empty.clone()),
-            Series::new("cfs_result_description", empty.clone()),
-            Series::new("cfs_result_winning_party", empty.clone()),
-            Series::new("cfs_result_winning_party_id", empty.clone()),
-            Series::new("cfs_result_sme_awarded_indicator", empty.clone()),
-            Series::new("cfs_result_award_date", empty.clone()),
-            Series::new("cfs_result_tax_exclusive_amount", empty.clone()),
-            Series::new("cfs_result_tax_exclusive_currency", empty.clone()),
-            Series::new("cfs_result_payable_amount", empty.clone()),
-            Series::new("cfs_result_payable_currency", empty.clone()),
-            Series::new("cfs_terms_funding_program_code", empty.clone()),
-            Series::new("cfs_terms_award_criteria_type_code", empty.clone()),
-            Series::new("cfs_process_end_date", empty.clone()),
-            Series::new("cfs_process_procedure_code", empty.clone()),
-            Series::new("cfs_process_urgency_code", empty.clone()),
+            Series::new("status_code", empty.clone()),
+            Series::new("status_code_list_uri", empty.clone()),
+            Series::new("contract_id", empty.clone()),
+            Series::new("contracting_party_name", empty.clone()),
+            Series::new("contracting_party_website", empty.clone()),
+            Series::new("contracting_party_type_code", empty.clone()),
+            Series::new("contracting_party_type_code_list_uri", empty.clone()),
+            Series::new("contracting_party_activity_code", empty.clone()),
+            Series::new("contracting_party_activity_code_list_uri", empty.clone()),
+            Series::new("contracting_party_city", empty.clone()),
+            Series::new("contracting_party_zip", empty.clone()),
+            Series::new("contracting_party_country_code", empty.clone()),
+            Series::new("contracting_party_country_code_list_uri", empty.clone()),
+            Series::new("project_name", empty.clone()),
+            Series::new("project_type_code", empty.clone()),
+            Series::new("project_type_code_list_uri", empty.clone()),
+            Series::new("project_sub_type_code", empty.clone()),
+            Series::new("project_sub_type_code_list_uri", empty.clone()),
+            Series::new("project_total_amount", empty.clone()),
+            Series::new("project_total_currency", empty.clone()),
+            Series::new("project_tax_exclusive_amount", empty.clone()),
+            Series::new("project_tax_exclusive_currency", empty.clone()),
+            Series::new("project_cpv_code", empty.clone()),
+            Series::new("project_cpv_code_list_uri", empty.clone()),
+            Series::new("project_country_code", empty.clone()),
+            Series::new("project_country_code_list_uri", empty.clone()),
+            Series::new("project_lot_name", empty.clone()),
+            Series::new("project_lot_total_amount", empty.clone()),
+            Series::new("project_lot_total_currency", empty.clone()),
+            Series::new("project_lot_tax_exclusive_amount", empty.clone()),
+            Series::new("project_lot_tax_exclusive_currency", empty.clone()),
+            Series::new("project_lot_cpv_code", empty.clone()),
+            Series::new("project_lot_cpv_code_list_uri", empty.clone()),
+            Series::new("project_lot_country_code", empty.clone()),
+            Series::new("project_lot_country_code_list_uri", empty.clone()),
+            Series::new("result_code", empty.clone()),
+            Series::new("result_code_list_uri", empty.clone()),
+            Series::new("result_description", empty.clone()),
+            Series::new("result_winning_party", empty.clone()),
+            Series::new("result_sme_awarded_indicator", empty.clone()),
+            Series::new("result_award_date", empty.clone()),
+            Series::new("result_tax_exclusive_amount", empty.clone()),
+            Series::new("result_tax_exclusive_currency", empty.clone()),
+            Series::new("result_payable_amount", empty.clone()),
+            Series::new("result_payable_currency", empty.clone()),
+            Series::new("terms_funding_program_code", empty.clone()),
+            Series::new("terms_funding_program_code_list_uri", empty.clone()),
+            Series::new("terms_award_criteria_type_code", empty.clone()),
+            Series::new("terms_award_criteria_type_code_list_uri", empty.clone()),
+            Series::new("process_end_date", empty.clone()),
+            Series::new("process_procedure_code", empty.clone()),
+            Series::new("process_procedure_code_list_uri", empty.clone()),
+            Series::new("process_urgency_code", empty.clone()),
+            Series::new("process_urgency_code_list_uri", empty.clone()),
             Series::new("cfs_raw_xml", empty),
         ])
         .map_err(|e| AppError::ParseError(format!("Failed to create DataFrame: {e}")));
@@ -81,47 +94,60 @@ fn entries_to_dataframe(entries: Vec<Entry>) -> AppResult<DataFrame> {
     let mut links = Vec::with_capacity(len);
     let mut summaries = Vec::with_capacity(len);
     let mut updateds = Vec::with_capacity(len);
-    let mut cfs_status_codes = Vec::with_capacity(len);
-    let mut cfs_ids = Vec::with_capacity(len);
-    let mut cfs_project_names = Vec::with_capacity(len);
-    let mut cfs_project_type_codes = Vec::with_capacity(len);
-    let mut cfs_project_sub_type_codes = Vec::with_capacity(len);
-    let mut cfs_project_total_amounts = Vec::with_capacity(len);
-    let mut cfs_project_total_currencies = Vec::with_capacity(len);
-    let mut cfs_project_tax_exclusive_amounts = Vec::with_capacity(len);
-    let mut cfs_project_tax_exclusive_currencies = Vec::with_capacity(len);
-    let mut cfs_project_cpv_codes_vec = Vec::with_capacity(len);
-    let mut cfs_project_country_codes = Vec::with_capacity(len);
-    let mut cfs_project_lot_names = Vec::with_capacity(len);
-    let mut cfs_project_lot_total_amounts = Vec::with_capacity(len);
-    let mut cfs_project_lot_total_currencies = Vec::with_capacity(len);
-    let mut cfs_project_lot_tax_exclusive_amounts = Vec::with_capacity(len);
-    let mut cfs_project_lot_tax_exclusive_currencies = Vec::with_capacity(len);
-    let mut cfs_project_lot_cpv_codes_vec = Vec::with_capacity(len);
-    let mut cfs_project_lot_country_codes = Vec::with_capacity(len);
-    let mut cfs_contracting_party_names = Vec::with_capacity(len);
-    let mut cfs_contracting_party_websites = Vec::with_capacity(len);
-    let mut cfs_contracting_party_type_codes = Vec::with_capacity(len);
-    let mut cfs_contracting_party_ids = Vec::with_capacity(len);
-    let mut cfs_contracting_party_activity_codes = Vec::with_capacity(len);
-    let mut cfs_contracting_party_cities = Vec::with_capacity(len);
-    let mut cfs_contracting_party_zip_codes = Vec::with_capacity(len);
-    let mut cfs_contracting_party_country_codes = Vec::with_capacity(len);
-    let mut cfs_result_codes = Vec::with_capacity(len);
-    let mut cfs_result_descriptions = Vec::with_capacity(len);
-    let mut cfs_result_winning_parties = Vec::with_capacity(len);
-    let mut cfs_result_winning_party_ids = Vec::with_capacity(len);
-    let mut cfs_result_sme_awarded_indicators = Vec::with_capacity(len);
-    let mut cfs_result_award_dates = Vec::with_capacity(len);
-    let mut cfs_result_tax_exclusive_amounts = Vec::with_capacity(len);
-    let mut cfs_result_tax_exclusive_currencies = Vec::with_capacity(len);
-    let mut cfs_result_payable_amounts = Vec::with_capacity(len);
-    let mut cfs_result_payable_currencies = Vec::with_capacity(len);
-    let mut cfs_terms_funding_program_codes = Vec::with_capacity(len);
-    let mut cfs_terms_award_criteria_type_codes = Vec::with_capacity(len);
-    let mut cfs_process_end_dates = Vec::with_capacity(len);
-    let mut cfs_process_procedure_codes = Vec::with_capacity(len);
-    let mut cfs_process_urgency_codes = Vec::with_capacity(len);
+    let mut status_codes = Vec::with_capacity(len);
+    let mut status_code_list_uris = Vec::with_capacity(len);
+    let mut contract_ids = Vec::with_capacity(len);
+    let mut contracting_party_names = Vec::with_capacity(len);
+    let mut contracting_party_websites = Vec::with_capacity(len);
+    let mut contracting_party_type_codes = Vec::with_capacity(len);
+    let mut contracting_party_type_code_list_uris = Vec::with_capacity(len);
+    let mut contracting_party_activity_codes = Vec::with_capacity(len);
+    let mut contracting_party_activity_code_list_uris = Vec::with_capacity(len);
+    let mut contracting_party_cities = Vec::with_capacity(len);
+    let mut contracting_party_zips = Vec::with_capacity(len);
+    let mut contracting_party_country_codes = Vec::with_capacity(len);
+    let mut contracting_party_country_code_list_uris = Vec::with_capacity(len);
+    let mut project_names = Vec::with_capacity(len);
+    let mut project_type_codes = Vec::with_capacity(len);
+    let mut project_type_code_list_uris = Vec::with_capacity(len);
+    let mut project_sub_type_codes = Vec::with_capacity(len);
+    let mut project_sub_type_code_list_uris = Vec::with_capacity(len);
+    let mut project_total_amounts = Vec::with_capacity(len);
+    let mut project_total_currencies = Vec::with_capacity(len);
+    let mut project_tax_exclusive_amounts = Vec::with_capacity(len);
+    let mut project_tax_exclusive_currencies = Vec::with_capacity(len);
+    let mut project_cpv_code = Vec::with_capacity(len);
+    let mut project_cpv_code_list_uris = Vec::with_capacity(len);
+    let mut project_country_codes = Vec::with_capacity(len);
+    let mut project_country_code_list_uris = Vec::with_capacity(len);
+    let mut project_lot_names = Vec::with_capacity(len);
+    let mut project_lot_total_amounts = Vec::with_capacity(len);
+    let mut project_lot_total_currencies = Vec::with_capacity(len);
+    let mut project_lot_tax_exclusive_amounts = Vec::with_capacity(len);
+    let mut project_lot_tax_exclusive_currencies = Vec::with_capacity(len);
+    let mut project_lot_cpv_code = Vec::with_capacity(len);
+    let mut project_lot_cpv_code_list_uris = Vec::with_capacity(len);
+    let mut project_lot_country_codes = Vec::with_capacity(len);
+    let mut project_lot_country_code_list_uris = Vec::with_capacity(len);
+    let mut result_codes = Vec::with_capacity(len);
+    let mut result_code_list_uris = Vec::with_capacity(len);
+    let mut result_descriptions = Vec::with_capacity(len);
+    let mut result_winning_parties = Vec::with_capacity(len);
+    let mut result_sme_awarded_indicators = Vec::with_capacity(len);
+    let mut result_award_dates = Vec::with_capacity(len);
+    let mut result_tax_exclusive_amounts = Vec::with_capacity(len);
+    let mut result_tax_exclusive_currencies = Vec::with_capacity(len);
+    let mut result_payable_amounts = Vec::with_capacity(len);
+    let mut result_payable_currencies = Vec::with_capacity(len);
+    let mut terms_funding_program_codes = Vec::with_capacity(len);
+    let mut terms_funding_program_code_list_uris = Vec::with_capacity(len);
+    let mut terms_award_criteria_type_codes = Vec::with_capacity(len);
+    let mut terms_award_criteria_type_code_list_uris = Vec::with_capacity(len);
+    let mut process_end_dates = Vec::with_capacity(len);
+    let mut process_procedure_codes = Vec::with_capacity(len);
+    let mut process_procedure_code_list_uris = Vec::with_capacity(len);
+    let mut process_urgency_codes = Vec::with_capacity(len);
+    let mut process_urgency_code_list_uris = Vec::with_capacity(len);
     let mut cfs_raw_xmls = Vec::with_capacity(len);
 
     for entry in entries {
@@ -130,47 +156,63 @@ fn entries_to_dataframe(entries: Vec<Entry>) -> AppResult<DataFrame> {
         links.push(entry.link);
         summaries.push(entry.summary);
         updateds.push(entry.updated);
-        cfs_status_codes.push(entry.cfs_status_code);
-        cfs_ids.push(entry.cfs_id);
-        cfs_project_names.push(entry.cfs_project_name);
-        cfs_project_type_codes.push(entry.cfs_project_type_code);
-        cfs_project_sub_type_codes.push(entry.cfs_project_sub_type_code);
-        cfs_project_total_amounts.push(entry.cfs_project_total_amount);
-        cfs_project_total_currencies.push(entry.cfs_project_total_currency);
-        cfs_project_tax_exclusive_amounts.push(entry.cfs_project_tax_exclusive_amount);
-        cfs_project_tax_exclusive_currencies.push(entry.cfs_project_tax_exclusive_currency);
-        cfs_project_cpv_codes_vec.push(entry.cfs_project_cpv_codes);
-        cfs_project_country_codes.push(entry.cfs_project_country_code);
-        cfs_project_lot_names.push(entry.cfs_project_lot_name);
-        cfs_project_lot_total_amounts.push(entry.cfs_project_lot_total_amount);
-        cfs_project_lot_total_currencies.push(entry.cfs_project_lot_total_currency);
-        cfs_project_lot_tax_exclusive_amounts.push(entry.cfs_project_lot_tax_exclusive_amount);
-        cfs_project_lot_tax_exclusive_currencies.push(entry.cfs_project_lot_tax_exclusive_currency);
-        cfs_project_lot_cpv_codes_vec.push(entry.cfs_project_lot_cpv_codes);
-        cfs_project_lot_country_codes.push(entry.cfs_project_lot_country_code);
-        cfs_contracting_party_names.push(entry.cfs_contracting_party_name);
-        cfs_contracting_party_websites.push(entry.cfs_contracting_party_website);
-        cfs_contracting_party_type_codes.push(entry.cfs_contracting_party_type_code);
-        cfs_contracting_party_ids.push(entry.cfs_contracting_party_id);
-        cfs_contracting_party_activity_codes.push(entry.cfs_contracting_party_activity_code);
-        cfs_contracting_party_cities.push(entry.cfs_contracting_party_city);
-        cfs_contracting_party_zip_codes.push(entry.cfs_contracting_party_zip_code);
-        cfs_contracting_party_country_codes.push(entry.cfs_contracting_party_country_code);
-        cfs_result_codes.push(entry.cfs_result_code);
-        cfs_result_descriptions.push(entry.cfs_result_description);
-        cfs_result_winning_parties.push(entry.cfs_result_winning_party);
-        cfs_result_winning_party_ids.push(entry.cfs_result_winning_party_id);
-        cfs_result_sme_awarded_indicators.push(entry.cfs_result_sme_awarded_indicator);
-        cfs_result_award_dates.push(entry.cfs_result_award_date);
-        cfs_result_tax_exclusive_amounts.push(entry.cfs_result_tax_exclusive_amount);
-        cfs_result_tax_exclusive_currencies.push(entry.cfs_result_tax_exclusive_currency);
-        cfs_result_payable_amounts.push(entry.cfs_result_payable_amount);
-        cfs_result_payable_currencies.push(entry.cfs_result_payable_currency);
-        cfs_terms_funding_program_codes.push(entry.cfs_terms_funding_program_code);
-        cfs_terms_award_criteria_type_codes.push(entry.cfs_terms_award_criteria_type_code);
-        cfs_process_end_dates.push(entry.cfs_process_end_date);
-        cfs_process_procedure_codes.push(entry.cfs_process_procedure_code);
-        cfs_process_urgency_codes.push(entry.cfs_process_urgency_code);
+        status_codes.push(entry.status_code);
+        status_code_list_uris.push(entry.status_code_list_uri);
+        contract_ids.push(entry.contract_id);
+        contracting_party_names.push(entry.contracting_party_name);
+        contracting_party_websites.push(entry.contracting_party_website);
+        contracting_party_type_codes.push(entry.contracting_party_type_code);
+        contracting_party_type_code_list_uris.push(entry.contracting_party_type_code_list_uri);
+        contracting_party_activity_codes.push(entry.contracting_party_activity_code);
+        contracting_party_activity_code_list_uris
+            .push(entry.contracting_party_activity_code_list_uri);
+        contracting_party_cities.push(entry.contracting_party_city);
+        contracting_party_zips.push(entry.contracting_party_zip);
+        contracting_party_country_codes.push(entry.contracting_party_country_code);
+        contracting_party_country_code_list_uris
+            .push(entry.contracting_party_country_code_list_uri);
+        project_names.push(entry.project_name);
+        project_type_codes.push(entry.project_type_code);
+        project_type_code_list_uris.push(entry.project_type_code_list_uri);
+        project_sub_type_codes.push(entry.project_sub_type_code);
+        project_sub_type_code_list_uris.push(entry.project_sub_type_code_list_uri);
+        project_total_amounts.push(entry.project_total_amount);
+        project_total_currencies.push(entry.project_total_currency);
+        project_tax_exclusive_amounts.push(entry.project_tax_exclusive_amount);
+        project_tax_exclusive_currencies.push(entry.project_tax_exclusive_currency);
+        project_cpv_code.push(entry.project_cpv_code);
+        project_cpv_code_list_uris.push(entry.project_cpv_code_list_uri);
+        project_country_codes.push(entry.project_country_code);
+        project_country_code_list_uris.push(entry.project_country_code_list_uri);
+        project_lot_names.push(entry.project_lot_name);
+        project_lot_total_amounts.push(entry.project_lot_total_amount);
+        project_lot_total_currencies.push(entry.project_lot_total_currency);
+        project_lot_tax_exclusive_amounts.push(entry.project_lot_tax_exclusive_amount);
+        project_lot_tax_exclusive_currencies.push(entry.project_lot_tax_exclusive_currency);
+        project_lot_cpv_code.push(entry.project_lot_cpv_code);
+        project_lot_cpv_code_list_uris.push(entry.project_lot_cpv_code_list_uri);
+        project_lot_country_codes.push(entry.project_lot_country_code);
+        project_lot_country_code_list_uris.push(entry.project_lot_country_code_list_uri);
+        result_codes.push(entry.result_code);
+        result_code_list_uris.push(entry.result_code_list_uri);
+        result_descriptions.push(entry.result_description);
+        result_winning_parties.push(entry.result_winning_party);
+        result_sme_awarded_indicators.push(entry.result_sme_awarded_indicator);
+        result_award_dates.push(entry.result_award_date);
+        result_tax_exclusive_amounts.push(entry.result_tax_exclusive_amount);
+        result_tax_exclusive_currencies.push(entry.result_tax_exclusive_currency);
+        result_payable_amounts.push(entry.result_payable_amount);
+        result_payable_currencies.push(entry.result_payable_currency);
+        terms_funding_program_codes.push(entry.terms_funding_program_code);
+        terms_funding_program_code_list_uris.push(entry.terms_funding_program_code_list_uri);
+        terms_award_criteria_type_codes.push(entry.terms_award_criteria_type_code);
+        terms_award_criteria_type_code_list_uris
+            .push(entry.terms_award_criteria_type_code_list_uri);
+        process_end_dates.push(entry.process_end_date);
+        process_procedure_codes.push(entry.process_procedure_code);
+        process_procedure_code_list_uris.push(entry.process_procedure_code_list_uri);
+        process_urgency_codes.push(entry.process_urgency_code);
+        process_urgency_code_list_uris.push(entry.process_urgency_code_list_uri);
         cfs_raw_xmls.push(entry.cfs_raw_xml);
     }
 
@@ -180,98 +222,120 @@ fn entries_to_dataframe(entries: Vec<Entry>) -> AppResult<DataFrame> {
         Series::new("link", links),
         Series::new("summary", summaries),
         Series::new("updated", updateds),
-        Series::new("cfs_status_code", cfs_status_codes),
-        Series::new("cfs_id", cfs_ids),
-        Series::new("cfs_project_name", cfs_project_names),
-        Series::new("cfs_project_type_code", cfs_project_type_codes),
-        Series::new("cfs_project_sub_type_code", cfs_project_sub_type_codes),
-        Series::new("cfs_project_total_amount", cfs_project_total_amounts),
-        Series::new("cfs_project_total_currency", cfs_project_total_currencies),
+        Series::new("status_code", status_codes),
+        Series::new("status_code_list_uri", status_code_list_uris),
+        Series::new("contract_id", contract_ids),
+        Series::new("contracting_party_name", contracting_party_names),
+        Series::new("contracting_party_website", contracting_party_websites),
+        Series::new("contracting_party_type_code", contracting_party_type_codes),
         Series::new(
-            "cfs_project_tax_exclusive_amount",
-            cfs_project_tax_exclusive_amounts,
+            "contracting_party_type_code_list_uri",
+            contracting_party_type_code_list_uris,
         ),
         Series::new(
-            "cfs_project_tax_exclusive_currency",
-            cfs_project_tax_exclusive_currencies,
-        ),
-        Series::new("cfs_project_cpv_codes", cfs_project_cpv_codes_vec),
-        Series::new("cfs_project_country_code", cfs_project_country_codes),
-        Series::new("cfs_project_lot_name", cfs_project_lot_names),
-        Series::new(
-            "cfs_project_lot_total_amount",
-            cfs_project_lot_total_amounts,
+            "contracting_party_activity_code",
+            contracting_party_activity_codes,
         ),
         Series::new(
-            "cfs_project_lot_total_currency",
-            cfs_project_lot_total_currencies,
+            "contracting_party_activity_code_list_uri",
+            contracting_party_activity_code_list_uris,
+        ),
+        Series::new("contracting_party_city", contracting_party_cities),
+        Series::new("contracting_party_zip", contracting_party_zips),
+        Series::new(
+            "contracting_party_country_code",
+            contracting_party_country_codes,
         ),
         Series::new(
-            "cfs_project_lot_tax_exclusive_amount",
-            cfs_project_lot_tax_exclusive_amounts,
+            "contracting_party_country_code_list_uri",
+            contracting_party_country_code_list_uris,
+        ),
+        Series::new("project_name", project_names),
+        Series::new("project_type_code", project_type_codes),
+        Series::new("project_type_code_list_uri", project_type_code_list_uris),
+        Series::new("project_sub_type_code", project_sub_type_codes),
+        Series::new(
+            "project_sub_type_code_list_uri",
+            project_sub_type_code_list_uris,
+        ),
+        Series::new("project_total_amount", project_total_amounts),
+        Series::new("project_total_currency", project_total_currencies),
+        Series::new(
+            "project_tax_exclusive_amount",
+            project_tax_exclusive_amounts,
         ),
         Series::new(
-            "cfs_project_lot_tax_exclusive_currency",
-            cfs_project_lot_tax_exclusive_currencies,
+            "project_tax_exclusive_currency",
+            project_tax_exclusive_currencies,
         ),
-        Series::new("cfs_project_lot_cpv_codes", cfs_project_lot_cpv_codes_vec),
+        Series::new("project_cpv_code", project_cpv_code),
+        Series::new("project_cpv_code_list_uri", project_cpv_code_list_uris),
+        Series::new("project_country_code", project_country_codes),
         Series::new(
-            "cfs_project_lot_country_code",
-            cfs_project_lot_country_codes,
+            "project_country_code_list_uri",
+            project_country_code_list_uris,
         ),
-        Series::new("cfs_contracting_party_name", cfs_contracting_party_names),
+        Series::new("project_lot_name", project_lot_names),
+        Series::new("project_lot_total_amount", project_lot_total_amounts),
+        Series::new("project_lot_total_currency", project_lot_total_currencies),
         Series::new(
-            "cfs_contracting_party_website",
-            cfs_contracting_party_websites,
-        ),
-        Series::new(
-            "cfs_contracting_party_type_code",
-            cfs_contracting_party_type_codes,
-        ),
-        Series::new("cfs_contracting_party_id", cfs_contracting_party_ids),
-        Series::new(
-            "cfs_contracting_party_activity_code",
-            cfs_contracting_party_activity_codes,
-        ),
-        Series::new("cfs_contracting_party_city", cfs_contracting_party_cities),
-        Series::new(
-            "cfs_contracting_party_zip_code",
-            cfs_contracting_party_zip_codes,
+            "project_lot_tax_exclusive_amount",
+            project_lot_tax_exclusive_amounts,
         ),
         Series::new(
-            "cfs_contracting_party_country_code",
-            cfs_contracting_party_country_codes,
+            "project_lot_tax_exclusive_currency",
+            project_lot_tax_exclusive_currencies,
         ),
-        Series::new("cfs_result_code", cfs_result_codes),
-        Series::new("cfs_result_description", cfs_result_descriptions),
-        Series::new("cfs_result_winning_party", cfs_result_winning_parties),
-        Series::new("cfs_result_winning_party_id", cfs_result_winning_party_ids),
+        Series::new("project_lot_cpv_code", project_lot_cpv_code),
         Series::new(
-            "cfs_result_sme_awarded_indicator",
-            cfs_result_sme_awarded_indicators,
+            "project_lot_cpv_code_list_uri",
+            project_lot_cpv_code_list_uris,
         ),
-        Series::new("cfs_result_award_date", cfs_result_award_dates),
+        Series::new("project_lot_country_code", project_lot_country_codes),
         Series::new(
-            "cfs_result_tax_exclusive_amount",
-            cfs_result_tax_exclusive_amounts,
+            "project_lot_country_code_list_uri",
+            project_lot_country_code_list_uris,
+        ),
+        Series::new("result_code", result_codes),
+        Series::new("result_code_list_uri", result_code_list_uris),
+        Series::new("result_description", result_descriptions),
+        Series::new("result_winning_party", result_winning_parties),
+        Series::new(
+            "result_sme_awarded_indicator",
+            result_sme_awarded_indicators,
+        ),
+        Series::new("result_award_date", result_award_dates),
+        Series::new("result_tax_exclusive_amount", result_tax_exclusive_amounts),
+        Series::new(
+            "result_tax_exclusive_currency",
+            result_tax_exclusive_currencies,
+        ),
+        Series::new("result_payable_amount", result_payable_amounts),
+        Series::new("result_payable_currency", result_payable_currencies),
+        Series::new("terms_funding_program_code", terms_funding_program_codes),
+        Series::new(
+            "terms_funding_program_code_list_uri",
+            terms_funding_program_code_list_uris,
         ),
         Series::new(
-            "cfs_result_tax_exclusive_currency",
-            cfs_result_tax_exclusive_currencies,
-        ),
-        Series::new("cfs_result_payable_amount", cfs_result_payable_amounts),
-        Series::new("cfs_result_payable_currency", cfs_result_payable_currencies),
-        Series::new(
-            "cfs_terms_funding_program_code",
-            cfs_terms_funding_program_codes,
+            "terms_award_criteria_type_code",
+            terms_award_criteria_type_codes,
         ),
         Series::new(
-            "cfs_terms_award_criteria_type_code",
-            cfs_terms_award_criteria_type_codes,
+            "terms_award_criteria_type_code_list_uri",
+            terms_award_criteria_type_code_list_uris,
         ),
-        Series::new("cfs_process_end_date", cfs_process_end_dates),
-        Series::new("cfs_process_procedure_code", cfs_process_procedure_codes),
-        Series::new("cfs_process_urgency_code", cfs_process_urgency_codes),
+        Series::new("process_end_date", process_end_dates),
+        Series::new("process_procedure_code", process_procedure_codes),
+        Series::new(
+            "process_procedure_code_list_uri",
+            process_procedure_code_list_uris,
+        ),
+        Series::new("process_urgency_code", process_urgency_codes),
+        Series::new(
+            "process_urgency_code_list_uri",
+            process_urgency_code_list_uris,
+        ),
         Series::new("cfs_raw_xml", cfs_raw_xmls),
     ])
     .map_err(|e| AppError::ParseError(format!("Failed to create DataFrame: {e}")))
@@ -531,7 +595,7 @@ mod tests {
     fn entries_to_dataframe_empty_yields_zero_rows() {
         let df = entries_to_dataframe(vec![]).unwrap();
         assert_eq!(df.height(), 0);
-        assert_eq!(df.width(), 47);
+        assert_eq!(df.width(), 60);
     }
 
     #[test]
@@ -542,53 +606,66 @@ mod tests {
             link: Some("link".to_string()),
             summary: Some("summary".to_string()),
             updated: Some("2023-01-01".to_string()),
-            cfs_status_code: None,
-            cfs_id: None,
-            cfs_project_name: None,
-            cfs_project_type_code: None,
-            cfs_project_sub_type_code: None,
-            cfs_project_total_amount: None,
-            cfs_project_total_currency: None,
-            cfs_project_tax_exclusive_amount: None,
-            cfs_project_tax_exclusive_currency: None,
-            cfs_project_cpv_codes: None,
-            cfs_project_country_code: None,
-            cfs_project_lot_name: None,
-            cfs_project_lot_total_amount: None,
-            cfs_project_lot_total_currency: None,
-            cfs_project_lot_tax_exclusive_amount: None,
-            cfs_project_lot_tax_exclusive_currency: None,
-            cfs_project_lot_cpv_codes: None,
-            cfs_project_lot_country_code: None,
-            cfs_contracting_party_name: None,
-            cfs_contracting_party_website: None,
-            cfs_contracting_party_type_code: None,
-            cfs_contracting_party_id: None,
-            cfs_contracting_party_activity_code: None,
-            cfs_contracting_party_city: None,
-            cfs_contracting_party_zip_code: None,
-            cfs_contracting_party_country_code: None,
-            cfs_result_code: None,
-            cfs_result_description: None,
-            cfs_result_winning_party: None,
-            cfs_result_winning_party_id: None,
-            cfs_result_sme_awarded_indicator: None,
-            cfs_result_award_date: None,
-            cfs_result_tax_exclusive_amount: None,
-            cfs_result_tax_exclusive_currency: None,
-            cfs_result_payable_amount: None,
-            cfs_result_payable_currency: None,
-            cfs_terms_funding_program_code: None,
-            cfs_terms_award_criteria_type_code: None,
-            cfs_process_end_date: None,
-            cfs_process_procedure_code: None,
-            cfs_process_urgency_code: None,
+            status_code: None,
+            status_code_list_uri: None,
+            contract_id: None,
+            contracting_party_name: None,
+            contracting_party_website: None,
+            contracting_party_type_code: None,
+            contracting_party_type_code_list_uri: None,
+            contracting_party_activity_code: None,
+            contracting_party_activity_code_list_uri: None,
+            contracting_party_city: None,
+            contracting_party_zip: None,
+            contracting_party_country_code: None,
+            contracting_party_country_code_list_uri: None,
+            project_name: None,
+            project_type_code: None,
+            project_type_code_list_uri: None,
+            project_sub_type_code: None,
+            project_sub_type_code_list_uri: None,
+            project_total_amount: None,
+            project_total_currency: None,
+            project_tax_exclusive_amount: None,
+            project_tax_exclusive_currency: None,
+            project_cpv_code: None,
+            project_cpv_code_list_uri: None,
+            project_country_code: None,
+            project_country_code_list_uri: None,
+            project_lot_name: None,
+            project_lot_total_amount: None,
+            project_lot_total_currency: None,
+            project_lot_tax_exclusive_amount: None,
+            project_lot_tax_exclusive_currency: None,
+            project_lot_cpv_code: None,
+            project_lot_cpv_code_list_uri: None,
+            project_lot_country_code: None,
+            project_lot_country_code_list_uri: None,
+            result_code: None,
+            result_code_list_uri: None,
+            result_description: None,
+            result_winning_party: None,
+            result_sme_awarded_indicator: None,
+            result_award_date: None,
+            result_tax_exclusive_amount: None,
+            result_tax_exclusive_currency: None,
+            result_payable_amount: None,
+            result_payable_currency: None,
+            terms_funding_program_code: None,
+            terms_funding_program_code_list_uri: None,
+            terms_award_criteria_type_code: None,
+            terms_award_criteria_type_code_list_uri: None,
+            process_end_date: None,
+            process_procedure_code: None,
+            process_procedure_code_list_uri: None,
+            process_urgency_code: None,
+            process_urgency_code_list_uri: None,
             cfs_raw_xml: Some("<xml/>".to_string()),
         };
 
         let df = entries_to_dataframe(vec![entry]).unwrap();
         assert_eq!(df.height(), 1);
-        assert_eq!(df.width(), 47);
+        assert_eq!(df.width(), 60);
         let value = df.column("id").unwrap().get(0).unwrap();
         assert_eq!(value, AnyValue::String("id"));
     }

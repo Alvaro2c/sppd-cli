@@ -24,47 +24,60 @@ struct EntryBuilder {
     link: Option<String>,
     summary: Option<String>,
     updated: Option<String>,
-    cfs_status_code: Option<String>,
-    cfs_id: Option<String>,
-    cfs_project_name: Option<String>,
-    cfs_project_type_code: Option<String>,
-    cfs_project_sub_type_code: Option<String>,
-    cfs_project_total_amount: Option<String>,
-    cfs_project_total_currency: Option<String>,
-    cfs_project_tax_exclusive_amount: Option<String>,
-    cfs_project_tax_exclusive_currency: Option<String>,
-    cfs_project_cpv_codes: Option<String>,
-    cfs_project_country_code: Option<String>,
-    cfs_project_lot_name: Option<String>,
-    cfs_project_lot_total_amount: Option<String>,
-    cfs_project_lot_total_currency: Option<String>,
-    cfs_project_lot_tax_exclusive_amount: Option<String>,
-    cfs_project_lot_tax_exclusive_currency: Option<String>,
-    cfs_project_lot_cpv_codes: Option<String>,
-    cfs_project_lot_country_code: Option<String>,
-    cfs_contracting_party_name: Option<String>,
-    cfs_contracting_party_website: Option<String>,
-    cfs_contracting_party_type_code: Option<String>,
-    cfs_contracting_party_id: Option<String>,
-    cfs_contracting_party_activity_code: Option<String>,
-    cfs_contracting_party_city: Option<String>,
-    cfs_contracting_party_zip_code: Option<String>,
-    cfs_contracting_party_country_code: Option<String>,
-    cfs_result_code: Option<String>,
-    cfs_result_description: Option<String>,
-    cfs_result_winning_party: Option<String>,
-    cfs_result_winning_party_id: Option<String>,
-    cfs_result_sme_awarded_indicator: Option<String>,
-    cfs_result_award_date: Option<String>,
-    cfs_result_tax_exclusive_amount: Option<String>,
-    cfs_result_tax_exclusive_currency: Option<String>,
-    cfs_result_payable_amount: Option<String>,
-    cfs_result_payable_currency: Option<String>,
-    cfs_terms_funding_program_code: Option<String>,
-    cfs_terms_award_criteria_type_code: Option<String>,
-    cfs_process_end_date: Option<String>,
-    cfs_process_procedure_code: Option<String>,
-    cfs_process_urgency_code: Option<String>,
+    status_code: Option<String>,
+    status_code_list_uri: Option<String>,
+    contract_id: Option<String>,
+    contracting_party_name: Option<String>,
+    contracting_party_website: Option<String>,
+    contracting_party_type_code: Option<String>,
+    contracting_party_type_code_list_uri: Option<String>,
+    contracting_party_activity_code: Option<String>,
+    contracting_party_activity_code_list_uri: Option<String>,
+    contracting_party_city: Option<String>,
+    contracting_party_zip: Option<String>,
+    contracting_party_country_code: Option<String>,
+    contracting_party_country_code_list_uri: Option<String>,
+    project_name: Option<String>,
+    project_type_code: Option<String>,
+    project_type_code_list_uri: Option<String>,
+    project_sub_type_code: Option<String>,
+    project_sub_type_code_list_uri: Option<String>,
+    project_total_amount: Option<String>,
+    project_total_currency: Option<String>,
+    project_tax_exclusive_amount: Option<String>,
+    project_tax_exclusive_currency: Option<String>,
+    project_cpv_code: Option<String>,
+    project_cpv_code_list_uri: Option<String>,
+    project_country_code: Option<String>,
+    project_country_code_list_uri: Option<String>,
+    project_lot_name: Option<String>,
+    project_lot_total_amount: Option<String>,
+    project_lot_total_currency: Option<String>,
+    project_lot_tax_exclusive_amount: Option<String>,
+    project_lot_tax_exclusive_currency: Option<String>,
+    project_lot_cpv_code: Option<String>,
+    project_lot_cpv_code_list_uri: Option<String>,
+    project_lot_country_code: Option<String>,
+    project_lot_country_code_list_uri: Option<String>,
+    result_code: Option<String>,
+    result_code_list_uri: Option<String>,
+    result_description: Option<String>,
+    result_winning_party: Option<String>,
+    result_sme_awarded_indicator: Option<String>,
+    result_award_date: Option<String>,
+    result_tax_exclusive_amount: Option<String>,
+    result_tax_exclusive_currency: Option<String>,
+    result_payable_amount: Option<String>,
+    result_payable_currency: Option<String>,
+    terms_funding_program_code: Option<String>,
+    terms_funding_program_code_list_uri: Option<String>,
+    terms_award_criteria_type_code: Option<String>,
+    terms_award_criteria_type_code_list_uri: Option<String>,
+    process_end_date: Option<String>,
+    process_procedure_code: Option<String>,
+    process_procedure_code_list_uri: Option<String>,
+    process_urgency_code: Option<String>,
+    process_urgency_code_list_uri: Option<String>,
     cfs_raw_xml: Option<String>,
     current_field: Option<EntryField>,
     contract_folder_status_handler: ContractFolderStatusHandler,
@@ -78,47 +91,60 @@ impl EntryBuilder {
             link: None,
             summary: None,
             updated: None,
-            cfs_status_code: None,
-            cfs_id: None,
-            cfs_project_name: None,
-            cfs_project_type_code: None,
-            cfs_project_sub_type_code: None,
-            cfs_project_total_amount: None,
-            cfs_project_total_currency: None,
-            cfs_project_tax_exclusive_amount: None,
-            cfs_project_tax_exclusive_currency: None,
-            cfs_project_cpv_codes: None,
-            cfs_project_country_code: None,
-            cfs_project_lot_name: None,
-            cfs_project_lot_total_amount: None,
-            cfs_project_lot_total_currency: None,
-            cfs_project_lot_tax_exclusive_amount: None,
-            cfs_project_lot_tax_exclusive_currency: None,
-            cfs_project_lot_cpv_codes: None,
-            cfs_project_lot_country_code: None,
-            cfs_contracting_party_name: None,
-            cfs_contracting_party_website: None,
-            cfs_contracting_party_type_code: None,
-            cfs_contracting_party_id: None,
-            cfs_contracting_party_activity_code: None,
-            cfs_contracting_party_city: None,
-            cfs_contracting_party_zip_code: None,
-            cfs_contracting_party_country_code: None,
-            cfs_result_code: None,
-            cfs_result_description: None,
-            cfs_result_winning_party: None,
-            cfs_result_winning_party_id: None,
-            cfs_result_sme_awarded_indicator: None,
-            cfs_result_award_date: None,
-            cfs_result_tax_exclusive_amount: None,
-            cfs_result_tax_exclusive_currency: None,
-            cfs_result_payable_amount: None,
-            cfs_result_payable_currency: None,
-            cfs_terms_funding_program_code: None,
-            cfs_terms_award_criteria_type_code: None,
-            cfs_process_end_date: None,
-            cfs_process_procedure_code: None,
-            cfs_process_urgency_code: None,
+            status_code: None,
+            status_code_list_uri: None,
+            contract_id: None,
+            contracting_party_name: None,
+            contracting_party_website: None,
+            contracting_party_type_code: None,
+            contracting_party_type_code_list_uri: None,
+            contracting_party_activity_code: None,
+            contracting_party_activity_code_list_uri: None,
+            contracting_party_city: None,
+            contracting_party_zip: None,
+            contracting_party_country_code: None,
+            contracting_party_country_code_list_uri: None,
+            project_name: None,
+            project_type_code: None,
+            project_type_code_list_uri: None,
+            project_sub_type_code: None,
+            project_sub_type_code_list_uri: None,
+            project_total_amount: None,
+            project_total_currency: None,
+            project_tax_exclusive_amount: None,
+            project_tax_exclusive_currency: None,
+            project_cpv_code: None,
+            project_cpv_code_list_uri: None,
+            project_country_code: None,
+            project_country_code_list_uri: None,
+            project_lot_name: None,
+            project_lot_total_amount: None,
+            project_lot_total_currency: None,
+            project_lot_tax_exclusive_amount: None,
+            project_lot_tax_exclusive_currency: None,
+            project_lot_cpv_code: None,
+            project_lot_cpv_code_list_uri: None,
+            project_lot_country_code: None,
+            project_lot_country_code_list_uri: None,
+            result_code: None,
+            result_code_list_uri: None,
+            result_description: None,
+            result_winning_party: None,
+            result_sme_awarded_indicator: None,
+            result_award_date: None,
+            result_tax_exclusive_amount: None,
+            result_tax_exclusive_currency: None,
+            result_payable_amount: None,
+            result_payable_currency: None,
+            terms_funding_program_code: None,
+            terms_funding_program_code_list_uri: None,
+            terms_award_criteria_type_code: None,
+            terms_award_criteria_type_code_list_uri: None,
+            process_end_date: None,
+            process_procedure_code: None,
+            process_procedure_code_list_uri: None,
+            process_urgency_code: None,
+            process_urgency_code_list_uri: None,
             cfs_raw_xml: None,
             current_field: None,
             contract_folder_status_handler: ContractFolderStatusHandler::new(),
@@ -131,47 +157,60 @@ impl EntryBuilder {
         self.link = None;
         self.summary = None;
         self.updated = None;
-        self.cfs_status_code = None;
-        self.cfs_id = None;
-        self.cfs_project_name = None;
-        self.cfs_project_type_code = None;
-        self.cfs_project_sub_type_code = None;
-        self.cfs_project_total_amount = None;
-        self.cfs_project_total_currency = None;
-        self.cfs_project_tax_exclusive_amount = None;
-        self.cfs_project_tax_exclusive_currency = None;
-        self.cfs_project_cpv_codes = None;
-        self.cfs_project_country_code = None;
-        self.cfs_project_lot_name = None;
-        self.cfs_project_lot_total_amount = None;
-        self.cfs_project_lot_total_currency = None;
-        self.cfs_project_lot_tax_exclusive_amount = None;
-        self.cfs_project_lot_tax_exclusive_currency = None;
-        self.cfs_project_lot_cpv_codes = None;
-        self.cfs_project_lot_country_code = None;
-        self.cfs_contracting_party_name = None;
-        self.cfs_contracting_party_website = None;
-        self.cfs_contracting_party_type_code = None;
-        self.cfs_contracting_party_id = None;
-        self.cfs_contracting_party_activity_code = None;
-        self.cfs_contracting_party_city = None;
-        self.cfs_contracting_party_zip_code = None;
-        self.cfs_contracting_party_country_code = None;
-        self.cfs_result_code = None;
-        self.cfs_result_description = None;
-        self.cfs_result_winning_party = None;
-        self.cfs_result_winning_party_id = None;
-        self.cfs_result_sme_awarded_indicator = None;
-        self.cfs_result_award_date = None;
-        self.cfs_result_tax_exclusive_amount = None;
-        self.cfs_result_tax_exclusive_currency = None;
-        self.cfs_result_payable_amount = None;
-        self.cfs_result_payable_currency = None;
-        self.cfs_terms_funding_program_code = None;
-        self.cfs_terms_award_criteria_type_code = None;
-        self.cfs_process_end_date = None;
-        self.cfs_process_procedure_code = None;
-        self.cfs_process_urgency_code = None;
+        self.status_code = None;
+        self.status_code_list_uri = None;
+        self.contract_id = None;
+        self.contracting_party_name = None;
+        self.contracting_party_website = None;
+        self.contracting_party_type_code = None;
+        self.contracting_party_type_code_list_uri = None;
+        self.contracting_party_activity_code = None;
+        self.contracting_party_activity_code_list_uri = None;
+        self.contracting_party_city = None;
+        self.contracting_party_zip = None;
+        self.contracting_party_country_code = None;
+        self.contracting_party_country_code_list_uri = None;
+        self.project_name = None;
+        self.project_type_code = None;
+        self.project_type_code_list_uri = None;
+        self.project_sub_type_code = None;
+        self.project_sub_type_code_list_uri = None;
+        self.project_total_amount = None;
+        self.project_total_currency = None;
+        self.project_tax_exclusive_amount = None;
+        self.project_tax_exclusive_currency = None;
+        self.project_cpv_code = None;
+        self.project_cpv_code_list_uri = None;
+        self.project_country_code = None;
+        self.project_country_code_list_uri = None;
+        self.project_lot_name = None;
+        self.project_lot_total_amount = None;
+        self.project_lot_total_currency = None;
+        self.project_lot_tax_exclusive_amount = None;
+        self.project_lot_tax_exclusive_currency = None;
+        self.project_lot_cpv_code = None;
+        self.project_lot_cpv_code_list_uri = None;
+        self.project_lot_country_code = None;
+        self.project_lot_country_code_list_uri = None;
+        self.result_code = None;
+        self.result_code_list_uri = None;
+        self.result_description = None;
+        self.result_winning_party = None;
+        self.result_sme_awarded_indicator = None;
+        self.result_award_date = None;
+        self.result_tax_exclusive_amount = None;
+        self.result_tax_exclusive_currency = None;
+        self.result_payable_amount = None;
+        self.result_payable_currency = None;
+        self.terms_funding_program_code = None;
+        self.terms_funding_program_code_list_uri = None;
+        self.terms_award_criteria_type_code = None;
+        self.terms_award_criteria_type_code_list_uri = None;
+        self.process_end_date = None;
+        self.process_procedure_code = None;
+        self.process_procedure_code_list_uri = None;
+        self.process_urgency_code = None;
+        self.process_urgency_code_list_uri = None;
         self.cfs_raw_xml = None;
         self.current_field = None;
         self.contract_folder_status_handler.reset();
@@ -221,47 +260,63 @@ impl EntryBuilder {
 
     fn handle_contract_folder_status_end(&mut self, event: Event) -> AppResult<()> {
         if let Some(p) = self.contract_folder_status_handler.handle_end(event)? {
-            self.cfs_status_code = p.cfs_status_code;
-            self.cfs_id = p.cfs_id;
-            self.cfs_project_name = p.cfs_project_name;
-            self.cfs_project_type_code = p.cfs_project_type_code;
-            self.cfs_project_sub_type_code = p.cfs_project_sub_type_code;
-            self.cfs_project_total_amount = p.cfs_project_total_amount;
-            self.cfs_project_total_currency = p.cfs_project_total_currency;
-            self.cfs_project_tax_exclusive_amount = p.cfs_project_tax_exclusive_amount;
-            self.cfs_project_tax_exclusive_currency = p.cfs_project_tax_exclusive_currency;
-            self.cfs_project_cpv_codes = p.cfs_project_cpv_codes;
-            self.cfs_project_country_code = p.cfs_project_country_code;
-            self.cfs_project_lot_name = p.cfs_project_lot_name;
-            self.cfs_project_lot_total_amount = p.cfs_project_lot_total_amount;
-            self.cfs_project_lot_total_currency = p.cfs_project_lot_total_currency;
-            self.cfs_project_lot_tax_exclusive_amount = p.cfs_project_lot_tax_exclusive_amount;
-            self.cfs_project_lot_tax_exclusive_currency = p.cfs_project_lot_tax_exclusive_currency;
-            self.cfs_project_lot_cpv_codes = p.cfs_project_lot_cpv_codes;
-            self.cfs_project_lot_country_code = p.cfs_project_lot_country_code;
-            self.cfs_contracting_party_name = p.cfs_contracting_party_name;
-            self.cfs_contracting_party_website = p.cfs_contracting_party_website;
-            self.cfs_contracting_party_type_code = p.cfs_contracting_party_type_code;
-            self.cfs_contracting_party_id = p.cfs_contracting_party_id;
-            self.cfs_contracting_party_activity_code = p.cfs_contracting_party_activity_code;
-            self.cfs_contracting_party_city = p.cfs_contracting_party_city;
-            self.cfs_contracting_party_zip_code = p.cfs_contracting_party_zip_code;
-            self.cfs_contracting_party_country_code = p.cfs_contracting_party_country_code;
-            self.cfs_result_code = p.cfs_result_code;
-            self.cfs_result_description = p.cfs_result_description;
-            self.cfs_result_winning_party = p.cfs_result_winning_party;
-            self.cfs_result_winning_party_id = p.cfs_result_winning_party_id;
-            self.cfs_result_sme_awarded_indicator = p.cfs_result_sme_awarded_indicator;
-            self.cfs_result_award_date = p.cfs_result_award_date;
-            self.cfs_result_tax_exclusive_amount = p.cfs_result_tax_exclusive_amount;
-            self.cfs_result_tax_exclusive_currency = p.cfs_result_tax_exclusive_currency;
-            self.cfs_result_payable_amount = p.cfs_result_payable_amount;
-            self.cfs_result_payable_currency = p.cfs_result_payable_currency;
-            self.cfs_terms_funding_program_code = p.cfs_terms_funding_program_code;
-            self.cfs_terms_award_criteria_type_code = p.cfs_terms_award_criteria_type_code;
-            self.cfs_process_end_date = p.cfs_process_end_date;
-            self.cfs_process_procedure_code = p.cfs_process_procedure_code;
-            self.cfs_process_urgency_code = p.cfs_process_urgency_code;
+            self.status_code = p.status_code;
+            self.status_code_list_uri = p.status_code_list_uri;
+            self.contract_id = p.contract_id;
+            self.contracting_party_name = p.contracting_party_name;
+            self.contracting_party_website = p.contracting_party_website;
+            self.contracting_party_type_code = p.contracting_party_type_code;
+            self.contracting_party_type_code_list_uri = p.contracting_party_type_code_list_uri;
+            self.contracting_party_activity_code = p.contracting_party_activity_code;
+            self.contracting_party_activity_code_list_uri =
+                p.contracting_party_activity_code_list_uri;
+            self.contracting_party_city = p.contracting_party_city;
+            self.contracting_party_zip = p.contracting_party_zip;
+            self.contracting_party_country_code = p.contracting_party_country_code;
+            self.contracting_party_country_code_list_uri =
+                p.contracting_party_country_code_list_uri;
+            self.project_name = p.project_name;
+            self.project_type_code = p.project_type_code;
+            self.project_type_code_list_uri = p.project_type_code_list_uri;
+            self.project_sub_type_code = p.project_sub_type_code;
+            self.project_sub_type_code_list_uri = p.project_sub_type_code_list_uri;
+            self.project_total_amount = p.project_total_amount;
+            self.project_total_currency = p.project_total_currency;
+            self.project_tax_exclusive_amount = p.project_tax_exclusive_amount;
+            self.project_tax_exclusive_currency = p.project_tax_exclusive_currency;
+            self.project_cpv_code = p.project_cpv_code;
+            self.project_cpv_code_list_uri = p.project_cpv_code_list_uri;
+            self.project_country_code = p.project_country_code;
+            self.project_country_code_list_uri = p.project_country_code_list_uri;
+            self.project_lot_name = p.project_lot_name;
+            self.project_lot_total_amount = p.project_lot_total_amount;
+            self.project_lot_total_currency = p.project_lot_total_currency;
+            self.project_lot_tax_exclusive_amount = p.project_lot_tax_exclusive_amount;
+            self.project_lot_tax_exclusive_currency = p.project_lot_tax_exclusive_currency;
+            self.project_lot_cpv_code = p.project_lot_cpv_code;
+            self.project_lot_cpv_code_list_uri = p.project_lot_cpv_code_list_uri;
+            self.project_lot_country_code = p.project_lot_country_code;
+            self.project_lot_country_code_list_uri = p.project_lot_country_code_list_uri;
+            self.result_code = p.result_code;
+            self.result_code_list_uri = p.result_code_list_uri;
+            self.result_description = p.result_description;
+            self.result_winning_party = p.result_winning_party;
+            self.result_sme_awarded_indicator = p.result_sme_awarded_indicator;
+            self.result_award_date = p.result_award_date;
+            self.result_tax_exclusive_amount = p.result_tax_exclusive_amount;
+            self.result_tax_exclusive_currency = p.result_tax_exclusive_currency;
+            self.result_payable_amount = p.result_payable_amount;
+            self.result_payable_currency = p.result_payable_currency;
+            self.terms_funding_program_code = p.terms_funding_program_code;
+            self.terms_funding_program_code_list_uri = p.terms_funding_program_code_list_uri;
+            self.terms_award_criteria_type_code = p.terms_award_criteria_type_code;
+            self.terms_award_criteria_type_code_list_uri =
+                p.terms_award_criteria_type_code_list_uri;
+            self.process_end_date = p.process_end_date;
+            self.process_procedure_code = p.process_procedure_code;
+            self.process_procedure_code_list_uri = p.process_procedure_code_list_uri;
+            self.process_urgency_code = p.process_urgency_code;
+            self.process_urgency_code_list_uri = p.process_urgency_code_list_uri;
             self.cfs_raw_xml = Some(p.cfs_raw_xml);
         }
         Ok(())
@@ -275,53 +330,70 @@ impl EntryBuilder {
                 link: self.link.take(),
                 summary: self.summary.take(),
                 updated: self.updated.take(),
-                cfs_status_code: self.cfs_status_code.take(),
-                cfs_id: self.cfs_id.take(),
-                cfs_project_name: self.cfs_project_name.take(),
-                cfs_project_type_code: self.cfs_project_type_code.take(),
-                cfs_project_sub_type_code: self.cfs_project_sub_type_code.take(),
-                cfs_project_total_amount: self.cfs_project_total_amount.take(),
-                cfs_project_total_currency: self.cfs_project_total_currency.take(),
-                cfs_project_tax_exclusive_amount: self.cfs_project_tax_exclusive_amount.take(),
-                cfs_project_tax_exclusive_currency: self.cfs_project_tax_exclusive_currency.take(),
-                cfs_project_cpv_codes: self.cfs_project_cpv_codes.take(),
-                cfs_project_country_code: self.cfs_project_country_code.take(),
-                cfs_project_lot_name: self.cfs_project_lot_name.take(),
-                cfs_project_lot_total_amount: self.cfs_project_lot_total_amount.take(),
-                cfs_project_lot_total_currency: self.cfs_project_lot_total_currency.take(),
-                cfs_project_lot_tax_exclusive_amount: self
-                    .cfs_project_lot_tax_exclusive_amount
+                status_code: self.status_code.take(),
+                status_code_list_uri: self.status_code_list_uri.take(),
+                contract_id: self.contract_id.take(),
+                contracting_party_name: self.contracting_party_name.take(),
+                contracting_party_website: self.contracting_party_website.take(),
+                contracting_party_type_code: self.contracting_party_type_code.take(),
+                contracting_party_type_code_list_uri: self
+                    .contracting_party_type_code_list_uri
                     .take(),
-                cfs_project_lot_tax_exclusive_currency: self
-                    .cfs_project_lot_tax_exclusive_currency
+                contracting_party_activity_code: self.contracting_party_activity_code.take(),
+                contracting_party_activity_code_list_uri: self
+                    .contracting_party_activity_code_list_uri
                     .take(),
-                cfs_project_lot_cpv_codes: self.cfs_project_lot_cpv_codes.take(),
-                cfs_project_lot_country_code: self.cfs_project_lot_country_code.take(),
-                cfs_contracting_party_name: self.cfs_contracting_party_name.take(),
-                cfs_contracting_party_website: self.cfs_contracting_party_website.take(),
-                cfs_contracting_party_type_code: self.cfs_contracting_party_type_code.take(),
-                cfs_contracting_party_id: self.cfs_contracting_party_id.take(),
-                cfs_contracting_party_activity_code: self
-                    .cfs_contracting_party_activity_code
+                contracting_party_city: self.contracting_party_city.take(),
+                contracting_party_zip: self.contracting_party_zip.take(),
+                contracting_party_country_code: self.contracting_party_country_code.take(),
+                contracting_party_country_code_list_uri: self
+                    .contracting_party_country_code_list_uri
                     .take(),
-                cfs_contracting_party_city: self.cfs_contracting_party_city.take(),
-                cfs_contracting_party_zip_code: self.cfs_contracting_party_zip_code.take(),
-                cfs_contracting_party_country_code: self.cfs_contracting_party_country_code.take(),
-                cfs_result_code: self.cfs_result_code.take(),
-                cfs_result_description: self.cfs_result_description.take(),
-                cfs_result_winning_party: self.cfs_result_winning_party.take(),
-                cfs_result_winning_party_id: self.cfs_result_winning_party_id.take(),
-                cfs_result_sme_awarded_indicator: self.cfs_result_sme_awarded_indicator.take(),
-                cfs_result_award_date: self.cfs_result_award_date.take(),
-                cfs_result_tax_exclusive_amount: self.cfs_result_tax_exclusive_amount.take(),
-                cfs_result_tax_exclusive_currency: self.cfs_result_tax_exclusive_currency.take(),
-                cfs_result_payable_amount: self.cfs_result_payable_amount.take(),
-                cfs_result_payable_currency: self.cfs_result_payable_currency.take(),
-                cfs_terms_funding_program_code: self.cfs_terms_funding_program_code.take(),
-                cfs_terms_award_criteria_type_code: self.cfs_terms_award_criteria_type_code.take(),
-                cfs_process_end_date: self.cfs_process_end_date.take(),
-                cfs_process_procedure_code: self.cfs_process_procedure_code.take(),
-                cfs_process_urgency_code: self.cfs_process_urgency_code.take(),
+                project_name: self.project_name.take(),
+                project_type_code: self.project_type_code.take(),
+                project_type_code_list_uri: self.project_type_code_list_uri.take(),
+                project_sub_type_code: self.project_sub_type_code.take(),
+                project_sub_type_code_list_uri: self.project_sub_type_code_list_uri.take(),
+                project_total_amount: self.project_total_amount.take(),
+                project_total_currency: self.project_total_currency.take(),
+                project_tax_exclusive_amount: self.project_tax_exclusive_amount.take(),
+                project_tax_exclusive_currency: self.project_tax_exclusive_currency.take(),
+                project_cpv_code: self.project_cpv_code.take(),
+                project_cpv_code_list_uri: self.project_cpv_code_list_uri.take(),
+                project_country_code: self.project_country_code.take(),
+                project_country_code_list_uri: self.project_country_code_list_uri.take(),
+                project_lot_name: self.project_lot_name.take(),
+                project_lot_total_amount: self.project_lot_total_amount.take(),
+                project_lot_total_currency: self.project_lot_total_currency.take(),
+                project_lot_tax_exclusive_amount: self.project_lot_tax_exclusive_amount.take(),
+                project_lot_tax_exclusive_currency: self.project_lot_tax_exclusive_currency.take(),
+                project_lot_cpv_code: self.project_lot_cpv_code.take(),
+                project_lot_cpv_code_list_uri: self.project_lot_cpv_code_list_uri.take(),
+                project_lot_country_code: self.project_lot_country_code.take(),
+                project_lot_country_code_list_uri: self.project_lot_country_code_list_uri.take(),
+                result_code: self.result_code.take(),
+                result_code_list_uri: self.result_code_list_uri.take(),
+                result_description: self.result_description.take(),
+                result_winning_party: self.result_winning_party.take(),
+                result_sme_awarded_indicator: self.result_sme_awarded_indicator.take(),
+                result_award_date: self.result_award_date.take(),
+                result_tax_exclusive_amount: self.result_tax_exclusive_amount.take(),
+                result_tax_exclusive_currency: self.result_tax_exclusive_currency.take(),
+                result_payable_amount: self.result_payable_amount.take(),
+                result_payable_currency: self.result_payable_currency.take(),
+                terms_funding_program_code: self.terms_funding_program_code.take(),
+                terms_funding_program_code_list_uri: self
+                    .terms_funding_program_code_list_uri
+                    .take(),
+                terms_award_criteria_type_code: self.terms_award_criteria_type_code.take(),
+                terms_award_criteria_type_code_list_uri: self
+                    .terms_award_criteria_type_code_list_uri
+                    .take(),
+                process_end_date: self.process_end_date.take(),
+                process_procedure_code: self.process_procedure_code.take(),
+                process_procedure_code_list_uri: self.process_procedure_code_list_uri.take(),
+                process_urgency_code: self.process_urgency_code.take(),
+                process_urgency_code_list_uri: self.process_urgency_code_list_uri.take(),
                 cfs_raw_xml: self.cfs_raw_xml.take(),
             })
         } else {
