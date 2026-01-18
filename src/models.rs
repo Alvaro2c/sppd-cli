@@ -18,87 +18,113 @@ pub struct Entry {
     /// Last updated timestamp
     pub updated: Option<String>,
     /// `<cbc-place-ext:ContractFolderStatusCode>`
-    pub cfs_status_code: Option<String>,
+    pub status_code: Option<String>,
+    /// listURI attribute for status_code
+    pub status_code_list_uri: Option<String>,
     /// `<cbc:ContractFolderID>`
-    pub cfs_id: Option<String>,
-    /// First `<cbc:Name>` inside `<cac:ProcurementProject>`
-    pub cfs_project_name: Option<String>,
-    /// `<cac:ProcurementProject>/<cbc:TypeCode>`
-    pub cfs_project_type_code: Option<String>,
-    /// `<cac:ProcurementProject>/<cbc:SubTypeCode>`
-    pub cfs_project_sub_type_code: Option<String>,
-    /// `<cac:ProcurementProject>/<cac:BudgetAmount>/<cbc:TotalAmount>`
-    pub cfs_project_total_amount: Option<String>,
-    /// Currency of `cfs_project_total_amount`
-    pub cfs_project_total_currency: Option<String>,
-    /// `<cac:ProcurementProject>/<cac:BudgetAmount>/<cbc:TaxExclusiveAmount>`
-    pub cfs_project_tax_exclusive_amount: Option<String>,
-    /// Currency of `cfs_project_tax_exclusive_amount`
-    pub cfs_project_tax_exclusive_currency: Option<String>,
-    /// Concatenated `<cbc:ItemClassificationCode>` values
-    pub cfs_project_cpv_codes: Option<String>,
-    /// `<cac:RealizedLocation>/<c:Country>/<cbc:IdentificationCode>`
-    pub cfs_project_country_code: Option<String>,
-    /// First `<cbc:Name>` inside `<cac:ProcurementProjectLot>`
-    pub cfs_project_lot_name: Option<String>,
-    /// `<cac:ProcurementProjectLot>/<cac:BudgetAmount>/<cbc:TotalAmount>`
-    pub cfs_project_lot_total_amount: Option<String>,
-    /// Currency of `cfs_project_lot_total_amount`
-    pub cfs_project_lot_total_currency: Option<String>,
-    /// `<cac:ProcurementProjectLot>/<cac:BudgetAmount>/<cbc:TaxExclusiveAmount>`
-    pub cfs_project_lot_tax_exclusive_amount: Option<String>,
-    /// Currency of `cfs_project_lot_tax_exclusive_amount`
-    pub cfs_project_lot_tax_exclusive_currency: Option<String>,
-    /// Concatenated `<cbc:ItemClassificationCode>` values from ProcurementProjectLot
-    pub cfs_project_lot_cpv_codes: Option<String>,
-    /// `<cac:ProcurementProjectLot>/<cac:RealizedLocation>/.../cbc:IdentificationCode>`
-    pub cfs_project_lot_country_code: Option<String>,
+    pub contract_id: Option<String>,
     /// `<cac:LocatedContractingParty>/<cac:Party>/<cac:PartyName>/<cbc:Name>`
-    pub cfs_contracting_party_name: Option<String>,
+    pub contracting_party_name: Option<String>,
     /// `<cac:LocatedContractingParty>/<cac:Party>/<cbc:WebsiteURI>`
-    pub cfs_contracting_party_website: Option<String>,
+    pub contracting_party_website: Option<String>,
     /// `<cac:LocatedContractingParty>/<cbc:ContractingPartyTypeCode>`
-    pub cfs_contracting_party_type_code: Option<String>,
-    /// `<cac:LocatedContractingParty>/<cac:Party>/<cac:PartyIdentification>/<cbc:ID>`
-    pub cfs_contracting_party_id: Option<String>,
+    pub contracting_party_type_code: Option<String>,
+    /// listURI attribute for contracting_party_type_code
+    pub contracting_party_type_code_list_uri: Option<String>,
     /// `<cac:LocatedContractingParty>/<cbc:ActivityCode>`
-    pub cfs_contracting_party_activity_code: Option<String>,
+    pub contracting_party_activity_code: Option<String>,
+    /// listURI attribute for contracting_party_activity_code
+    pub contracting_party_activity_code_list_uri: Option<String>,
     /// `<cac:LocatedContractingParty>/<cac:Party>/<cac:PostalAddress>/<cbc:CityName>`
-    pub cfs_contracting_party_city: Option<String>,
+    pub contracting_party_city: Option<String>,
     /// `<cac:LocatedContractingParty>/<cac:Party>/<cac:PostalAddress>/<cbc:PostalZone>`
-    pub cfs_contracting_party_zip_code: Option<String>,
+    pub contracting_party_zip: Option<String>,
     /// `<cac:LocatedContractingParty>/<cac:Party>/<cac:PostalAddress>/<cac:Country>/<cbc:IdentificationCode>`
-    pub cfs_contracting_party_country_code: Option<String>,
+    pub contracting_party_country_code: Option<String>,
+    /// listURI attribute for contracting_party_country_code
+    pub contracting_party_country_code_list_uri: Option<String>,
+    /// First `<cbc:Name>` inside `<cac:ProcurementProject>`
+    pub project_name: Option<String>,
+    /// `<cac:ProcurementProject>/<cbc:TypeCode>`
+    pub project_type_code: Option<String>,
+    /// listURI attribute for project_type_code
+    pub project_type_code_list_uri: Option<String>,
+    /// `<cac:ProcurementProject>/<cbc:SubTypeCode>`
+    pub project_sub_type_code: Option<String>,
+    /// listURI attribute for project_sub_type_code
+    pub project_sub_type_code_list_uri: Option<String>,
+    /// `<cac:ProcurementProject>/<cac:BudgetAmount>/<cbc:TotalAmount>`
+    pub project_total_amount: Option<String>,
+    /// Currency of `project_total_amount`
+    pub project_total_currency: Option<String>,
+    /// `<cac:ProcurementProject>/<cac:BudgetAmount>/<cbc:TaxExclusiveAmount>`
+    pub project_tax_exclusive_amount: Option<String>,
+    /// Currency of `project_tax_exclusive_amount`
+    pub project_tax_exclusive_currency: Option<String>,
+    /// Concatenated `<cbc:ItemClassificationCode>` values
+    pub project_cpv_code: Option<String>,
+    /// listURI attribute for project_cpv_code
+    pub project_cpv_code_list_uri: Option<String>,
+    /// `<cac:RealizedLocation>/<c:Country>/<cbc:IdentificationCode>`
+    pub project_country_code: Option<String>,
+    /// listURI attribute for project_country_code
+    pub project_country_code_list_uri: Option<String>,
+    /// First `<cbc:Name>` inside `<cac:ProcurementProjectLot>`
+    pub project_lot_name: Option<String>,
+    /// `<cac:ProcurementProjectLot>/<cac:BudgetAmount>/<cbc:TotalAmount>`
+    pub project_lot_total_amount: Option<String>,
+    /// Currency of `project_lot_total_amount`
+    pub project_lot_total_currency: Option<String>,
+    /// `<cac:ProcurementProjectLot>/<cac:BudgetAmount>/<cbc:TaxExclusiveAmount>`
+    pub project_lot_tax_exclusive_amount: Option<String>,
+    /// Currency of `project_lot_tax_exclusive_amount`
+    pub project_lot_tax_exclusive_currency: Option<String>,
+    /// Concatenated `<cbc:ItemClassificationCode>` values from ProcurementProjectLot
+    pub project_lot_cpv_code: Option<String>,
+    /// listURI attribute for project_lot_cpv_code
+    pub project_lot_cpv_code_list_uri: Option<String>,
+    /// `<cac:ProcurementProjectLot>/<cac:RealizedLocation>/.../cbc:IdentificationCode>`
+    pub project_lot_country_code: Option<String>,
+    /// listURI attribute for project_lot_country_code
+    pub project_lot_country_code_list_uri: Option<String>,
     /// `<cac:TenderResult>/<cbc:ResultCode>`
-    pub cfs_result_code: Option<String>,
+    pub result_code: Option<String>,
+    /// listURI attribute for result_code
+    pub result_code_list_uri: Option<String>,
     /// `<cac:TenderResult>/<cbc:Description>`
-    pub cfs_result_description: Option<String>,
+    pub result_description: Option<String>,
     /// `<cac:TenderResult>/<cac:WinningParty>/<cac:PartyName>/<cbc:Name>`
-    pub cfs_result_winning_party: Option<String>,
-    /// `<cac:TenderResult>/<cac:WinningParty>/<cac:PartyIdentification>/<cbc:ID>`
-    pub cfs_result_winning_party_id: Option<String>,
+    pub result_winning_party: Option<String>,
     /// `<cac:TenderResult>/<cbc:SMEAwardedIndicator>`
-    pub cfs_result_sme_awarded_indicator: Option<String>,
+    pub result_sme_awarded_indicator: Option<String>,
     /// `<cac:TenderResult>/<cbc:AwardDate>`
-    pub cfs_result_award_date: Option<String>,
+    pub result_award_date: Option<String>,
     /// `<cac:TenderResult>/<cac:AwardedTenderedProject>/<cac:LegalMonetaryTotal>/<cbc:TaxExclusiveAmount>`
-    pub cfs_result_tax_exclusive_amount: Option<String>,
-    /// Currency of `cfs_result_tax_exclusive_amount`
-    pub cfs_result_tax_exclusive_currency: Option<String>,
+    pub result_tax_exclusive_amount: Option<String>,
+    /// Currency of `result_tax_exclusive_amount`
+    pub result_tax_exclusive_currency: Option<String>,
     /// `<cac:TenderResult>/<cac:AwardedTenderedProject>/<cac:LegalMonetaryTotal>/<cbc:PayableAmount>`
-    pub cfs_result_payable_amount: Option<String>,
-    /// Currency of `cfs_result_payable_amount`
-    pub cfs_result_payable_currency: Option<String>,
+    pub result_payable_amount: Option<String>,
+    /// Currency of `result_payable_amount`
+    pub result_payable_currency: Option<String>,
     /// `<cac:TenderingTerms>/<cbc:FundingProgramCode>`
-    pub cfs_terms_funding_program_code: Option<String>,
+    pub terms_funding_program_code: Option<String>,
+    /// listURI attribute for terms_funding_program_code
+    pub terms_funding_program_code_list_uri: Option<String>,
     /// `<cac:TenderingTerms>/<cac:AwardingTerms>/<cac:AwardingCriteria>/<cbc:AwardingCriteriaTypeCode>`
-    pub cfs_terms_award_criteria_type_code: Option<String>,
+    pub terms_award_criteria_type_code: Option<String>,
+    /// listURI attribute for terms_award_criteria_type_code
+    pub terms_award_criteria_type_code_list_uri: Option<String>,
     /// `<cac:TenderingProcess>/<cac:TenderSubmissionDeadlinePeriod>/<cbc:EndDate>`
-    pub cfs_process_end_date: Option<String>,
+    pub process_end_date: Option<String>,
     /// `<cac:TenderingProcess>/<cbc:ProcedureCode>`
-    pub cfs_process_procedure_code: Option<String>,
+    pub process_procedure_code: Option<String>,
+    /// listURI attribute for process_procedure_code
+    pub process_procedure_code_list_uri: Option<String>,
     /// `<cac:TenderingProcess>/<cbc:UrgencyCode>`
-    pub cfs_process_urgency_code: Option<String>,
+    pub process_urgency_code: Option<String>,
+    /// listURI attribute for process_urgency_code
+    pub process_urgency_code_list_uri: Option<String>,
     /// Entire `<cac-place-ext:ContractFolderStatus>` XML
     pub cfs_raw_xml: Option<String>,
 }
