@@ -598,7 +598,7 @@ mod tests {
     fn entries_to_dataframe_empty_yields_zero_rows() {
         let df = entries_to_dataframe(vec![]).unwrap();
         assert_eq!(df.height(), 0);
-        assert_eq!(df.width(), 60);
+        assert_eq!(df.width(), 52);
     }
 
     #[test]
