@@ -1,6 +1,20 @@
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct ProcurementProjectLot {
+    pub id: Option<String>,
+    pub name: Option<String>,
+    pub total_amount: Option<String>,
+    pub total_currency: Option<String>,
+    pub tax_exclusive_amount: Option<String>,
+    pub tax_exclusive_currency: Option<String>,
+    pub cpv_code: Option<String>,
+    pub cpv_code_list_uri: Option<String>,
+    pub country_code: Option<String>,
+    pub country_code_list_uri: Option<String>,
+}
+
 /// Represents a single entry element from an XML/Atom feed.
 ///
 /// Corresponds to an `<entry>` element in Atom feeds from Spanish procurement data sources.
@@ -69,24 +83,8 @@ pub struct Entry {
     pub project_country_code: Option<String>,
     /// listURI attribute for project_country_code
     pub project_country_code_list_uri: Option<String>,
-    /// First `<cbc:Name>` inside `<cac:ProcurementProjectLot>`
-    pub project_lot_name: Option<String>,
-    /// `<cac:ProcurementProjectLot>/<cac:BudgetAmount>/<cbc:TotalAmount>`
-    pub project_lot_total_amount: Option<String>,
-    /// Currency of `project_lot_total_amount`
-    pub project_lot_total_currency: Option<String>,
-    /// `<cac:ProcurementProjectLot>/<cac:BudgetAmount>/<cbc:TaxExclusiveAmount>`
-    pub project_lot_tax_exclusive_amount: Option<String>,
-    /// Currency of `project_lot_tax_exclusive_amount`
-    pub project_lot_tax_exclusive_currency: Option<String>,
-    /// Concatenated `<cbc:ItemClassificationCode>` values from ProcurementProjectLot
-    pub project_lot_cpv_code: Option<String>,
-    /// listURI attribute for project_lot_cpv_code
-    pub project_lot_cpv_code_list_uri: Option<String>,
-    /// `<cac:ProcurementProjectLot>/<cac:RealizedLocation>/.../cbc:IdentificationCode>`
-    pub project_lot_country_code: Option<String>,
-    /// listURI attribute for project_lot_country_code
-    pub project_lot_country_code_list_uri: Option<String>,
+    /// Collection of parsed `<cac:ProcurementProjectLot>` values
+    pub project_lots: Vec<ProcurementProjectLot>,
     /// `<cac:TenderResult>/<cbc:ResultCode>`
     pub result_code: Option<String>,
     /// listURI attribute for result_code
