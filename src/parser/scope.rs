@@ -1,4 +1,5 @@
 use crate::errors::{AppError, AppResult};
+use crate::models::ProcurementProjectLot;
 use quick_xml::events::{BytesStart, Event};
 use quick_xml::writer::Writer;
 use std::io::Cursor;
@@ -31,15 +32,7 @@ pub struct ScopeResult {
     pub project_cpv_code_list_uri: Option<String>,
     pub project_country_code: Option<String>,
     pub project_country_code_list_uri: Option<String>,
-    pub project_lot_name: Option<String>,
-    pub project_lot_total_amount: Option<String>,
-    pub project_lot_total_currency: Option<String>,
-    pub project_lot_tax_exclusive_amount: Option<String>,
-    pub project_lot_tax_exclusive_currency: Option<String>,
-    pub project_lot_cpv_code: Option<String>,
-    pub project_lot_cpv_code_list_uri: Option<String>,
-    pub project_lot_country_code: Option<String>,
-    pub project_lot_country_code_list_uri: Option<String>,
+    pub project_lots: Vec<ProcurementProjectLot>,
     pub result_code: Option<String>,
     pub result_code_list_uri: Option<String>,
     pub result_description: Option<String>,
@@ -63,7 +56,7 @@ pub struct ScopeResult {
 }
 
 /// Which text-capturing element is currently active.
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 enum ActiveField {
     StatusCode,
     Id,
@@ -74,6 +67,7 @@ enum ActiveField {
     ProjectTaxExclusiveAmount,
     ProjectCpvCode,
     ProjectCountryCode,
+    ProjectLotId,
     ProjectLotName,
     ProjectLotTotalAmount,
     ProjectLotTaxExclusiveAmount,
@@ -129,15 +123,8 @@ pub struct ContractFolderStatusScope {
     pub project_cpv_code_list_uri: Option<String>,
     pub project_country_code: Option<String>,
     pub project_country_code_list_uri: Option<String>,
-    pub project_lot_name: Option<String>,
-    pub project_lot_total_amount: Option<String>,
-    pub project_lot_total_currency: Option<String>,
-    pub project_lot_tax_exclusive_amount: Option<String>,
-    pub project_lot_tax_exclusive_currency: Option<String>,
-    pub project_lot_cpv_code: Option<String>,
-    pub project_lot_cpv_code_list_uri: Option<String>,
-    pub project_lot_country_code: Option<String>,
-    pub project_lot_country_code_list_uri: Option<String>,
+    pub project_lots: Vec<ProcurementProjectLot>,
+    pub current_lot: Option<ProcurementProjectLot>,
     pub result_code: Option<String>,
     pub result_code_list_uri: Option<String>,
     pub result_description: Option<String>,
@@ -231,15 +218,8 @@ impl ContractFolderStatusScope {
             project_cpv_code_list_uri: None,
             project_country_code: None,
             project_country_code_list_uri: None,
-            project_lot_name: None,
-            project_lot_total_amount: None,
-            project_lot_total_currency: None,
-            project_lot_tax_exclusive_amount: None,
-            project_lot_tax_exclusive_currency: None,
-            project_lot_cpv_code: None,
-            project_lot_cpv_code_list_uri: None,
-            project_lot_country_code: None,
-            project_lot_country_code_list_uri: None,
+            project_lots: Vec::new(),
+            current_lot: None,
             result_code: None,
             result_code_list_uri: None,
             result_description: None,
@@ -298,7 +278,15 @@ impl ContractFolderStatusScope {
                 let qname = e.name();
                 let name = qname.as_ref();
                 self.update_scope_flags_on_start(name);
-                if let Some(field) = self.determine_active_field(name) {
+                let mut field = self.determine_active_field(name);
+                if field.is_none()
+                    && self.in_project_lot
+                    && matches_local_name(name, b"ID")
+                    && Self::has_attribute_value(e, b"schemeName", b"ID_LOTE")
+                {
+                    field = Some(ActiveField::ProjectLotId);
+                }
+                if let Some(field) = field {
                     self.prepare_multivalue(field);
                     self.capture_currency(field, e);
                     self.capture_list_uri(field, e);
@@ -335,7 +323,11 @@ impl ContractFolderStatusScope {
                 let name = qname.as_ref();
                 if self.in_project_lot
                     && matches_local_name(name, b"Name")
-                    && self.project_lot_name.is_some()
+                    && self
+                        .current_lot
+                        .as_ref()
+                        .and_then(|lot| lot.name.as_ref())
+                        .is_some()
                 {
                     self.project_lot_name_captured = true;
                 } else if self.in_project
@@ -360,6 +352,11 @@ impl ContractFolderStatusScope {
     fn update_scope_flags_on_start(&mut self, name: &[u8]) {
         if matches_local_name(name, b"ProcurementProjectLot") {
             self.in_project_lot = true;
+            if self.current_lot.is_some() {
+                self.push_current_lot();
+            }
+            self.current_lot = Some(ProcurementProjectLot::default());
+            self.project_lot_name_captured = false;
         } else if matches_local_name(name, b"ProcurementProject") {
             self.in_project = true;
         } else if matches_local_name(name, b"LocatedContractingParty") {
@@ -428,6 +425,7 @@ impl ContractFolderStatusScope {
             self.in_lot_budget_amount = false;
             self.in_lot_required_classification = false;
             self.in_lot_country = false;
+            self.push_current_lot();
         } else if matches_local_name(name, b"ProcurementProject") {
             self.in_project = false;
             self.in_budget_amount = false;
@@ -497,16 +495,25 @@ impl ContractFolderStatusScope {
                 ActiveField::ProjectTaxExclusiveAmount => {
                     self.project_tax_exclusive_currency = Some(currency)
                 }
-                ActiveField::ProjectLotTotalAmount => {
-                    self.project_lot_total_currency = Some(currency)
-                }
-                ActiveField::ProjectLotTaxExclusiveAmount => {
-                    self.project_lot_tax_exclusive_currency = Some(currency)
+                ActiveField::ProjectLotTotalAmount | ActiveField::ProjectLotTaxExclusiveAmount => {
+                    self.set_current_lot_currency(field, currency)
                 }
                 ActiveField::ResultTaxExclusiveAmount => {
                     self.result_tax_exclusive_currency = Some(currency)
                 }
                 ActiveField::ResultPayableAmount => self.result_payable_currency = Some(currency),
+                _ => {}
+            }
+        }
+    }
+
+    fn set_current_lot_currency(&mut self, field: ActiveField, currency: String) {
+        if let Some(lot) = &mut self.current_lot {
+            match field {
+                ActiveField::ProjectLotTotalAmount => lot.total_currency = Some(currency),
+                ActiveField::ProjectLotTaxExclusiveAmount => {
+                    lot.tax_exclusive_currency = Some(currency)
+                }
                 _ => {}
             }
         }
@@ -534,9 +541,8 @@ impl ContractFolderStatusScope {
                 ActiveField::ProjectSubTypeCode => self.project_sub_type_code_list_uri = Some(uri),
                 ActiveField::ProjectCpvCode => self.project_cpv_code_list_uri = Some(uri),
                 ActiveField::ProjectCountryCode => self.project_country_code_list_uri = Some(uri),
-                ActiveField::ProjectLotCpvCode => self.project_lot_cpv_code_list_uri = Some(uri),
-                ActiveField::ProjectLotCountryCode => {
-                    self.project_lot_country_code_list_uri = Some(uri)
+                ActiveField::ProjectLotCpvCode | ActiveField::ProjectLotCountryCode => {
+                    self.set_current_lot_list_uri(field, uri)
                 }
                 ActiveField::ResultCode => self.result_code_list_uri = Some(uri),
                 ActiveField::TermsFundingProgramCode => {
@@ -550,6 +556,16 @@ impl ContractFolderStatusScope {
                 }
                 ActiveField::ProcessUrgencyCode => self.process_urgency_code_list_uri = Some(uri),
                 _ => {} // Non-code fields don't have listURIs
+            }
+        }
+    }
+
+    fn set_current_lot_list_uri(&mut self, field: ActiveField, uri: String) {
+        if let Some(lot) = &mut self.current_lot {
+            match field {
+                ActiveField::ProjectLotCpvCode => lot.cpv_code_list_uri = Some(uri),
+                ActiveField::ProjectLotCountryCode => lot.country_code_list_uri = Some(uri),
+                _ => {}
             }
         }
     }
@@ -574,11 +590,12 @@ impl ContractFolderStatusScope {
             ActiveField::ProjectTaxExclusiveAmount => &mut self.project_tax_exclusive_amount,
             ActiveField::ProjectCpvCode => &mut self.project_cpv_code,
             ActiveField::ProjectCountryCode => &mut self.project_country_code,
-            ActiveField::ProjectLotName => &mut self.project_lot_name,
-            ActiveField::ProjectLotTotalAmount => &mut self.project_lot_total_amount,
-            ActiveField::ProjectLotTaxExclusiveAmount => &mut self.project_lot_tax_exclusive_amount,
-            ActiveField::ProjectLotCpvCode => &mut self.project_lot_cpv_code,
-            ActiveField::ProjectLotCountryCode => &mut self.project_lot_country_code,
+            ActiveField::ProjectLotId
+            | ActiveField::ProjectLotName
+            | ActiveField::ProjectLotTotalAmount
+            | ActiveField::ProjectLotTaxExclusiveAmount
+            | ActiveField::ProjectLotCpvCode
+            | ActiveField::ProjectLotCountryCode => self.project_lot_field_ref(field),
             ActiveField::ContractingPartyName => &mut self.contracting_party_name,
             ActiveField::ContractingPartyWebsite => &mut self.contracting_party_website,
             ActiveField::ContractingPartyTypeCode => &mut self.contracting_party_type_code,
@@ -601,6 +618,27 @@ impl ContractFolderStatusScope {
         }
     }
 
+    fn project_lot_field_ref(&mut self, field: ActiveField) -> &mut Option<String> {
+        let lot = self
+            .current_lot
+            .get_or_insert_with(ProcurementProjectLot::default);
+        match field {
+            ActiveField::ProjectLotId => &mut lot.id,
+            ActiveField::ProjectLotName => &mut lot.name,
+            ActiveField::ProjectLotTotalAmount => &mut lot.total_amount,
+            ActiveField::ProjectLotTaxExclusiveAmount => &mut lot.tax_exclusive_amount,
+            ActiveField::ProjectLotCpvCode => &mut lot.cpv_code,
+            ActiveField::ProjectLotCountryCode => &mut lot.country_code,
+            _ => unreachable!("Invalid lot field: {:?}", field),
+        }
+    }
+
+    fn push_current_lot(&mut self) {
+        if let Some(lot) = self.current_lot.take() {
+            self.project_lots.push(lot);
+        }
+    }
+
     /// Writes an event to the main XML writer.
     fn write_main_event(&mut self, event: Event) -> AppResult<()> {
         self.writer
@@ -613,6 +651,8 @@ impl ContractFolderStatusScope {
         self.writer
             .write_event(event)
             .map_err(|e| AppError::ParseError(format!("Failed to write closing tag: {e}")))?;
+
+        self.push_current_lot();
 
         let cursor = self.writer.into_inner();
         let buffer = cursor.into_inner();
@@ -646,15 +686,7 @@ impl ContractFolderStatusScope {
             project_cpv_code_list_uri: self.project_cpv_code_list_uri,
             project_country_code: self.project_country_code,
             project_country_code_list_uri: self.project_country_code_list_uri,
-            project_lot_name: self.project_lot_name,
-            project_lot_total_amount: self.project_lot_total_amount,
-            project_lot_total_currency: self.project_lot_total_currency,
-            project_lot_tax_exclusive_amount: self.project_lot_tax_exclusive_amount,
-            project_lot_tax_exclusive_currency: self.project_lot_tax_exclusive_currency,
-            project_lot_cpv_code: self.project_lot_cpv_code,
-            project_lot_cpv_code_list_uri: self.project_lot_cpv_code_list_uri,
-            project_lot_country_code: self.project_lot_country_code,
-            project_lot_country_code_list_uri: self.project_lot_country_code_list_uri,
+            project_lots: self.project_lots,
             result_code: self.result_code,
             result_code_list_uri: self.result_code_list_uri,
             result_description: self.result_description,
@@ -838,6 +870,13 @@ impl ContractFolderStatusScope {
     /// Ensures a field exists (for empty elements).
     fn ensure_field_exists(&mut self, field: ActiveField) {
         self.field_ref(field).get_or_insert_with(String::new);
+    }
+
+    fn has_attribute_value(start: &BytesStart, key: &[u8], expected: &[u8]) -> bool {
+        start
+            .attributes()
+            .filter_map(|a| a.ok())
+            .any(|attr| attr.key.as_ref() == key && attr.value.as_ref() == expected)
     }
 }
 

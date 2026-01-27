@@ -1,5 +1,5 @@
 use crate::errors::{AppError, AppResult};
-use crate::models::Entry;
+use crate::models::{Entry, ProcurementProjectLot};
 use crate::utils::{format_duration, mb_from_bytes, round_two_decimals};
 use futures::stream::{self, StreamExt, TryStreamExt};
 use polars::lazy::prelude::{LazyFrame, ScanArgsParquet};
@@ -15,6 +15,48 @@ use tracing::info;
 use super::file_finder::find_xmls;
 use super::xml_parser::parse_xml_bytes;
 
+fn lots_to_struct_series(lots: &[ProcurementProjectLot]) -> AppResult<Series> {
+    let mut ids = Vec::with_capacity(lots.len());
+    let mut names = Vec::with_capacity(lots.len());
+    let mut totals = Vec::with_capacity(lots.len());
+    let mut total_currencies = Vec::with_capacity(lots.len());
+    let mut tax_exclusives = Vec::with_capacity(lots.len());
+    let mut tax_currencies = Vec::with_capacity(lots.len());
+    let mut cpvs = Vec::with_capacity(lots.len());
+    let mut cpv_list_uris = Vec::with_capacity(lots.len());
+    let mut countries = Vec::with_capacity(lots.len());
+    let mut country_list_uris = Vec::with_capacity(lots.len());
+
+    for lot in lots {
+        ids.push(lot.id.clone());
+        names.push(lot.name.clone());
+        totals.push(lot.total_amount.clone());
+        total_currencies.push(lot.total_currency.clone());
+        tax_exclusives.push(lot.tax_exclusive_amount.clone());
+        tax_currencies.push(lot.tax_exclusive_currency.clone());
+        cpvs.push(lot.cpv_code.clone());
+        cpv_list_uris.push(lot.cpv_code_list_uri.clone());
+        countries.push(lot.country_code.clone());
+        country_list_uris.push(lot.country_code_list_uri.clone());
+    }
+
+    let df = DataFrame::new(vec![
+        Series::new("id", ids),
+        Series::new("name", names),
+        Series::new("total_amount", totals),
+        Series::new("total_currency", total_currencies),
+        Series::new("tax_exclusive_amount", tax_exclusives),
+        Series::new("tax_exclusive_currency", tax_currencies),
+        Series::new("cpv_code", cpvs),
+        Series::new("cpv_code_list_uri", cpv_list_uris),
+        Series::new("country_code", countries),
+        Series::new("country_code_list_uri", country_list_uris),
+    ])
+    .map_err(|e| AppError::ParseError(format!("Failed to build lot struct: {e}")))?;
+
+    Ok(df.into_struct("lot").into_series())
+}
+
 /// Converts a vector of Entry structs into a Polars DataFrame.
 ///
 /// This helper function creates a DataFrame from a slice of Entry structs,
@@ -23,6 +65,8 @@ use super::xml_parser::parse_xml_bytes;
 fn entries_to_dataframe(entries: Vec<Entry>) -> AppResult<DataFrame> {
     let empty: Vec<Option<String>> = Vec::new();
     if entries.is_empty() {
+        let empty_list = Series::new("project_lots", Vec::<Series>::new());
+
         return DataFrame::new(vec![
             Series::new("id", empty.clone()),
             Series::new("title", empty.clone()),
@@ -55,15 +99,7 @@ fn entries_to_dataframe(entries: Vec<Entry>) -> AppResult<DataFrame> {
             Series::new("project_cpv_code_list_uri", empty.clone()),
             Series::new("project_country_code", empty.clone()),
             Series::new("project_country_code_list_uri", empty.clone()),
-            Series::new("project_lot_name", empty.clone()),
-            Series::new("project_lot_total_amount", empty.clone()),
-            Series::new("project_lot_total_currency", empty.clone()),
-            Series::new("project_lot_tax_exclusive_amount", empty.clone()),
-            Series::new("project_lot_tax_exclusive_currency", empty.clone()),
-            Series::new("project_lot_cpv_code", empty.clone()),
-            Series::new("project_lot_cpv_code_list_uri", empty.clone()),
-            Series::new("project_lot_country_code", empty.clone()),
-            Series::new("project_lot_country_code_list_uri", empty.clone()),
+            empty_list,
             Series::new("result_code", empty.clone()),
             Series::new("result_code_list_uri", empty.clone()),
             Series::new("result_description", empty.clone()),
@@ -120,15 +156,7 @@ fn entries_to_dataframe(entries: Vec<Entry>) -> AppResult<DataFrame> {
     let mut project_cpv_code_list_uris = Vec::with_capacity(len);
     let mut project_country_codes = Vec::with_capacity(len);
     let mut project_country_code_list_uris = Vec::with_capacity(len);
-    let mut project_lot_names = Vec::with_capacity(len);
-    let mut project_lot_total_amounts = Vec::with_capacity(len);
-    let mut project_lot_total_currencies = Vec::with_capacity(len);
-    let mut project_lot_tax_exclusive_amounts = Vec::with_capacity(len);
-    let mut project_lot_tax_exclusive_currencies = Vec::with_capacity(len);
-    let mut project_lot_cpv_code = Vec::with_capacity(len);
-    let mut project_lot_cpv_code_list_uris = Vec::with_capacity(len);
-    let mut project_lot_country_codes = Vec::with_capacity(len);
-    let mut project_lot_country_code_list_uris = Vec::with_capacity(len);
+    let mut project_lots_structs: Vec<Series> = Vec::with_capacity(len);
     let mut result_codes = Vec::with_capacity(len);
     let mut result_code_list_uris = Vec::with_capacity(len);
     let mut result_descriptions = Vec::with_capacity(len);
@@ -184,15 +212,8 @@ fn entries_to_dataframe(entries: Vec<Entry>) -> AppResult<DataFrame> {
         project_cpv_code_list_uris.push(entry.project_cpv_code_list_uri);
         project_country_codes.push(entry.project_country_code);
         project_country_code_list_uris.push(entry.project_country_code_list_uri);
-        project_lot_names.push(entry.project_lot_name);
-        project_lot_total_amounts.push(entry.project_lot_total_amount);
-        project_lot_total_currencies.push(entry.project_lot_total_currency);
-        project_lot_tax_exclusive_amounts.push(entry.project_lot_tax_exclusive_amount);
-        project_lot_tax_exclusive_currencies.push(entry.project_lot_tax_exclusive_currency);
-        project_lot_cpv_code.push(entry.project_lot_cpv_code);
-        project_lot_cpv_code_list_uris.push(entry.project_lot_cpv_code_list_uri);
-        project_lot_country_codes.push(entry.project_lot_country_code);
-        project_lot_country_code_list_uris.push(entry.project_lot_country_code_list_uri);
+        let lot_struct = lots_to_struct_series(&entry.project_lots)?;
+        project_lots_structs.push(lot_struct);
         result_codes.push(entry.result_code);
         result_code_list_uris.push(entry.result_code_list_uri);
         result_descriptions.push(entry.result_description);
@@ -215,6 +236,8 @@ fn entries_to_dataframe(entries: Vec<Entry>) -> AppResult<DataFrame> {
         process_urgency_code_list_uris.push(entry.process_urgency_code_list_uri);
         cfs_raw_xmls.push(entry.cfs_raw_xml);
     }
+
+    let project_lots_series = Series::new("project_lots", project_lots_structs);
 
     DataFrame::new(vec![
         Series::new("id", ids),
@@ -275,27 +298,7 @@ fn entries_to_dataframe(entries: Vec<Entry>) -> AppResult<DataFrame> {
             "project_country_code_list_uri",
             project_country_code_list_uris,
         ),
-        Series::new("project_lot_name", project_lot_names),
-        Series::new("project_lot_total_amount", project_lot_total_amounts),
-        Series::new("project_lot_total_currency", project_lot_total_currencies),
-        Series::new(
-            "project_lot_tax_exclusive_amount",
-            project_lot_tax_exclusive_amounts,
-        ),
-        Series::new(
-            "project_lot_tax_exclusive_currency",
-            project_lot_tax_exclusive_currencies,
-        ),
-        Series::new("project_lot_cpv_code", project_lot_cpv_code),
-        Series::new(
-            "project_lot_cpv_code_list_uri",
-            project_lot_cpv_code_list_uris,
-        ),
-        Series::new("project_lot_country_code", project_lot_country_codes),
-        Series::new(
-            "project_lot_country_code_list_uri",
-            project_lot_country_code_list_uris,
-        ),
+        project_lots_series,
         Series::new("result_code", result_codes),
         Series::new("result_code_list_uri", result_code_list_uris),
         Series::new("result_description", result_descriptions),
@@ -632,15 +635,7 @@ mod tests {
             project_cpv_code_list_uri: None,
             project_country_code: None,
             project_country_code_list_uri: None,
-            project_lot_name: None,
-            project_lot_total_amount: None,
-            project_lot_total_currency: None,
-            project_lot_tax_exclusive_amount: None,
-            project_lot_tax_exclusive_currency: None,
-            project_lot_cpv_code: None,
-            project_lot_cpv_code_list_uri: None,
-            project_lot_country_code: None,
-            project_lot_country_code_list_uri: None,
+            project_lots: Vec::new(),
             result_code: None,
             result_code_list_uri: None,
             result_description: None,
@@ -665,7 +660,9 @@ mod tests {
 
         let df = entries_to_dataframe(vec![entry]).unwrap();
         assert_eq!(df.height(), 1);
-        assert_eq!(df.width(), 60);
+        assert_eq!(df.width(), 52);
+        let lots_col = df.column("project_lots").unwrap();
+        assert!(matches!(lots_col.dtype(), DataType::List(_)));
         let value = df.column("id").unwrap().get(0).unwrap();
         assert_eq!(value, AnyValue::String("id"));
     }

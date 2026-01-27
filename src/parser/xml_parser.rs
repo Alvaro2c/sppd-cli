@@ -1,6 +1,6 @@
 use super::contract_folder_status::ContractFolderStatusHandler;
 use crate::errors::{AppError, AppResult};
-use crate::models::Entry;
+use crate::models::{Entry, ProcurementProjectLot};
 use quick_xml::events::Event;
 use quick_xml::reader::Reader;
 #[cfg(test)]
@@ -50,15 +50,7 @@ struct EntryBuilder {
     project_cpv_code_list_uri: Option<String>,
     project_country_code: Option<String>,
     project_country_code_list_uri: Option<String>,
-    project_lot_name: Option<String>,
-    project_lot_total_amount: Option<String>,
-    project_lot_total_currency: Option<String>,
-    project_lot_tax_exclusive_amount: Option<String>,
-    project_lot_tax_exclusive_currency: Option<String>,
-    project_lot_cpv_code: Option<String>,
-    project_lot_cpv_code_list_uri: Option<String>,
-    project_lot_country_code: Option<String>,
-    project_lot_country_code_list_uri: Option<String>,
+    project_lots: Vec<ProcurementProjectLot>,
     result_code: Option<String>,
     result_code_list_uri: Option<String>,
     result_description: Option<String>,
@@ -117,15 +109,7 @@ impl EntryBuilder {
             project_cpv_code_list_uri: None,
             project_country_code: None,
             project_country_code_list_uri: None,
-            project_lot_name: None,
-            project_lot_total_amount: None,
-            project_lot_total_currency: None,
-            project_lot_tax_exclusive_amount: None,
-            project_lot_tax_exclusive_currency: None,
-            project_lot_cpv_code: None,
-            project_lot_cpv_code_list_uri: None,
-            project_lot_country_code: None,
-            project_lot_country_code_list_uri: None,
+            project_lots: Vec::new(),
             result_code: None,
             result_code_list_uri: None,
             result_description: None,
@@ -183,15 +167,7 @@ impl EntryBuilder {
         self.project_cpv_code_list_uri = None;
         self.project_country_code = None;
         self.project_country_code_list_uri = None;
-        self.project_lot_name = None;
-        self.project_lot_total_amount = None;
-        self.project_lot_total_currency = None;
-        self.project_lot_tax_exclusive_amount = None;
-        self.project_lot_tax_exclusive_currency = None;
-        self.project_lot_cpv_code = None;
-        self.project_lot_cpv_code_list_uri = None;
-        self.project_lot_country_code = None;
-        self.project_lot_country_code_list_uri = None;
+        self.project_lots.clear();
         self.result_code = None;
         self.result_code_list_uri = None;
         self.result_description = None;
@@ -288,15 +264,7 @@ impl EntryBuilder {
             self.project_cpv_code_list_uri = p.project_cpv_code_list_uri;
             self.project_country_code = p.project_country_code;
             self.project_country_code_list_uri = p.project_country_code_list_uri;
-            self.project_lot_name = p.project_lot_name;
-            self.project_lot_total_amount = p.project_lot_total_amount;
-            self.project_lot_total_currency = p.project_lot_total_currency;
-            self.project_lot_tax_exclusive_amount = p.project_lot_tax_exclusive_amount;
-            self.project_lot_tax_exclusive_currency = p.project_lot_tax_exclusive_currency;
-            self.project_lot_cpv_code = p.project_lot_cpv_code;
-            self.project_lot_cpv_code_list_uri = p.project_lot_cpv_code_list_uri;
-            self.project_lot_country_code = p.project_lot_country_code;
-            self.project_lot_country_code_list_uri = p.project_lot_country_code_list_uri;
+            self.project_lots = p.project_lots;
             self.result_code = p.result_code;
             self.result_code_list_uri = p.result_code_list_uri;
             self.result_description = p.result_description;
@@ -362,15 +330,7 @@ impl EntryBuilder {
                 project_cpv_code_list_uri: self.project_cpv_code_list_uri.take(),
                 project_country_code: self.project_country_code.take(),
                 project_country_code_list_uri: self.project_country_code_list_uri.take(),
-                project_lot_name: self.project_lot_name.take(),
-                project_lot_total_amount: self.project_lot_total_amount.take(),
-                project_lot_total_currency: self.project_lot_total_currency.take(),
-                project_lot_tax_exclusive_amount: self.project_lot_tax_exclusive_amount.take(),
-                project_lot_tax_exclusive_currency: self.project_lot_tax_exclusive_currency.take(),
-                project_lot_cpv_code: self.project_lot_cpv_code.take(),
-                project_lot_cpv_code_list_uri: self.project_lot_cpv_code_list_uri.take(),
-                project_lot_country_code: self.project_lot_country_code.take(),
-                project_lot_country_code_list_uri: self.project_lot_country_code_list_uri.take(),
+                project_lots: std::mem::take(&mut self.project_lots),
                 result_code: self.result_code.take(),
                 result_code_list_uri: self.result_code_list_uri.take(),
                 result_description: self.result_description.take(),
