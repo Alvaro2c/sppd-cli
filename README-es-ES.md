@@ -158,13 +158,7 @@ Cada registro Parquet refleja un `<entry>` de Atom más los datos extraídos de 
 | `cfs_project_tax_exclusive_currency` | Atributo `currencyID` del monto sin IVA |
 | `cfs_project_cpv_codes` | Códigos `<cbc:ItemClassificationCode>` unidos con `_` |
 | `cfs_project_country_code` | `<cac:RealizedLocation>/<cac:Address>/<cac:Country>/<cbc:IdentificationCode>` |
-| `cfs_project_lot_name` | Primer `<cbc:Name>` dentro de `<cac:ProcurementProjectLot>` |
-| `cfs_project_lot_total_amount` | Valor de `<cac:ProcurementProjectLot>/<cac:BudgetAmount>/<cbc:TotalAmount>` |
-| `cfs_project_lot_total_currency` | Atributo `currencyID` del total del lote |
-| `cfs_project_lot_tax_exclusive_amount` | Valor de `<cac:ProcurementProjectLot>/<cac:BudgetAmount>/<cbc:TaxExclusiveAmount>` |
-| `cfs_project_lot_tax_exclusive_currency` | Atributo `currencyID` del monto sin IVA del lote |
-| `cfs_project_lot_cpv_codes` | Códigos `<cbc:ItemClassificationCode>` del lote unidos con `_` |
-| `cfs_project_lot_country_code` | `<cac:ProcurementProjectLot>/<cac:RealizedLocation>/.../cbc:IdentificationCode>` |
+| `cfs_project_lots` | Lista de estructuras `<cac:ProcurementProjectLot>`, cada una con `id`, `name`, importes presupuestarios con sus monedas, `cpv_code`/`cpv_code_list_uri` concatenados, y código de país con su `country_code_list_uri` |
 | `cfs_contracting_party_name` | `<cac:LocatedContractingParty>/<cac:Party>/<cac:PartyName>/<cbc:Name>` |
 | `cfs_contracting_party_website` | `<cac:LocatedContractingParty>/<cac:Party>/<cbc:WebsiteURI>` |
 | `cfs_contracting_party_type_code` | `<cac:LocatedContractingParty>/<cbc:ContractingPartyTypeCode>` |
