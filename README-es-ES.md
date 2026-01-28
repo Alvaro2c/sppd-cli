@@ -138,7 +138,7 @@ cargo run -- toml config/prod.toml
 
 ### Esquema de salida
 
-Cada registro Parquet refleja un `<entry>` de Atom más los datos extraídos de `ContractFolderStatus`, así que contiene 47 columnas:
+Cada registro Parquet refleja un `<entry>` de Atom más los datos extraídos de `ContractFolderStatus`, así que contiene 27 columnas:
 
 | Columna | Descripción |
 |---------|-------------|
@@ -147,44 +147,30 @@ Cada registro Parquet refleja un `<entry>` de Atom más los datos extraídos de 
 | `link` | URL del enlace |
 | `summary` | Resumen |
 | `updated` | Fecha de última actualización |
-| `cfs_status_code` | `<cbc-place-ext:ContractFolderStatusCode>` |
-| `cfs_id` | `<cbc:ContractFolderID>` |
-| `cfs_project_name` | Primer `<cbc:Name>` dentro de `<cac:ProcurementProject>` |
-| `cfs_project_type_code` | `<cac:ProcurementProject>/<cbc:TypeCode>` |
-| `cfs_project_sub_type_code` | `<cac:ProcurementProject>/<cbc:SubTypeCode>` |
-| `cfs_project_total_amount` | Valor de `<cac:BudgetAmount>/<cbc:TotalAmount>` |
-| `cfs_project_total_currency` | Atributo `currencyID` del total |
-| `cfs_project_tax_exclusive_amount` | Valor de `<cac:BudgetAmount>/<cbc:TaxExclusiveAmount>` |
-| `cfs_project_tax_exclusive_currency` | Atributo `currencyID` del monto sin IVA |
-| `cfs_project_cpv_codes` | Códigos `<cbc:ItemClassificationCode>` unidos con `_` |
-| `cfs_project_country_code` | `<cac:RealizedLocation>/<cac:Address>/<cac:Country>/<cbc:IdentificationCode>` |
-| `cfs_project_lots` | Lista de estructuras `<cac:ProcurementProjectLot>`, cada una con `id`, `name`, importes presupuestarios con sus monedas, `cpv_code`/`cpv_code_list_uri` concatenados, y código de país con su `country_code_list_uri` |
-| `cfs_contracting_party_name` | `<cac:LocatedContractingParty>/<cac:Party>/<cac:PartyName>/<cbc:Name>` |
-| `cfs_contracting_party_website` | `<cac:LocatedContractingParty>/<cac:Party>/<cbc:WebsiteURI>` |
-| `cfs_contracting_party_type_code` | `<cac:LocatedContractingParty>/<cbc:ContractingPartyTypeCode>` |
-| `cfs_contracting_party_id` | `<cac:LocatedContractingParty>/<cac:Party>/<cac:PartyIdentification>/<cbc:ID>` |
-| `cfs_contracting_party_activity_code` | `<cac:LocatedContractingParty>/<cbc:ActivityCode>` |
-| `cfs_contracting_party_city` | `<cac:LocatedContractingParty>/<cac:Party>/<cac:PostalAddress>/<cbc:CityName>` |
-| `cfs_contracting_party_zip_code` | `<cac:LocatedContractingParty>/<cac:Party>/<cac:PostalAddress>/<cbc:PostalZone>` |
-| `cfs_contracting_party_country_code` | `<cac:LocatedContractingParty>/<cac:Party>/<cac:PostalAddress>/<cac:Country>/<cbc:IdentificationCode>` |
-| `cfs_result_code` | `<cac:TenderResult>/<cbc:ResultCode>` |
-| `cfs_result_description` | `<cac:TenderResult>/<cbc:Description>` |
-| `cfs_result_winning_party` | `<cac:TenderResult>/<cac:WinningParty>/<cac:PartyName>/<cbc:Name>` |
-| `cfs_result_winning_party_id` | `<cac:TenderResult>/<cac:WinningParty>/<cac:PartyIdentification>/<cbc:ID>` |
-| `cfs_result_sme_awarded_indicator` | `<cac:TenderResult>/<cbc:SMEAwardedIndicator>` |
-| `cfs_result_award_date` | `<cac:TenderResult>/<cbc:AwardDate>` |
-| `cfs_result_tax_exclusive_amount` | Valor de `<cac:AwardedTenderedProject>/<cac:LegalMonetaryTotal>/<cbc:TaxExclusiveAmount>` |
-| `cfs_result_tax_exclusive_currency` | Atributo `currencyID` del monto sin IVA |
-| `cfs_result_payable_amount` | Valor de `<cac:AwardedTenderedProject>/<cac:LegalMonetaryTotal>/<cbc:PayableAmount>` |
-| `cfs_result_payable_currency` | Atributo `currencyID` del importe pagadero |
-| `cfs_terms_funding_program_code` | `<cac:TenderingTerms>/<cbc:FundingProgramCode>` |
-| `cfs_terms_award_criteria_type_code` | `<cac:TenderingTerms>/<cac:AwardingTerms>/<cac:AwardingCriteria>/<cbc:AwardingCriteriaTypeCode>` |
-| `cfs_process_end_date` | `<cac:TenderingProcess>/<cac:TenderSubmissionDeadlinePeriod>/<cbc:EndDate>` |
-| `cfs_process_procedure_code` | `<cac:TenderingProcess>/<cbc:ProcedureCode>` |
-| `cfs_process_urgency_code` | `<cac:TenderingProcess>/<cbc:UrgencyCode>` |
+| `status_code` | `<cbc-place-ext:ContractFolderStatusCode>` |
+| `status_code_list_uri` | Atributo `listURI` de `status_code` |
+| `contract_id` | `<cbc:ContractFolderID>` |
+| `contracting_party` | Estructura que agrupa la metadata de la entidad adjudicadora. Contiene `name`, `website`, `type_code`, `type_code_list_uri`, `activity_code`, `activity_code_list_uri`, `city`, `zip`, `country_code` y `country_code_list_uri`. |
+| `project` | Estructura que reúne los campos del proyecto sin lotes (`name`, `type_code`, `type_code_list_uri`, `sub_type_code`, `sub_type_code_list_uri`, `total_amount`, `total_currency`, `tax_exclusive_amount`, `tax_exclusive_currency`, `cpv_code`, `cpv_code_list_uri`, `country_code`, `country_code_list_uri`). `project.cpv_code` sigue concatenando varios `<cbc:ItemClassificationCode>` con `_`. |
+| `project_lots` | Lista de estructuras `<cac:ProcurementProjectLot>`, cada una con `id`, `name`, importes presupuestarios con sus monedas, `cpv_code`/`cpv_code_list_uri` concatenados, y código de país con su `country_code_list_uri`. |
+| `result_code` | `<cac:TenderResult>/<cbc:ResultCode>` |
+| `result_code_list_uri` | Atributo `listURI` del código de resultado |
+| `result_description` | `<cac:TenderResult>/<cbc:Description>` |
+| `result_winning_party` | `<cac:TenderResult>/<cac:WinningParty>/<cac:PartyName>/<cbc:Name>` |
+| `result_sme_awarded_indicator` | `<cac:TenderResult>/<cbc:SMEAwardedIndicator>` |
+| `result_award_date` | `<cac:TenderResult>/<cbc:AwardDate>` |
+| `result_tax_exclusive_amount` | Valor de `<cac:AwardedTenderedProject>/<cac:LegalMonetaryTotal>/<cbc:TaxExclusiveAmount>` |
+| `result_tax_exclusive_currency` | Atributo `currencyID` del monto sin IVA |
+| `result_payable_amount` | Valor de `<cac:AwardedTenderedProject>/<cac:LegalMonetaryTotal>/<cbc:PayableAmount>` |
+| `result_payable_currency` | Atributo `currencyID` del importe pagadero |
+| `terms_funding_program_code` | `<cac:TenderingTerms>/<cbc:FundingProgramCode>` |
+| `terms_funding_program_code_list_uri` | Atributo `listURI` del código del programa de financiación |
+| `terms_award_criteria_type_code` | `<cac:TenderingTerms>/<cac:AwardingTerms>/<cac:AwardingCriteria>/<cbc:AwardingCriteriaTypeCode>` |
+| `terms_award_criteria_type_code_list_uri` | Atributo `listURI` del código del criterio de adjudicación |
+| `process` | Estructura con los valores de `<cac:TenderingProcess>` (`end_date`, `procedure_code`, `procedure_code_list_uri`, `urgency_code`, `urgency_code_list_uri`). |
 | `cfs_raw_xml` | XML completo de `<cac-place-ext:ContractFolderStatus>` |
 
-Los valores múltiples para el mismo campo (p.ej., varios lotes) se concatenan automáticamente con `_`.
+Los valores múltiples para el mismo campo se concatenan con `_` (p. ej., `project.cpv_code` y cada `cpv_code` dentro de los lotes).
 
 ### Ajuste de Memoria
 
