@@ -57,6 +57,126 @@ fn lots_to_struct_series(lots: &[ProcurementProjectLot]) -> AppResult<Series> {
     Ok(df.into_struct("lot").into_series())
 }
 
+fn contracting_party_to_struct(entries: &[Entry]) -> AppResult<Series> {
+    let mut names = Vec::with_capacity(entries.len());
+    let mut websites = Vec::with_capacity(entries.len());
+    let mut type_codes = Vec::with_capacity(entries.len());
+    let mut type_code_list_uris = Vec::with_capacity(entries.len());
+    let mut activity_codes = Vec::with_capacity(entries.len());
+    let mut activity_code_list_uris = Vec::with_capacity(entries.len());
+    let mut cities = Vec::with_capacity(entries.len());
+    let mut zips = Vec::with_capacity(entries.len());
+    let mut country_codes = Vec::with_capacity(entries.len());
+    let mut country_code_list_uris = Vec::with_capacity(entries.len());
+
+    for entry in entries {
+        names.push(entry.contracting_party_name.clone());
+        websites.push(entry.contracting_party_website.clone());
+        type_codes.push(entry.contracting_party_type_code.clone());
+        type_code_list_uris.push(entry.contracting_party_type_code_list_uri.clone());
+        activity_codes.push(entry.contracting_party_activity_code.clone());
+        activity_code_list_uris.push(entry.contracting_party_activity_code_list_uri.clone());
+        cities.push(entry.contracting_party_city.clone());
+        zips.push(entry.contracting_party_zip.clone());
+        country_codes.push(entry.contracting_party_country_code.clone());
+        country_code_list_uris.push(entry.contracting_party_country_code_list_uri.clone());
+    }
+
+    let df = DataFrame::new(vec![
+        Series::new("name", names),
+        Series::new("website", websites),
+        Series::new("type_code", type_codes),
+        Series::new("type_code_list_uri", type_code_list_uris),
+        Series::new("activity_code", activity_codes),
+        Series::new("activity_code_list_uri", activity_code_list_uris),
+        Series::new("city", cities),
+        Series::new("zip", zips),
+        Series::new("country_code", country_codes),
+        Series::new("country_code_list_uri", country_code_list_uris),
+    ])
+    .map_err(|e| AppError::ParseError(format!("Failed to build contracting_party struct: {e}")))?;
+
+    Ok(df.into_struct("contracting_party").into_series())
+}
+
+fn project_to_struct(entries: &[Entry]) -> AppResult<Series> {
+    let mut names = Vec::with_capacity(entries.len());
+    let mut type_codes = Vec::with_capacity(entries.len());
+    let mut type_code_list_uris = Vec::with_capacity(entries.len());
+    let mut sub_type_codes = Vec::with_capacity(entries.len());
+    let mut sub_type_code_list_uris = Vec::with_capacity(entries.len());
+    let mut total_amounts = Vec::with_capacity(entries.len());
+    let mut total_currencies = Vec::with_capacity(entries.len());
+    let mut tax_exclusive_amounts = Vec::with_capacity(entries.len());
+    let mut tax_exclusive_currencies = Vec::with_capacity(entries.len());
+    let mut cpv_codes = Vec::with_capacity(entries.len());
+    let mut cpv_code_list_uris = Vec::with_capacity(entries.len());
+    let mut country_codes = Vec::with_capacity(entries.len());
+    let mut country_code_list_uris = Vec::with_capacity(entries.len());
+
+    for entry in entries {
+        names.push(entry.project_name.clone());
+        type_codes.push(entry.project_type_code.clone());
+        type_code_list_uris.push(entry.project_type_code_list_uri.clone());
+        sub_type_codes.push(entry.project_sub_type_code.clone());
+        sub_type_code_list_uris.push(entry.project_sub_type_code_list_uri.clone());
+        total_amounts.push(entry.project_total_amount.clone());
+        total_currencies.push(entry.project_total_currency.clone());
+        tax_exclusive_amounts.push(entry.project_tax_exclusive_amount.clone());
+        tax_exclusive_currencies.push(entry.project_tax_exclusive_currency.clone());
+        cpv_codes.push(entry.project_cpv_code.clone());
+        cpv_code_list_uris.push(entry.project_cpv_code_list_uri.clone());
+        country_codes.push(entry.project_country_code.clone());
+        country_code_list_uris.push(entry.project_country_code_list_uri.clone());
+    }
+
+    let df = DataFrame::new(vec![
+        Series::new("name", names),
+        Series::new("type_code", type_codes),
+        Series::new("type_code_list_uri", type_code_list_uris),
+        Series::new("sub_type_code", sub_type_codes),
+        Series::new("sub_type_code_list_uri", sub_type_code_list_uris),
+        Series::new("total_amount", total_amounts),
+        Series::new("total_currency", total_currencies),
+        Series::new("tax_exclusive_amount", tax_exclusive_amounts),
+        Series::new("tax_exclusive_currency", tax_exclusive_currencies),
+        Series::new("cpv_code", cpv_codes),
+        Series::new("cpv_code_list_uri", cpv_code_list_uris),
+        Series::new("country_code", country_codes),
+        Series::new("country_code_list_uri", country_code_list_uris),
+    ])
+    .map_err(|e| AppError::ParseError(format!("Failed to build project struct: {e}")))?;
+
+    Ok(df.into_struct("project").into_series())
+}
+
+fn process_to_struct(entries: &[Entry]) -> AppResult<Series> {
+    let mut end_dates = Vec::with_capacity(entries.len());
+    let mut procedure_codes = Vec::with_capacity(entries.len());
+    let mut procedure_code_list_uris = Vec::with_capacity(entries.len());
+    let mut urgency_codes = Vec::with_capacity(entries.len());
+    let mut urgency_code_list_uris = Vec::with_capacity(entries.len());
+
+    for entry in entries {
+        end_dates.push(entry.process_end_date.clone());
+        procedure_codes.push(entry.process_procedure_code.clone());
+        procedure_code_list_uris.push(entry.process_procedure_code_list_uri.clone());
+        urgency_codes.push(entry.process_urgency_code.clone());
+        urgency_code_list_uris.push(entry.process_urgency_code_list_uri.clone());
+    }
+
+    let df = DataFrame::new(vec![
+        Series::new("end_date", end_dates),
+        Series::new("procedure_code", procedure_codes),
+        Series::new("procedure_code_list_uri", procedure_code_list_uris),
+        Series::new("urgency_code", urgency_codes),
+        Series::new("urgency_code_list_uri", urgency_code_list_uris),
+    ])
+    .map_err(|e| AppError::ParseError(format!("Failed to build process struct: {e}")))?;
+
+    Ok(df.into_struct("process").into_series())
+}
+
 /// Converts a vector of Entry structs into a Polars DataFrame.
 ///
 /// This helper function creates a DataFrame from a slice of Entry structs,
@@ -66,6 +186,10 @@ fn entries_to_dataframe(entries: Vec<Entry>) -> AppResult<DataFrame> {
     let empty: Vec<Option<String>> = Vec::new();
     if entries.is_empty() {
         let empty_list = Series::new("project_lots", Vec::<Series>::new());
+        let empty_entries: &[Entry] = &[];
+        let contracting_party_struct = contracting_party_to_struct(empty_entries)?;
+        let project_struct = project_to_struct(empty_entries)?;
+        let process_struct = process_to_struct(empty_entries)?;
 
         return DataFrame::new(vec![
             Series::new("id", empty.clone()),
@@ -76,29 +200,8 @@ fn entries_to_dataframe(entries: Vec<Entry>) -> AppResult<DataFrame> {
             Series::new("status_code", empty.clone()),
             Series::new("status_code_list_uri", empty.clone()),
             Series::new("contract_id", empty.clone()),
-            Series::new("contracting_party_name", empty.clone()),
-            Series::new("contracting_party_website", empty.clone()),
-            Series::new("contracting_party_type_code", empty.clone()),
-            Series::new("contracting_party_type_code_list_uri", empty.clone()),
-            Series::new("contracting_party_activity_code", empty.clone()),
-            Series::new("contracting_party_activity_code_list_uri", empty.clone()),
-            Series::new("contracting_party_city", empty.clone()),
-            Series::new("contracting_party_zip", empty.clone()),
-            Series::new("contracting_party_country_code", empty.clone()),
-            Series::new("contracting_party_country_code_list_uri", empty.clone()),
-            Series::new("project_name", empty.clone()),
-            Series::new("project_type_code", empty.clone()),
-            Series::new("project_type_code_list_uri", empty.clone()),
-            Series::new("project_sub_type_code", empty.clone()),
-            Series::new("project_sub_type_code_list_uri", empty.clone()),
-            Series::new("project_total_amount", empty.clone()),
-            Series::new("project_total_currency", empty.clone()),
-            Series::new("project_tax_exclusive_amount", empty.clone()),
-            Series::new("project_tax_exclusive_currency", empty.clone()),
-            Series::new("project_cpv_code", empty.clone()),
-            Series::new("project_cpv_code_list_uri", empty.clone()),
-            Series::new("project_country_code", empty.clone()),
-            Series::new("project_country_code_list_uri", empty.clone()),
+            contracting_party_struct,
+            project_struct,
             empty_list,
             Series::new("result_code", empty.clone()),
             Series::new("result_code_list_uri", empty.clone()),
@@ -114,11 +217,7 @@ fn entries_to_dataframe(entries: Vec<Entry>) -> AppResult<DataFrame> {
             Series::new("terms_funding_program_code_list_uri", empty.clone()),
             Series::new("terms_award_criteria_type_code", empty.clone()),
             Series::new("terms_award_criteria_type_code_list_uri", empty.clone()),
-            Series::new("process_end_date", empty.clone()),
-            Series::new("process_procedure_code", empty.clone()),
-            Series::new("process_procedure_code_list_uri", empty.clone()),
-            Series::new("process_urgency_code", empty.clone()),
-            Series::new("process_urgency_code_list_uri", empty.clone()),
+            process_struct,
             Series::new("cfs_raw_xml", empty),
         ])
         .map_err(|e| AppError::ParseError(format!("Failed to create DataFrame: {e}")));
@@ -133,29 +232,6 @@ fn entries_to_dataframe(entries: Vec<Entry>) -> AppResult<DataFrame> {
     let mut status_codes = Vec::with_capacity(len);
     let mut status_code_list_uris = Vec::with_capacity(len);
     let mut contract_ids = Vec::with_capacity(len);
-    let mut contracting_party_names = Vec::with_capacity(len);
-    let mut contracting_party_websites = Vec::with_capacity(len);
-    let mut contracting_party_type_codes = Vec::with_capacity(len);
-    let mut contracting_party_type_code_list_uris = Vec::with_capacity(len);
-    let mut contracting_party_activity_codes = Vec::with_capacity(len);
-    let mut contracting_party_activity_code_list_uris = Vec::with_capacity(len);
-    let mut contracting_party_cities = Vec::with_capacity(len);
-    let mut contracting_party_zips = Vec::with_capacity(len);
-    let mut contracting_party_country_codes = Vec::with_capacity(len);
-    let mut contracting_party_country_code_list_uris = Vec::with_capacity(len);
-    let mut project_names = Vec::with_capacity(len);
-    let mut project_type_codes = Vec::with_capacity(len);
-    let mut project_type_code_list_uris = Vec::with_capacity(len);
-    let mut project_sub_type_codes = Vec::with_capacity(len);
-    let mut project_sub_type_code_list_uris = Vec::with_capacity(len);
-    let mut project_total_amounts = Vec::with_capacity(len);
-    let mut project_total_currencies = Vec::with_capacity(len);
-    let mut project_tax_exclusive_amounts = Vec::with_capacity(len);
-    let mut project_tax_exclusive_currencies = Vec::with_capacity(len);
-    let mut project_cpv_code = Vec::with_capacity(len);
-    let mut project_cpv_code_list_uris = Vec::with_capacity(len);
-    let mut project_country_codes = Vec::with_capacity(len);
-    let mut project_country_code_list_uris = Vec::with_capacity(len);
     let mut project_lots_structs: Vec<Series> = Vec::with_capacity(len);
     let mut result_codes = Vec::with_capacity(len);
     let mut result_code_list_uris = Vec::with_capacity(len);
@@ -171,72 +247,41 @@ fn entries_to_dataframe(entries: Vec<Entry>) -> AppResult<DataFrame> {
     let mut terms_funding_program_code_list_uris = Vec::with_capacity(len);
     let mut terms_award_criteria_type_codes = Vec::with_capacity(len);
     let mut terms_award_criteria_type_code_list_uris = Vec::with_capacity(len);
-    let mut process_end_dates = Vec::with_capacity(len);
-    let mut process_procedure_codes = Vec::with_capacity(len);
-    let mut process_procedure_code_list_uris = Vec::with_capacity(len);
-    let mut process_urgency_codes = Vec::with_capacity(len);
-    let mut process_urgency_code_list_uris = Vec::with_capacity(len);
     let mut cfs_raw_xmls = Vec::with_capacity(len);
 
-    for entry in entries {
-        ids.push(entry.id);
-        titles.push(entry.title);
-        links.push(entry.link);
-        summaries.push(entry.summary);
-        updateds.push(entry.updated);
-        status_codes.push(entry.status_code);
-        status_code_list_uris.push(entry.status_code_list_uri);
-        contract_ids.push(entry.contract_id);
-        contracting_party_names.push(entry.contracting_party_name);
-        contracting_party_websites.push(entry.contracting_party_website);
-        contracting_party_type_codes.push(entry.contracting_party_type_code);
-        contracting_party_type_code_list_uris.push(entry.contracting_party_type_code_list_uri);
-        contracting_party_activity_codes.push(entry.contracting_party_activity_code);
-        contracting_party_activity_code_list_uris
-            .push(entry.contracting_party_activity_code_list_uri);
-        contracting_party_cities.push(entry.contracting_party_city);
-        contracting_party_zips.push(entry.contracting_party_zip);
-        contracting_party_country_codes.push(entry.contracting_party_country_code);
-        contracting_party_country_code_list_uris
-            .push(entry.contracting_party_country_code_list_uri);
-        project_names.push(entry.project_name);
-        project_type_codes.push(entry.project_type_code);
-        project_type_code_list_uris.push(entry.project_type_code_list_uri);
-        project_sub_type_codes.push(entry.project_sub_type_code);
-        project_sub_type_code_list_uris.push(entry.project_sub_type_code_list_uri);
-        project_total_amounts.push(entry.project_total_amount);
-        project_total_currencies.push(entry.project_total_currency);
-        project_tax_exclusive_amounts.push(entry.project_tax_exclusive_amount);
-        project_tax_exclusive_currencies.push(entry.project_tax_exclusive_currency);
-        project_cpv_code.push(entry.project_cpv_code);
-        project_cpv_code_list_uris.push(entry.project_cpv_code_list_uri);
-        project_country_codes.push(entry.project_country_code);
-        project_country_code_list_uris.push(entry.project_country_code_list_uri);
+    for entry in &entries {
+        ids.push(entry.id.clone());
+        titles.push(entry.title.clone());
+        links.push(entry.link.clone());
+        summaries.push(entry.summary.clone());
+        updateds.push(entry.updated.clone());
+        status_codes.push(entry.status_code.clone());
+        status_code_list_uris.push(entry.status_code_list_uri.clone());
+        contract_ids.push(entry.contract_id.clone());
         let lot_struct = lots_to_struct_series(&entry.project_lots)?;
         project_lots_structs.push(lot_struct);
-        result_codes.push(entry.result_code);
-        result_code_list_uris.push(entry.result_code_list_uri);
-        result_descriptions.push(entry.result_description);
-        result_winning_parties.push(entry.result_winning_party);
-        result_sme_awarded_indicators.push(entry.result_sme_awarded_indicator);
-        result_award_dates.push(entry.result_award_date);
-        result_tax_exclusive_amounts.push(entry.result_tax_exclusive_amount);
-        result_tax_exclusive_currencies.push(entry.result_tax_exclusive_currency);
-        result_payable_amounts.push(entry.result_payable_amount);
-        result_payable_currencies.push(entry.result_payable_currency);
-        terms_funding_program_codes.push(entry.terms_funding_program_code);
-        terms_funding_program_code_list_uris.push(entry.terms_funding_program_code_list_uri);
-        terms_award_criteria_type_codes.push(entry.terms_award_criteria_type_code);
+        result_codes.push(entry.result_code.clone());
+        result_code_list_uris.push(entry.result_code_list_uri.clone());
+        result_descriptions.push(entry.result_description.clone());
+        result_winning_parties.push(entry.result_winning_party.clone());
+        result_sme_awarded_indicators.push(entry.result_sme_awarded_indicator.clone());
+        result_award_dates.push(entry.result_award_date.clone());
+        result_tax_exclusive_amounts.push(entry.result_tax_exclusive_amount.clone());
+        result_tax_exclusive_currencies.push(entry.result_tax_exclusive_currency.clone());
+        result_payable_amounts.push(entry.result_payable_amount.clone());
+        result_payable_currencies.push(entry.result_payable_currency.clone());
+        terms_funding_program_codes.push(entry.terms_funding_program_code.clone());
+        terms_funding_program_code_list_uris
+            .push(entry.terms_funding_program_code_list_uri.clone());
+        terms_award_criteria_type_codes.push(entry.terms_award_criteria_type_code.clone());
         terms_award_criteria_type_code_list_uris
-            .push(entry.terms_award_criteria_type_code_list_uri);
-        process_end_dates.push(entry.process_end_date);
-        process_procedure_codes.push(entry.process_procedure_code);
-        process_procedure_code_list_uris.push(entry.process_procedure_code_list_uri);
-        process_urgency_codes.push(entry.process_urgency_code);
-        process_urgency_code_list_uris.push(entry.process_urgency_code_list_uri);
-        cfs_raw_xmls.push(entry.cfs_raw_xml);
+            .push(entry.terms_award_criteria_type_code_list_uri.clone());
+        cfs_raw_xmls.push(entry.cfs_raw_xml.clone());
     }
 
+    let contracting_party_struct = contracting_party_to_struct(&entries)?;
+    let project_struct = project_to_struct(&entries)?;
+    let process_struct = process_to_struct(&entries)?;
     let project_lots_series = Series::new("project_lots", project_lots_structs);
 
     DataFrame::new(vec![
@@ -248,56 +293,8 @@ fn entries_to_dataframe(entries: Vec<Entry>) -> AppResult<DataFrame> {
         Series::new("status_code", status_codes),
         Series::new("status_code_list_uri", status_code_list_uris),
         Series::new("contract_id", contract_ids),
-        Series::new("contracting_party_name", contracting_party_names),
-        Series::new("contracting_party_website", contracting_party_websites),
-        Series::new("contracting_party_type_code", contracting_party_type_codes),
-        Series::new(
-            "contracting_party_type_code_list_uri",
-            contracting_party_type_code_list_uris,
-        ),
-        Series::new(
-            "contracting_party_activity_code",
-            contracting_party_activity_codes,
-        ),
-        Series::new(
-            "contracting_party_activity_code_list_uri",
-            contracting_party_activity_code_list_uris,
-        ),
-        Series::new("contracting_party_city", contracting_party_cities),
-        Series::new("contracting_party_zip", contracting_party_zips),
-        Series::new(
-            "contracting_party_country_code",
-            contracting_party_country_codes,
-        ),
-        Series::new(
-            "contracting_party_country_code_list_uri",
-            contracting_party_country_code_list_uris,
-        ),
-        Series::new("project_name", project_names),
-        Series::new("project_type_code", project_type_codes),
-        Series::new("project_type_code_list_uri", project_type_code_list_uris),
-        Series::new("project_sub_type_code", project_sub_type_codes),
-        Series::new(
-            "project_sub_type_code_list_uri",
-            project_sub_type_code_list_uris,
-        ),
-        Series::new("project_total_amount", project_total_amounts),
-        Series::new("project_total_currency", project_total_currencies),
-        Series::new(
-            "project_tax_exclusive_amount",
-            project_tax_exclusive_amounts,
-        ),
-        Series::new(
-            "project_tax_exclusive_currency",
-            project_tax_exclusive_currencies,
-        ),
-        Series::new("project_cpv_code", project_cpv_code),
-        Series::new("project_cpv_code_list_uri", project_cpv_code_list_uris),
-        Series::new("project_country_code", project_country_codes),
-        Series::new(
-            "project_country_code_list_uri",
-            project_country_code_list_uris,
-        ),
+        contracting_party_struct,
+        project_struct,
         project_lots_series,
         Series::new("result_code", result_codes),
         Series::new("result_code_list_uri", result_code_list_uris),
@@ -328,17 +325,7 @@ fn entries_to_dataframe(entries: Vec<Entry>) -> AppResult<DataFrame> {
             "terms_award_criteria_type_code_list_uri",
             terms_award_criteria_type_code_list_uris,
         ),
-        Series::new("process_end_date", process_end_dates),
-        Series::new("process_procedure_code", process_procedure_codes),
-        Series::new(
-            "process_procedure_code_list_uri",
-            process_procedure_code_list_uris,
-        ),
-        Series::new("process_urgency_code", process_urgency_codes),
-        Series::new(
-            "process_urgency_code_list_uri",
-            process_urgency_code_list_uris,
-        ),
+        process_struct,
         Series::new("cfs_raw_xml", cfs_raw_xmls),
     ])
     .map_err(|e| AppError::ParseError(format!("Failed to create DataFrame: {e}")))
@@ -598,7 +585,7 @@ mod tests {
     fn entries_to_dataframe_empty_yields_zero_rows() {
         let df = entries_to_dataframe(vec![]).unwrap();
         assert_eq!(df.height(), 0);
-        assert_eq!(df.width(), 52);
+        assert_eq!(df.width(), 27);
     }
 
     #[test]
@@ -660,9 +647,15 @@ mod tests {
 
         let df = entries_to_dataframe(vec![entry]).unwrap();
         assert_eq!(df.height(), 1);
-        assert_eq!(df.width(), 52);
+        assert_eq!(df.width(), 27);
         let lots_col = df.column("project_lots").unwrap();
         assert!(matches!(lots_col.dtype(), DataType::List(_)));
+        let contracting_party_col = df.column("contracting_party").unwrap();
+        assert!(matches!(contracting_party_col.dtype(), DataType::Struct(_)));
+        let project_col = df.column("project").unwrap();
+        assert!(matches!(project_col.dtype(), DataType::Struct(_)));
+        let process_col = df.column("process").unwrap();
+        assert!(matches!(process_col.dtype(), DataType::Struct(_)));
         let value = df.column("id").unwrap().get(0).unwrap();
         assert_eq!(value, AnyValue::String("id"));
     }
