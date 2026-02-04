@@ -1,5 +1,5 @@
 use crate::errors::{AppError, AppResult};
-use crate::models::{Entry, ProcurementProjectLot};
+use crate::models::{Entry, ProcurementProjectLot, TenderResultRow};
 use crate::utils::{format_duration, mb_from_bytes, round_two_decimals};
 use futures::stream::{self, StreamExt, TryStreamExt};
 use polars::lazy::prelude::{LazyFrame, ScanArgsParquet};
@@ -55,6 +55,54 @@ fn lots_to_struct_series(lots: &[ProcurementProjectLot]) -> AppResult<Series> {
     .map_err(|e| AppError::ParseError(format!("Failed to build lot struct: {e}")))?;
 
     Ok(df.into_struct("lot").into_series())
+}
+
+fn tender_results_to_struct_series(results: &[TenderResultRow]) -> AppResult<Series> {
+    let mut result_ids = Vec::with_capacity(results.len());
+    let mut result_lot_ids = Vec::with_capacity(results.len());
+    let mut result_codes = Vec::with_capacity(results.len());
+    let mut result_code_list_uris = Vec::with_capacity(results.len());
+    let mut descriptions = Vec::with_capacity(results.len());
+    let mut winning_parties = Vec::with_capacity(results.len());
+    let mut sme_indicators = Vec::with_capacity(results.len());
+    let mut award_dates = Vec::with_capacity(results.len());
+    let mut tax_exclusive_amounts = Vec::with_capacity(results.len());
+    let mut tax_exclusive_currencies = Vec::with_capacity(results.len());
+    let mut payable_amounts = Vec::with_capacity(results.len());
+    let mut payable_currencies = Vec::with_capacity(results.len());
+
+    for result in results {
+        result_ids.push(result.result_id.clone());
+        result_lot_ids.push(result.result_lot_id.clone());
+        result_codes.push(result.result_code.clone());
+        result_code_list_uris.push(result.result_code_list_uri.clone());
+        descriptions.push(result.result_description.clone());
+        winning_parties.push(result.result_winning_party.clone());
+        sme_indicators.push(result.result_sme_awarded_indicator.clone());
+        award_dates.push(result.result_award_date.clone());
+        tax_exclusive_amounts.push(result.result_tax_exclusive_amount.clone());
+        tax_exclusive_currencies.push(result.result_tax_exclusive_currency.clone());
+        payable_amounts.push(result.result_payable_amount.clone());
+        payable_currencies.push(result.result_payable_currency.clone());
+    }
+
+    let df = DataFrame::new(vec![
+        Series::new("result_id", result_ids),
+        Series::new("result_lot_id", result_lot_ids),
+        Series::new("result_code", result_codes),
+        Series::new("result_code_list_uri", result_code_list_uris),
+        Series::new("result_description", descriptions),
+        Series::new("result_winning_party", winning_parties),
+        Series::new("result_sme_awarded_indicator", sme_indicators),
+        Series::new("result_award_date", award_dates),
+        Series::new("result_tax_exclusive_amount", tax_exclusive_amounts),
+        Series::new("result_tax_exclusive_currency", tax_exclusive_currencies),
+        Series::new("result_payable_amount", payable_amounts),
+        Series::new("result_payable_currency", payable_currencies),
+    ])
+    .map_err(|e| AppError::ParseError(format!("Failed to build tender_result struct: {e}")))?;
+
+    Ok(df.into_struct("tender_result").into_series())
 }
 
 fn contracting_party_to_struct(entries: &[Entry]) -> AppResult<Series> {
@@ -186,6 +234,7 @@ fn entries_to_dataframe(entries: Vec<Entry>) -> AppResult<DataFrame> {
     let empty: Vec<Option<String>> = Vec::new();
     if entries.is_empty() {
         let empty_list = Series::new("project_lots", Vec::<Series>::new());
+        let empty_tender_results = Series::new("tender_results", Vec::<Series>::new());
         let empty_entries: &[Entry] = &[];
         let contracting_party_struct = contracting_party_to_struct(empty_entries)?;
         let project_struct = project_to_struct(empty_entries)?;
@@ -203,16 +252,7 @@ fn entries_to_dataframe(entries: Vec<Entry>) -> AppResult<DataFrame> {
             contracting_party_struct,
             project_struct,
             empty_list,
-            Series::new("result_code", empty.clone()),
-            Series::new("result_code_list_uri", empty.clone()),
-            Series::new("result_description", empty.clone()),
-            Series::new("result_winning_party", empty.clone()),
-            Series::new("result_sme_awarded_indicator", empty.clone()),
-            Series::new("result_award_date", empty.clone()),
-            Series::new("result_tax_exclusive_amount", empty.clone()),
-            Series::new("result_tax_exclusive_currency", empty.clone()),
-            Series::new("result_payable_amount", empty.clone()),
-            Series::new("result_payable_currency", empty.clone()),
+            empty_tender_results,
             Series::new("terms_funding_program_code", empty.clone()),
             Series::new("terms_funding_program_code_list_uri", empty.clone()),
             Series::new("terms_award_criteria_type_code", empty.clone()),
@@ -233,16 +273,6 @@ fn entries_to_dataframe(entries: Vec<Entry>) -> AppResult<DataFrame> {
     let mut status_code_list_uris = Vec::with_capacity(len);
     let mut contract_ids = Vec::with_capacity(len);
     let mut project_lots_structs: Vec<Series> = Vec::with_capacity(len);
-    let mut result_codes = Vec::with_capacity(len);
-    let mut result_code_list_uris = Vec::with_capacity(len);
-    let mut result_descriptions = Vec::with_capacity(len);
-    let mut result_winning_parties = Vec::with_capacity(len);
-    let mut result_sme_awarded_indicators = Vec::with_capacity(len);
-    let mut result_award_dates = Vec::with_capacity(len);
-    let mut result_tax_exclusive_amounts = Vec::with_capacity(len);
-    let mut result_tax_exclusive_currencies = Vec::with_capacity(len);
-    let mut result_payable_amounts = Vec::with_capacity(len);
-    let mut result_payable_currencies = Vec::with_capacity(len);
     let mut terms_funding_program_codes = Vec::with_capacity(len);
     let mut terms_funding_program_code_list_uris = Vec::with_capacity(len);
     let mut terms_award_criteria_type_codes = Vec::with_capacity(len);
@@ -260,16 +290,6 @@ fn entries_to_dataframe(entries: Vec<Entry>) -> AppResult<DataFrame> {
         contract_ids.push(entry.contract_id.clone());
         let lot_struct = lots_to_struct_series(&entry.project_lots)?;
         project_lots_structs.push(lot_struct);
-        result_codes.push(entry.result_code.clone());
-        result_code_list_uris.push(entry.result_code_list_uri.clone());
-        result_descriptions.push(entry.result_description.clone());
-        result_winning_parties.push(entry.result_winning_party.clone());
-        result_sme_awarded_indicators.push(entry.result_sme_awarded_indicator.clone());
-        result_award_dates.push(entry.result_award_date.clone());
-        result_tax_exclusive_amounts.push(entry.result_tax_exclusive_amount.clone());
-        result_tax_exclusive_currencies.push(entry.result_tax_exclusive_currency.clone());
-        result_payable_amounts.push(entry.result_payable_amount.clone());
-        result_payable_currencies.push(entry.result_payable_currency.clone());
         terms_funding_program_codes.push(entry.terms_funding_program_code.clone());
         terms_funding_program_code_list_uris
             .push(entry.terms_funding_program_code_list_uri.clone());
@@ -283,6 +303,11 @@ fn entries_to_dataframe(entries: Vec<Entry>) -> AppResult<DataFrame> {
     let project_struct = project_to_struct(&entries)?;
     let process_struct = process_to_struct(&entries)?;
     let project_lots_series = Series::new("project_lots", project_lots_structs);
+    let tender_results_structs = entries
+        .iter()
+        .map(|entry| tender_results_to_struct_series(&entry.tender_results))
+        .collect::<AppResult<Vec<_>>>()?;
+    let tender_results_series = Series::new("tender_results", tender_results_structs);
 
     DataFrame::new(vec![
         Series::new("id", ids),
@@ -296,22 +321,7 @@ fn entries_to_dataframe(entries: Vec<Entry>) -> AppResult<DataFrame> {
         contracting_party_struct,
         project_struct,
         project_lots_series,
-        Series::new("result_code", result_codes),
-        Series::new("result_code_list_uri", result_code_list_uris),
-        Series::new("result_description", result_descriptions),
-        Series::new("result_winning_party", result_winning_parties),
-        Series::new(
-            "result_sme_awarded_indicator",
-            result_sme_awarded_indicators,
-        ),
-        Series::new("result_award_date", result_award_dates),
-        Series::new("result_tax_exclusive_amount", result_tax_exclusive_amounts),
-        Series::new(
-            "result_tax_exclusive_currency",
-            result_tax_exclusive_currencies,
-        ),
-        Series::new("result_payable_amount", result_payable_amounts),
-        Series::new("result_payable_currency", result_payable_currencies),
+        tender_results_series,
         Series::new("terms_funding_program_code", terms_funding_program_codes),
         Series::new(
             "terms_funding_program_code_list_uri",
@@ -585,7 +595,7 @@ mod tests {
     fn entries_to_dataframe_empty_yields_zero_rows() {
         let df = entries_to_dataframe(vec![]).unwrap();
         assert_eq!(df.height(), 0);
-        assert_eq!(df.width(), 27);
+        assert_eq!(df.width(), 18);
     }
 
     #[test]
@@ -623,16 +633,11 @@ mod tests {
             project_country_code: None,
             project_country_code_list_uri: None,
             project_lots: Vec::new(),
-            result_code: None,
-            result_code_list_uri: None,
-            result_description: None,
-            result_winning_party: None,
-            result_sme_awarded_indicator: None,
-            result_award_date: None,
-            result_tax_exclusive_amount: None,
-            result_tax_exclusive_currency: None,
-            result_payable_amount: None,
-            result_payable_currency: None,
+            tender_results: vec![TenderResultRow {
+                result_id: Some("1".to_string()),
+                result_lot_id: Some("0".to_string()),
+                ..Default::default()
+            }],
             terms_funding_program_code: None,
             terms_funding_program_code_list_uri: None,
             terms_award_criteria_type_code: None,
@@ -647,7 +652,9 @@ mod tests {
 
         let df = entries_to_dataframe(vec![entry]).unwrap();
         assert_eq!(df.height(), 1);
-        assert_eq!(df.width(), 27);
+        let tender_results_series = df.column("tender_results").unwrap();
+        assert_eq!(tender_results_series.len(), 1);
+        assert_eq!(df.width(), 18);
         let lots_col = df.column("project_lots").unwrap();
         assert!(matches!(lots_col.dtype(), DataType::List(_)));
         let contracting_party_col = df.column("contracting_party").unwrap();
