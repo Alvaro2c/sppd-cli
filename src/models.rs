@@ -15,6 +15,35 @@ pub struct ProcurementProjectLot {
     pub country_code_list_uri: Option<String>,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+/// Represents one output row derived from a `<cac:TenderResult>` plus an optional lot.
+pub struct TenderResultRow {
+    /// Artificial ID assigned per TenderResult in document order.
+    pub result_id: Option<String>,
+    /// Lot identifier from `<cbc:ProcurementProjectLotID>` or `0` when no lot IDs exist.
+    pub result_lot_id: Option<String>,
+    /// `<cac:TenderResult>/<cbc:ResultCode>`
+    pub result_code: Option<String>,
+    /// `listURI` attribute for the result code.
+    pub result_code_list_uri: Option<String>,
+    /// `<cac:TenderResult>/<cbc:Description>`
+    pub result_description: Option<String>,
+    /// `<cac:TenderResult>/<cac:WinningParty>/<cac:PartyName>/<cbc:Name>`
+    pub result_winning_party: Option<String>,
+    /// `<cac:TenderResult>/<cbc:SMEAwardedIndicator>`
+    pub result_sme_awarded_indicator: Option<String>,
+    /// `<cac:TenderResult>/<cbc:AwardDate>`
+    pub result_award_date: Option<String>,
+    /// `<cac:TenderResult>/<cac:AwardedTenderedProject>/<cac:LegalMonetaryTotal>/<cbc:TaxExclusiveAmount>`
+    pub result_tax_exclusive_amount: Option<String>,
+    /// `currencyID` attribute from the tax-exclusive amount.
+    pub result_tax_exclusive_currency: Option<String>,
+    /// `<cac:TenderResult>/<cac:AwardedTenderedProject>/<cac:LegalMonetaryTotal>/<cbc:PayableAmount>`
+    pub result_payable_amount: Option<String>,
+    /// `currencyID` attribute from the payable amount.
+    pub result_payable_currency: Option<String>,
+}
+
 /// Represents a single entry element from an XML/Atom feed.
 ///
 /// Corresponds to an `<entry>` element in Atom feeds from Spanish procurement data sources.
@@ -85,26 +114,8 @@ pub struct Entry {
     pub project_country_code_list_uri: Option<String>,
     /// Collection of parsed `<cac:ProcurementProjectLot>` values
     pub project_lots: Vec<ProcurementProjectLot>,
-    /// `<cac:TenderResult>/<cbc:ResultCode>`
-    pub result_code: Option<String>,
-    /// listURI attribute for result_code
-    pub result_code_list_uri: Option<String>,
-    /// `<cac:TenderResult>/<cbc:Description>`
-    pub result_description: Option<String>,
-    /// `<cac:TenderResult>/<cac:WinningParty>/<cac:PartyName>/<cbc:Name>`
-    pub result_winning_party: Option<String>,
-    /// `<cac:TenderResult>/<cbc:SMEAwardedIndicator>`
-    pub result_sme_awarded_indicator: Option<String>,
-    /// `<cac:TenderResult>/<cbc:AwardDate>`
-    pub result_award_date: Option<String>,
-    /// `<cac:TenderResult>/<cac:AwardedTenderedProject>/<cac:LegalMonetaryTotal>/<cbc:TaxExclusiveAmount>`
-    pub result_tax_exclusive_amount: Option<String>,
-    /// Currency of `result_tax_exclusive_amount`
-    pub result_tax_exclusive_currency: Option<String>,
-    /// `<cac:TenderResult>/<cac:AwardedTenderedProject>/<cac:LegalMonetaryTotal>/<cbc:PayableAmount>`
-    pub result_payable_amount: Option<String>,
-    /// Currency of `result_payable_amount`
-    pub result_payable_currency: Option<String>,
+    /// Tender result rows expanded per lot; each row carries the previous `result_*` metadata plus `result_id`/`result_lot_id`.
+    pub tender_results: Vec<TenderResultRow>,
     /// `<cac:TenderingTerms>/<cbc:FundingProgramCode>`
     pub terms_funding_program_code: Option<String>,
     /// listURI attribute for terms_funding_program_code
