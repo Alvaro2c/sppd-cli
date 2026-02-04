@@ -1,6 +1,6 @@
 use super::contract_folder_status::ContractFolderStatusHandler;
 use crate::errors::{AppError, AppResult};
-use crate::models::{Entry, ProcurementProjectLot};
+use crate::models::{Entry, ProcurementProjectLot, TenderResultRow};
 use quick_xml::events::Event;
 use quick_xml::reader::Reader;
 #[cfg(test)]
@@ -51,16 +51,7 @@ struct EntryBuilder {
     project_country_code: Option<String>,
     project_country_code_list_uri: Option<String>,
     project_lots: Vec<ProcurementProjectLot>,
-    result_code: Option<String>,
-    result_code_list_uri: Option<String>,
-    result_description: Option<String>,
-    result_winning_party: Option<String>,
-    result_sme_awarded_indicator: Option<String>,
-    result_award_date: Option<String>,
-    result_tax_exclusive_amount: Option<String>,
-    result_tax_exclusive_currency: Option<String>,
-    result_payable_amount: Option<String>,
-    result_payable_currency: Option<String>,
+    tender_results: Vec<TenderResultRow>,
     terms_funding_program_code: Option<String>,
     terms_funding_program_code_list_uri: Option<String>,
     terms_award_criteria_type_code: Option<String>,
@@ -110,16 +101,7 @@ impl EntryBuilder {
             project_country_code: None,
             project_country_code_list_uri: None,
             project_lots: Vec::new(),
-            result_code: None,
-            result_code_list_uri: None,
-            result_description: None,
-            result_winning_party: None,
-            result_sme_awarded_indicator: None,
-            result_award_date: None,
-            result_tax_exclusive_amount: None,
-            result_tax_exclusive_currency: None,
-            result_payable_amount: None,
-            result_payable_currency: None,
+            tender_results: Vec::new(),
             terms_funding_program_code: None,
             terms_funding_program_code_list_uri: None,
             terms_award_criteria_type_code: None,
@@ -168,16 +150,7 @@ impl EntryBuilder {
         self.project_country_code = None;
         self.project_country_code_list_uri = None;
         self.project_lots.clear();
-        self.result_code = None;
-        self.result_code_list_uri = None;
-        self.result_description = None;
-        self.result_winning_party = None;
-        self.result_sme_awarded_indicator = None;
-        self.result_award_date = None;
-        self.result_tax_exclusive_amount = None;
-        self.result_tax_exclusive_currency = None;
-        self.result_payable_amount = None;
-        self.result_payable_currency = None;
+        self.tender_results.clear();
         self.terms_funding_program_code = None;
         self.terms_funding_program_code_list_uri = None;
         self.terms_award_criteria_type_code = None;
@@ -265,16 +238,7 @@ impl EntryBuilder {
             self.project_country_code = p.project_country_code;
             self.project_country_code_list_uri = p.project_country_code_list_uri;
             self.project_lots = p.project_lots;
-            self.result_code = p.result_code;
-            self.result_code_list_uri = p.result_code_list_uri;
-            self.result_description = p.result_description;
-            self.result_winning_party = p.result_winning_party;
-            self.result_sme_awarded_indicator = p.result_sme_awarded_indicator;
-            self.result_award_date = p.result_award_date;
-            self.result_tax_exclusive_amount = p.result_tax_exclusive_amount;
-            self.result_tax_exclusive_currency = p.result_tax_exclusive_currency;
-            self.result_payable_amount = p.result_payable_amount;
-            self.result_payable_currency = p.result_payable_currency;
+            self.tender_results = p.tender_results;
             self.terms_funding_program_code = p.terms_funding_program_code;
             self.terms_funding_program_code_list_uri = p.terms_funding_program_code_list_uri;
             self.terms_award_criteria_type_code = p.terms_award_criteria_type_code;
@@ -331,16 +295,7 @@ impl EntryBuilder {
                 project_country_code: self.project_country_code.take(),
                 project_country_code_list_uri: self.project_country_code_list_uri.take(),
                 project_lots: std::mem::take(&mut self.project_lots),
-                result_code: self.result_code.take(),
-                result_code_list_uri: self.result_code_list_uri.take(),
-                result_description: self.result_description.take(),
-                result_winning_party: self.result_winning_party.take(),
-                result_sme_awarded_indicator: self.result_sme_awarded_indicator.take(),
-                result_award_date: self.result_award_date.take(),
-                result_tax_exclusive_amount: self.result_tax_exclusive_amount.take(),
-                result_tax_exclusive_currency: self.result_tax_exclusive_currency.take(),
-                result_payable_amount: self.result_payable_amount.take(),
-                result_payable_currency: self.result_payable_currency.take(),
+                tender_results: std::mem::take(&mut self.tender_results),
                 terms_funding_program_code: self.terms_funding_program_code.take(),
                 terms_funding_program_code_list_uri: self
                     .terms_funding_program_code_list_uri

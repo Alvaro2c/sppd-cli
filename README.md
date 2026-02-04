@@ -138,7 +138,7 @@ cargo run -- toml config/prod.toml
 
 ### Output Schema
 
-Each Parquet record mirrors an Atom `<entry>` plus the extracted `ContractFolderStatus` data, resulting in 27 columns:
+Each Parquet record mirrors an Atom `<entry>` plus the extracted `ContractFolderStatus` data.
 
 | Column | Description |
 |--------|-------------|
@@ -153,16 +153,7 @@ Each Parquet record mirrors an Atom `<entry>` plus the extracted `ContractFolder
 | `contracting_party` | Struct holding the contracting party metadata with fields `name`, `website`, `type_code`, `type_code_list_uri`, `activity_code`, `activity_code_list_uri`, `city`, `zip`, `country_code`, and `country_code_list_uri`. |
 | `project` | Struct aggregating all non-lot procurement project fields (`name`, `type_code`, `type_code_list_uri`, `sub_type_code`, `sub_type_code_list_uri`, `total_amount`, `total_currency`, `tax_exclusive_amount`, `tax_exclusive_currency`, `cpv_code`, `cpv_code_list_uri`, `country_code`, `country_code_list_uri`). `project.cpv_code` continues to concatenate multiple `<cbc:ItemClassificationCode>` values with `_`. |
 | `project_lots` | List of `<cac:ProcurementProjectLot>` structs, each containing `id`, `name`, budget amounts with currencies, `_`-concatenated `cpv_code`/`cpv_code_list_uri`, and country code/`country_code_list_uri`. |
-| `result_code` | `<cac:TenderResult>/<cbc:ResultCode>` |
-| `result_code_list_uri` | `listURI` attribute for the result code |
-| `result_description` | `<cac:TenderResult>/<cbc:Description>` |
-| `result_winning_party` | `<cac:TenderResult>/<cac:WinningParty>/<cac:PartyName>/<cbc:Name>` |
-| `result_sme_awarded_indicator` | `<cac:TenderResult>/<cbc:SMEAwardedIndicator>` |
-| `result_award_date` | `<cac:TenderResult>/<cbc:AwardDate>` |
-| `result_tax_exclusive_amount` | `<cac:TenderResult>/<cac:AwardedTenderedProject>/<cac:LegalMonetaryTotal>/<cbc:TaxExclusiveAmount>` value |
-| `result_tax_exclusive_currency` | `currencyID` attribute from the tax-exclusive amount |
-| `result_payable_amount` | `<cac:TenderResult>/<cac:AwardedTenderedProject>/<cac:LegalMonetaryTotal>/<cbc:PayableAmount>` value |
-| `result_payable_currency` | `currencyID` attribute from the payable amount |
+| `tender_results` | List of structs derived from `<cac:TenderResult>`. Each struct contains `result_id` (artificial counter per TenderResult in document order), `result_lot_id` (lot identifier or `0` when no lot IDs are present), and the fields: `result_code`, `result_code_list_uri`, `result_description`, `result_winning_party`, `result_sme_awarded_indicator`, `result_award_date`, `result_tax_exclusive_amount`, `result_tax_exclusive_currency`, `result_payable_amount`, `result_payable_currency`. |
 | `terms_funding_program_code` | `<cac:TenderingTerms>/<cbc:FundingProgramCode>` |
 | `terms_funding_program_code_list_uri` | `listURI` attribute for the funding program code |
 | `terms_award_criteria_type_code` | `<cac:TenderingTerms>/<cac:AwardingTerms>/<cac:AwardingCriteria>/<cbc:AwardingCriteriaTypeCode>` |

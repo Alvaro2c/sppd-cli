@@ -1,5 +1,5 @@
 use crate::errors::{AppError, AppResult};
-use crate::models::ProcurementProjectLot;
+use crate::models::{ProcurementProjectLot, TenderResultRow};
 use quick_xml::events::{BytesStart, Event};
 use quick_xml::writer::Writer;
 use std::io::Cursor;
@@ -33,16 +33,7 @@ pub struct ScopeResult {
     pub project_country_code: Option<String>,
     pub project_country_code_list_uri: Option<String>,
     pub project_lots: Vec<ProcurementProjectLot>,
-    pub result_code: Option<String>,
-    pub result_code_list_uri: Option<String>,
-    pub result_description: Option<String>,
-    pub result_winning_party: Option<String>,
-    pub result_sme_awarded_indicator: Option<String>,
-    pub result_award_date: Option<String>,
-    pub result_tax_exclusive_amount: Option<String>,
-    pub result_tax_exclusive_currency: Option<String>,
-    pub result_payable_amount: Option<String>,
-    pub result_payable_currency: Option<String>,
+    pub tender_results: Vec<TenderResultRow>,
     pub terms_funding_program_code: Option<String>,
     pub terms_funding_program_code_list_uri: Option<String>,
     pub terms_award_criteria_type_code: Option<String>,
@@ -56,7 +47,7 @@ pub struct ScopeResult {
 }
 
 /// Which text-capturing element is currently active.
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum ActiveField {
     StatusCode,
     Id,
@@ -87,6 +78,7 @@ enum ActiveField {
     ResultAwardDate,
     ResultTaxExclusiveAmount,
     ResultPayableAmount,
+    ResultLotId,
     TermsFundingProgramCode,
     TermsAwardCriteriaTypeCode,
     ProcessEndDate,
@@ -125,16 +117,11 @@ pub struct ContractFolderStatusScope {
     pub project_country_code_list_uri: Option<String>,
     pub project_lots: Vec<ProcurementProjectLot>,
     pub current_lot: Option<ProcurementProjectLot>,
-    pub result_code: Option<String>,
-    pub result_code_list_uri: Option<String>,
-    pub result_description: Option<String>,
-    pub result_winning_party: Option<String>,
-    pub result_sme_awarded_indicator: Option<String>,
-    pub result_award_date: Option<String>,
-    pub result_tax_exclusive_amount: Option<String>,
-    pub result_tax_exclusive_currency: Option<String>,
-    pub result_payable_amount: Option<String>,
-    pub result_payable_currency: Option<String>,
+    pub tender_results: Vec<TenderResultRow>,
+    pub current_tender_result: Option<TenderResultRow>,
+    pub current_tender_result_lot_ids: Vec<String>,
+    pub tender_result_counter: i32,
+    tender_result_lot_id_buffer: Option<String>,
     pub terms_funding_program_code: Option<String>,
     pub terms_funding_program_code_list_uri: Option<String>,
     pub terms_award_criteria_type_code: Option<String>,
@@ -220,16 +207,11 @@ impl ContractFolderStatusScope {
             project_country_code_list_uri: None,
             project_lots: Vec::new(),
             current_lot: None,
-            result_code: None,
-            result_code_list_uri: None,
-            result_description: None,
-            result_winning_party: None,
-            result_sme_awarded_indicator: None,
-            result_award_date: None,
-            result_tax_exclusive_amount: None,
-            result_tax_exclusive_currency: None,
-            result_payable_amount: None,
-            result_payable_currency: None,
+            tender_results: Vec::new(),
+            current_tender_result: None,
+            current_tender_result_lot_ids: Vec::new(),
+            tender_result_counter: 0,
+            tender_result_lot_id_buffer: None,
             terms_funding_program_code: None,
             terms_funding_program_code_list_uri: None,
             terms_award_criteria_type_code: None,
@@ -287,9 +269,13 @@ impl ContractFolderStatusScope {
                     field = Some(ActiveField::ProjectLotId);
                 }
                 if let Some(field) = field {
-                    self.prepare_multivalue(field);
-                    self.capture_currency(field, e);
-                    self.capture_list_uri(field, e);
+                    if field == ActiveField::ResultLotId {
+                        self.tender_result_lot_id_buffer = None;
+                    } else {
+                        self.prepare_multivalue(field);
+                        self.capture_currency(field, e);
+                        self.capture_list_uri(field, e);
+                    }
                     self.active_field = Some(field);
                 } else {
                     self.active_field = None;
@@ -300,8 +286,13 @@ impl ContractFolderStatusScope {
                 let name = qname.as_ref();
                 self.update_scope_flags_on_start(name);
                 if let Some(field) = self.determine_active_field(name) {
-                    self.prepare_multivalue(field);
-                    self.ensure_field_exists(field);
+                    if field == ActiveField::ResultLotId {
+                        self.tender_result_lot_id_buffer = Some(String::new());
+                        self.push_result_lot_id();
+                    } else {
+                        self.prepare_multivalue(field);
+                        self.ensure_field_exists(field);
+                    }
                 }
             }
             Event::Text(text) => {
@@ -321,6 +312,9 @@ impl ContractFolderStatusScope {
             Event::End(e) => {
                 let qname = e.name();
                 let name = qname.as_ref();
+                if matches_local_name(name, b"ProcurementProjectLotID") {
+                    self.push_result_lot_id();
+                }
                 if self.in_project_lot
                     && matches_local_name(name, b"Name")
                     && self
@@ -363,6 +357,7 @@ impl ContractFolderStatusScope {
             self.in_contracting_party = true;
         } else if matches_local_name(name, b"TenderResult") {
             self.in_tender_result = true;
+            self.start_tender_result();
         } else if matches_local_name(name, b"TenderingProcess") {
             self.in_tendering_process = true;
         } else if matches_local_name(name, b"Party") {
@@ -436,6 +431,7 @@ impl ContractFolderStatusScope {
             self.in_tender_result = false;
             self.in_awarded_tendered_project = false;
             self.in_legal_monetary_total = false;
+            self.push_current_tender_result();
         } else if matches_local_name(name, b"TenderingProcess") {
             self.in_tendering_process = false;
         } else if matches_local_name(name, b"Party") {
@@ -499,9 +495,12 @@ impl ContractFolderStatusScope {
                     self.set_current_lot_currency(field, currency)
                 }
                 ActiveField::ResultTaxExclusiveAmount => {
-                    self.result_tax_exclusive_currency = Some(currency)
+                    self.current_tender_result_mut()
+                        .result_tax_exclusive_currency = Some(currency)
                 }
-                ActiveField::ResultPayableAmount => self.result_payable_currency = Some(currency),
+                ActiveField::ResultPayableAmount => {
+                    self.current_tender_result_mut().result_payable_currency = Some(currency)
+                }
                 _ => {}
             }
         }
@@ -544,7 +543,9 @@ impl ContractFolderStatusScope {
                 ActiveField::ProjectLotCpvCode | ActiveField::ProjectLotCountryCode => {
                     self.set_current_lot_list_uri(field, uri)
                 }
-                ActiveField::ResultCode => self.result_code_list_uri = Some(uri),
+                ActiveField::ResultCode => {
+                    self.current_tender_result_mut().result_code_list_uri = Some(uri)
+                }
                 ActiveField::TermsFundingProgramCode => {
                     self.terms_funding_program_code_list_uri = Some(uri)
                 }
@@ -603,18 +604,19 @@ impl ContractFolderStatusScope {
             ActiveField::ContractingPartyCity => &mut self.contracting_party_city,
             ActiveField::ContractingPartyZipCode => &mut self.contracting_party_zip,
             ActiveField::ContractingPartyCountryCode => &mut self.contracting_party_country_code,
-            ActiveField::ResultCode => &mut self.result_code,
-            ActiveField::ResultDescription => &mut self.result_description,
-            ActiveField::ResultWinningParty => &mut self.result_winning_party,
-            ActiveField::ResultSmeAwardedIndicator => &mut self.result_sme_awarded_indicator,
-            ActiveField::ResultAwardDate => &mut self.result_award_date,
-            ActiveField::ResultTaxExclusiveAmount => &mut self.result_tax_exclusive_amount,
-            ActiveField::ResultPayableAmount => &mut self.result_payable_amount,
+            ActiveField::ResultCode
+            | ActiveField::ResultDescription
+            | ActiveField::ResultWinningParty
+            | ActiveField::ResultSmeAwardedIndicator
+            | ActiveField::ResultAwardDate
+            | ActiveField::ResultTaxExclusiveAmount
+            | ActiveField::ResultPayableAmount => self.tender_result_field_ref(field),
             ActiveField::TermsFundingProgramCode => &mut self.terms_funding_program_code,
             ActiveField::TermsAwardCriteriaTypeCode => &mut self.terms_award_criteria_type_code,
             ActiveField::ProcessEndDate => &mut self.process_end_date,
             ActiveField::ProcessProcedureCode => &mut self.process_procedure_code,
             ActiveField::ProcessUrgencyCode => &mut self.process_urgency_code,
+            _ => unreachable!("Invalid active field: {:?}", field),
         }
     }
 
@@ -639,6 +641,67 @@ impl ContractFolderStatusScope {
         }
     }
 
+    fn push_result_lot_id(&mut self) {
+        if let Some(buffer) = self.tender_result_lot_id_buffer.take() {
+            if !buffer.is_empty() {
+                self.current_tender_result_lot_ids.push(buffer);
+            }
+        }
+    }
+
+    fn start_tender_result(&mut self) {
+        self.tender_result_counter = self.tender_result_counter.saturating_add(1);
+        let row = TenderResultRow {
+            result_id: Some(self.tender_result_counter.to_string()),
+            ..Default::default()
+        };
+        self.current_tender_result = Some(row);
+        self.current_tender_result_lot_ids.clear();
+        self.tender_result_lot_id_buffer = None;
+    }
+
+    fn push_current_tender_result(&mut self) {
+        if let Some(mut row) = self.current_tender_result.take() {
+            self.push_result_lot_id();
+            let lot_ids = std::mem::take(&mut self.current_tender_result_lot_ids);
+            if lot_ids.is_empty() {
+                row.result_lot_id = Some("0".to_string());
+                self.tender_results.push(row);
+            } else {
+                for lot_id in lot_ids {
+                    let mut cloned = row.clone();
+                    cloned.result_lot_id = Some(lot_id);
+                    self.tender_results.push(cloned);
+                }
+            }
+        }
+    }
+
+    fn current_tender_result_mut(&mut self) -> &mut TenderResultRow {
+        if self.current_tender_result.is_none() {
+            let row = TenderResultRow {
+                result_id: Some(self.tender_result_counter.to_string()),
+                ..Default::default()
+            };
+            self.current_tender_result = Some(row);
+        }
+        self.current_tender_result.as_mut().unwrap()
+    }
+
+    fn tender_result_field_ref(&mut self, field: ActiveField) -> &mut Option<String> {
+        let row = self.current_tender_result_mut();
+        match field {
+            ActiveField::ResultCode => &mut row.result_code,
+            ActiveField::ResultDescription => &mut row.result_description,
+            ActiveField::ResultWinningParty => &mut row.result_winning_party,
+            ActiveField::ResultSmeAwardedIndicator => &mut row.result_sme_awarded_indicator,
+            ActiveField::ResultAwardDate => &mut row.result_award_date,
+            ActiveField::ResultTaxExclusiveAmount => &mut row.result_tax_exclusive_amount,
+            ActiveField::ResultPayableAmount => &mut row.result_payable_amount,
+            _ => unreachable!("Invalid tender result field: {:?}", field),
+        }
+    }
+
     /// Writes an event to the main XML writer.
     fn write_main_event(&mut self, event: Event) -> AppResult<()> {
         self.writer
@@ -653,6 +716,7 @@ impl ContractFolderStatusScope {
             .map_err(|e| AppError::ParseError(format!("Failed to write closing tag: {e}")))?;
 
         self.push_current_lot();
+        self.push_current_tender_result();
 
         let cursor = self.writer.into_inner();
         let buffer = cursor.into_inner();
@@ -687,16 +751,7 @@ impl ContractFolderStatusScope {
             project_country_code: self.project_country_code,
             project_country_code_list_uri: self.project_country_code_list_uri,
             project_lots: self.project_lots,
-            result_code: self.result_code,
-            result_code_list_uri: self.result_code_list_uri,
-            result_description: self.result_description,
-            result_winning_party: self.result_winning_party,
-            result_sme_awarded_indicator: self.result_sme_awarded_indicator,
-            result_award_date: self.result_award_date,
-            result_tax_exclusive_amount: self.result_tax_exclusive_amount,
-            result_tax_exclusive_currency: self.result_tax_exclusive_currency,
-            result_payable_amount: self.result_payable_amount,
-            result_payable_currency: self.result_payable_currency,
+            tender_results: self.tender_results,
             terms_funding_program_code: self.terms_funding_program_code,
             terms_funding_program_code_list_uri: self.terms_funding_program_code_list_uri,
             terms_award_criteria_type_code: self.terms_award_criteria_type_code,
@@ -801,6 +856,9 @@ impl ContractFolderStatusScope {
         }
 
         if self.in_tender_result {
+            if matches_local_name(name, b"ProcurementProjectLotID") {
+                return Some(ActiveField::ResultLotId);
+            }
             if matches_local_name(name, b"ResultCode") {
                 return Some(ActiveField::ResultCode);
             }
@@ -858,6 +916,14 @@ impl ContractFolderStatusScope {
             Some(f) => f,
             None => return,
         };
+
+        if matches!(field, ActiveField::ResultLotId) {
+            let buffer = self
+                .tender_result_lot_id_buffer
+                .get_or_insert_with(String::new);
+            buffer.push_str(text);
+            return;
+        }
 
         let target = self.field_ref(field);
         if let Some(existing) = target {
