@@ -1,6 +1,8 @@
 use super::contract_folder_status::ContractFolderStatusHandler;
 use crate::errors::{AppError, AppResult};
-use crate::models::{Entry, ProcurementProjectLot, TenderResultRow};
+use crate::models::{
+    Entry, ProcurementProjectLot, StatusCode, TenderResultRow, TermsFundingProgram,
+};
 use quick_xml::events::Event;
 use quick_xml::reader::Reader;
 #[cfg(test)]
@@ -24,8 +26,7 @@ struct EntryBuilder {
     link: Option<String>,
     summary: Option<String>,
     updated: Option<String>,
-    status_code: Option<String>,
-    status_code_list_uri: Option<String>,
+    status: StatusCode,
     contract_id: Option<String>,
     contracting_party_name: Option<String>,
     contracting_party_website: Option<String>,
@@ -52,10 +53,7 @@ struct EntryBuilder {
     project_country_code_list_uri: Option<String>,
     project_lots: Vec<ProcurementProjectLot>,
     tender_results: Vec<TenderResultRow>,
-    terms_funding_program_code: Option<String>,
-    terms_funding_program_code_list_uri: Option<String>,
-    terms_award_criteria_type_code: Option<String>,
-    terms_award_criteria_type_code_list_uri: Option<String>,
+    terms_funding_program: TermsFundingProgram,
     process_end_date: Option<String>,
     process_procedure_code: Option<String>,
     process_procedure_code_list_uri: Option<String>,
@@ -74,8 +72,7 @@ impl EntryBuilder {
             link: None,
             summary: None,
             updated: None,
-            status_code: None,
-            status_code_list_uri: None,
+            status: StatusCode::default(),
             contract_id: None,
             contracting_party_name: None,
             contracting_party_website: None,
@@ -102,10 +99,7 @@ impl EntryBuilder {
             project_country_code_list_uri: None,
             project_lots: Vec::new(),
             tender_results: Vec::new(),
-            terms_funding_program_code: None,
-            terms_funding_program_code_list_uri: None,
-            terms_award_criteria_type_code: None,
-            terms_award_criteria_type_code_list_uri: None,
+            terms_funding_program: TermsFundingProgram::default(),
             process_end_date: None,
             process_procedure_code: None,
             process_procedure_code_list_uri: None,
@@ -123,8 +117,6 @@ impl EntryBuilder {
         self.link = None;
         self.summary = None;
         self.updated = None;
-        self.status_code = None;
-        self.status_code_list_uri = None;
         self.contract_id = None;
         self.contracting_party_name = None;
         self.contracting_party_website = None;
@@ -151,10 +143,8 @@ impl EntryBuilder {
         self.project_country_code_list_uri = None;
         self.project_lots.clear();
         self.tender_results.clear();
-        self.terms_funding_program_code = None;
-        self.terms_funding_program_code_list_uri = None;
-        self.terms_award_criteria_type_code = None;
-        self.terms_award_criteria_type_code_list_uri = None;
+        self.status = StatusCode::default();
+        self.terms_funding_program = TermsFundingProgram::default();
         self.process_end_date = None;
         self.process_procedure_code = None;
         self.process_procedure_code_list_uri = None;
@@ -209,8 +199,7 @@ impl EntryBuilder {
 
     fn handle_contract_folder_status_end(&mut self, event: Event) -> AppResult<()> {
         if let Some(p) = self.contract_folder_status_handler.handle_end(event)? {
-            self.status_code = p.status_code;
-            self.status_code_list_uri = p.status_code_list_uri;
+            self.status = p.status;
             self.contract_id = p.contract_id;
             self.contracting_party_name = p.contracting_party_name;
             self.contracting_party_website = p.contracting_party_website;
@@ -239,11 +228,7 @@ impl EntryBuilder {
             self.project_country_code_list_uri = p.project_country_code_list_uri;
             self.project_lots = p.project_lots;
             self.tender_results = p.tender_results;
-            self.terms_funding_program_code = p.terms_funding_program_code;
-            self.terms_funding_program_code_list_uri = p.terms_funding_program_code_list_uri;
-            self.terms_award_criteria_type_code = p.terms_award_criteria_type_code;
-            self.terms_award_criteria_type_code_list_uri =
-                p.terms_award_criteria_type_code_list_uri;
+            self.terms_funding_program = p.terms_funding_program;
             self.process_end_date = p.process_end_date;
             self.process_procedure_code = p.process_procedure_code;
             self.process_procedure_code_list_uri = p.process_procedure_code_list_uri;
@@ -262,8 +247,7 @@ impl EntryBuilder {
                 link: self.link.take(),
                 summary: self.summary.take(),
                 updated: self.updated.take(),
-                status_code: self.status_code.take(),
-                status_code_list_uri: self.status_code_list_uri.take(),
+                status: std::mem::take(&mut self.status),
                 contract_id: self.contract_id.take(),
                 contracting_party_name: self.contracting_party_name.take(),
                 contracting_party_website: self.contracting_party_website.take(),
@@ -296,14 +280,7 @@ impl EntryBuilder {
                 project_country_code_list_uri: self.project_country_code_list_uri.take(),
                 project_lots: std::mem::take(&mut self.project_lots),
                 tender_results: std::mem::take(&mut self.tender_results),
-                terms_funding_program_code: self.terms_funding_program_code.take(),
-                terms_funding_program_code_list_uri: self
-                    .terms_funding_program_code_list_uri
-                    .take(),
-                terms_award_criteria_type_code: self.terms_award_criteria_type_code.take(),
-                terms_award_criteria_type_code_list_uri: self
-                    .terms_award_criteria_type_code_list_uri
-                    .take(),
+                terms_funding_program: std::mem::take(&mut self.terms_funding_program),
                 process_end_date: self.process_end_date.take(),
                 process_procedure_code: self.process_procedure_code.take(),
                 process_procedure_code_list_uri: self.process_procedure_code_list_uri.take(),

@@ -105,6 +105,44 @@ fn tender_results_to_struct_series(results: &[TenderResultRow]) -> AppResult<Ser
     Ok(df.into_struct("tender_result").into_series())
 }
 
+fn status_to_struct(entries: &[Entry]) -> AppResult<Series> {
+    let mut codes = Vec::with_capacity(entries.len());
+    let mut list_uris = Vec::with_capacity(entries.len());
+
+    for entry in entries {
+        codes.push(entry.status.code.clone());
+        list_uris.push(entry.status.list_uri.clone());
+    }
+
+    let df = DataFrame::new(vec![
+        Series::new("code", codes),
+        Series::new("list_uri", list_uris),
+    ])
+    .map_err(|e| AppError::ParseError(format!("Failed to build status struct: {e}")))?;
+
+    Ok(df.into_struct("status").into_series())
+}
+
+fn terms_funding_program_to_struct(entries: &[Entry]) -> AppResult<Series> {
+    let mut codes = Vec::with_capacity(entries.len());
+    let mut list_uris = Vec::with_capacity(entries.len());
+
+    for entry in entries {
+        codes.push(entry.terms_funding_program.code.clone());
+        list_uris.push(entry.terms_funding_program.list_uri.clone());
+    }
+
+    let df = DataFrame::new(vec![
+        Series::new("code", codes),
+        Series::new("list_uri", list_uris),
+    ])
+    .map_err(|e| {
+        AppError::ParseError(format!("Failed to build terms_funding_program struct: {e}"))
+    })?;
+
+    Ok(df.into_struct("terms_funding_program").into_series())
+}
+
 fn contracting_party_to_struct(entries: &[Entry]) -> AppResult<Series> {
     let mut names = Vec::with_capacity(entries.len());
     let mut websites = Vec::with_capacity(entries.len());
@@ -239,6 +277,8 @@ fn entries_to_dataframe(entries: Vec<Entry>) -> AppResult<DataFrame> {
         let contracting_party_struct = contracting_party_to_struct(empty_entries)?;
         let project_struct = project_to_struct(empty_entries)?;
         let process_struct = process_to_struct(empty_entries)?;
+        let status_struct = status_to_struct(empty_entries)?;
+        let terms_struct = terms_funding_program_to_struct(empty_entries)?;
 
         return DataFrame::new(vec![
             Series::new("id", empty.clone()),
@@ -246,17 +286,13 @@ fn entries_to_dataframe(entries: Vec<Entry>) -> AppResult<DataFrame> {
             Series::new("link", empty.clone()),
             Series::new("summary", empty.clone()),
             Series::new("updated", empty.clone()),
-            Series::new("status_code", empty.clone()),
-            Series::new("status_code_list_uri", empty.clone()),
+            status_struct,
             Series::new("contract_id", empty.clone()),
             contracting_party_struct,
             project_struct,
             empty_list,
             empty_tender_results,
-            Series::new("terms_funding_program_code", empty.clone()),
-            Series::new("terms_funding_program_code_list_uri", empty.clone()),
-            Series::new("terms_award_criteria_type_code", empty.clone()),
-            Series::new("terms_award_criteria_type_code_list_uri", empty.clone()),
+            terms_struct,
             process_struct,
             Series::new("cfs_raw_xml", empty),
         ])
@@ -269,14 +305,8 @@ fn entries_to_dataframe(entries: Vec<Entry>) -> AppResult<DataFrame> {
     let mut links = Vec::with_capacity(len);
     let mut summaries = Vec::with_capacity(len);
     let mut updateds = Vec::with_capacity(len);
-    let mut status_codes = Vec::with_capacity(len);
-    let mut status_code_list_uris = Vec::with_capacity(len);
     let mut contract_ids = Vec::with_capacity(len);
     let mut project_lots_structs: Vec<Series> = Vec::with_capacity(len);
-    let mut terms_funding_program_codes = Vec::with_capacity(len);
-    let mut terms_funding_program_code_list_uris = Vec::with_capacity(len);
-    let mut terms_award_criteria_type_codes = Vec::with_capacity(len);
-    let mut terms_award_criteria_type_code_list_uris = Vec::with_capacity(len);
     let mut cfs_raw_xmls = Vec::with_capacity(len);
 
     for entry in &entries {
@@ -285,23 +315,17 @@ fn entries_to_dataframe(entries: Vec<Entry>) -> AppResult<DataFrame> {
         links.push(entry.link.clone());
         summaries.push(entry.summary.clone());
         updateds.push(entry.updated.clone());
-        status_codes.push(entry.status_code.clone());
-        status_code_list_uris.push(entry.status_code_list_uri.clone());
         contract_ids.push(entry.contract_id.clone());
         let lot_struct = lots_to_struct_series(&entry.project_lots)?;
         project_lots_structs.push(lot_struct);
-        terms_funding_program_codes.push(entry.terms_funding_program_code.clone());
-        terms_funding_program_code_list_uris
-            .push(entry.terms_funding_program_code_list_uri.clone());
-        terms_award_criteria_type_codes.push(entry.terms_award_criteria_type_code.clone());
-        terms_award_criteria_type_code_list_uris
-            .push(entry.terms_award_criteria_type_code_list_uri.clone());
         cfs_raw_xmls.push(entry.cfs_raw_xml.clone());
     }
 
     let contracting_party_struct = contracting_party_to_struct(&entries)?;
     let project_struct = project_to_struct(&entries)?;
     let process_struct = process_to_struct(&entries)?;
+    let status_struct = status_to_struct(&entries)?;
+    let terms_struct = terms_funding_program_to_struct(&entries)?;
     let project_lots_series = Series::new("project_lots", project_lots_structs);
     let tender_results_structs = entries
         .iter()
@@ -315,26 +339,13 @@ fn entries_to_dataframe(entries: Vec<Entry>) -> AppResult<DataFrame> {
         Series::new("link", links),
         Series::new("summary", summaries),
         Series::new("updated", updateds),
-        Series::new("status_code", status_codes),
-        Series::new("status_code_list_uri", status_code_list_uris),
+        status_struct,
         Series::new("contract_id", contract_ids),
         contracting_party_struct,
         project_struct,
         project_lots_series,
         tender_results_series,
-        Series::new("terms_funding_program_code", terms_funding_program_codes),
-        Series::new(
-            "terms_funding_program_code_list_uri",
-            terms_funding_program_code_list_uris,
-        ),
-        Series::new(
-            "terms_award_criteria_type_code",
-            terms_award_criteria_type_codes,
-        ),
-        Series::new(
-            "terms_award_criteria_type_code_list_uri",
-            terms_award_criteria_type_code_list_uris,
-        ),
+        terms_struct,
         process_struct,
         Series::new("cfs_raw_xml", cfs_raw_xmls),
     ])
@@ -590,12 +601,13 @@ pub async fn parse_xmls(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::models::{StatusCode, TermsFundingProgram};
 
     #[test]
     fn entries_to_dataframe_empty_yields_zero_rows() {
         let df = entries_to_dataframe(vec![]).unwrap();
         assert_eq!(df.height(), 0);
-        assert_eq!(df.width(), 18);
+        assert_eq!(df.width(), 14);
     }
 
     #[test]
@@ -606,8 +618,7 @@ mod tests {
             link: Some("link".to_string()),
             summary: Some("summary".to_string()),
             updated: Some("2023-01-01".to_string()),
-            status_code: None,
-            status_code_list_uri: None,
+            status: StatusCode::default(),
             contract_id: None,
             contracting_party_name: None,
             contracting_party_website: None,
@@ -638,10 +649,7 @@ mod tests {
                 result_lot_id: Some("0".to_string()),
                 ..Default::default()
             }],
-            terms_funding_program_code: None,
-            terms_funding_program_code_list_uri: None,
-            terms_award_criteria_type_code: None,
-            terms_award_criteria_type_code_list_uri: None,
+            terms_funding_program: TermsFundingProgram::default(),
             process_end_date: None,
             process_procedure_code: None,
             process_procedure_code_list_uri: None,
@@ -654,7 +662,7 @@ mod tests {
         assert_eq!(df.height(), 1);
         let tender_results_series = df.column("tender_results").unwrap();
         assert_eq!(tender_results_series.len(), 1);
-        assert_eq!(df.width(), 18);
+        assert_eq!(df.width(), 14);
         let lots_col = df.column("project_lots").unwrap();
         assert!(matches!(lots_col.dtype(), DataType::List(_)));
         let contracting_party_col = df.column("contracting_party").unwrap();

@@ -1,13 +1,12 @@
 use crate::errors::{AppError, AppResult};
-use crate::models::{ProcurementProjectLot, TenderResultRow};
+use crate::models::{ProcurementProjectLot, StatusCode, TenderResultRow, TermsFundingProgram};
 use quick_xml::events::{BytesStart, Event};
 use quick_xml::writer::Writer;
 use std::io::Cursor;
 
 /// Result from finishing a ContractFolderStatus scope.
 pub struct ScopeResult {
-    pub status_code: Option<String>,
-    pub status_code_list_uri: Option<String>,
+    pub status: StatusCode,
     pub contract_id: Option<String>,
     pub contracting_party_name: Option<String>,
     pub contracting_party_website: Option<String>,
@@ -34,10 +33,7 @@ pub struct ScopeResult {
     pub project_country_code_list_uri: Option<String>,
     pub project_lots: Vec<ProcurementProjectLot>,
     pub tender_results: Vec<TenderResultRow>,
-    pub terms_funding_program_code: Option<String>,
-    pub terms_funding_program_code_list_uri: Option<String>,
-    pub terms_award_criteria_type_code: Option<String>,
-    pub terms_award_criteria_type_code_list_uri: Option<String>,
+    pub terms_funding_program: TermsFundingProgram,
     pub process_end_date: Option<String>,
     pub process_procedure_code: Option<String>,
     pub process_procedure_code_list_uri: Option<String>,
@@ -80,7 +76,6 @@ enum ActiveField {
     ResultPayableAmount,
     ResultLotId,
     TermsFundingProgramCode,
-    TermsAwardCriteriaTypeCode,
     ProcessEndDate,
     ProcessProcedureCode,
     ProcessUrgencyCode,
@@ -89,8 +84,7 @@ enum ActiveField {
 /// Captures the `<ContractFolderStatus>` subtree and extracts specific fields.
 pub struct ContractFolderStatusScope {
     // Output fields
-    pub status_code: Option<String>,
-    pub status_code_list_uri: Option<String>,
+    pub status: StatusCode,
     pub contract_id: Option<String>,
     pub contracting_party_name: Option<String>,
     pub contracting_party_website: Option<String>,
@@ -122,10 +116,7 @@ pub struct ContractFolderStatusScope {
     pub current_tender_result_lot_ids: Vec<String>,
     pub tender_result_counter: i32,
     tender_result_lot_id_buffer: Option<String>,
-    pub terms_funding_program_code: Option<String>,
-    pub terms_funding_program_code_list_uri: Option<String>,
-    pub terms_award_criteria_type_code: Option<String>,
-    pub terms_award_criteria_type_code_list_uri: Option<String>,
+    pub terms_funding_program: TermsFundingProgram,
     pub process_end_date: Option<String>,
     pub process_procedure_code: Option<String>,
     pub process_procedure_code_list_uri: Option<String>,
@@ -179,8 +170,7 @@ impl ContractFolderStatusScope {
         })?;
 
         Ok(Self {
-            status_code: None,
-            status_code_list_uri: None,
+            status: StatusCode::default(),
             contract_id: None,
             contracting_party_name: None,
             contracting_party_website: None,
@@ -212,10 +202,7 @@ impl ContractFolderStatusScope {
             current_tender_result_lot_ids: Vec::new(),
             tender_result_counter: 0,
             tender_result_lot_id_buffer: None,
-            terms_funding_program_code: None,
-            terms_funding_program_code_list_uri: None,
-            terms_award_criteria_type_code: None,
-            terms_award_criteria_type_code_list_uri: None,
+            terms_funding_program: TermsFundingProgram::default(),
             process_end_date: None,
             process_procedure_code: None,
             process_procedure_code_list_uri: None,
@@ -526,7 +513,7 @@ impl ContractFolderStatusScope {
         {
             let uri = String::from_utf8_lossy(&attr.value).into_owned();
             match field {
-                ActiveField::StatusCode => self.status_code_list_uri = Some(uri),
+                ActiveField::StatusCode => self.status.list_uri = Some(uri),
                 ActiveField::ContractingPartyTypeCode => {
                     self.contracting_party_type_code_list_uri = Some(uri)
                 }
@@ -547,10 +534,7 @@ impl ContractFolderStatusScope {
                     self.current_tender_result_mut().result_code_list_uri = Some(uri)
                 }
                 ActiveField::TermsFundingProgramCode => {
-                    self.terms_funding_program_code_list_uri = Some(uri)
-                }
-                ActiveField::TermsAwardCriteriaTypeCode => {
-                    self.terms_award_criteria_type_code_list_uri = Some(uri)
+                    self.terms_funding_program.list_uri = Some(uri)
                 }
                 ActiveField::ProcessProcedureCode => {
                     self.process_procedure_code_list_uri = Some(uri)
@@ -582,7 +566,7 @@ impl ContractFolderStatusScope {
 
     fn field_ref(&mut self, field: ActiveField) -> &mut Option<String> {
         match field {
-            ActiveField::StatusCode => &mut self.status_code,
+            ActiveField::StatusCode => &mut self.status.code,
             ActiveField::Id => &mut self.contract_id,
             ActiveField::ProjectName => &mut self.project_name,
             ActiveField::ProjectTypeCode => &mut self.project_type_code,
@@ -611,8 +595,7 @@ impl ContractFolderStatusScope {
             | ActiveField::ResultAwardDate
             | ActiveField::ResultTaxExclusiveAmount
             | ActiveField::ResultPayableAmount => self.tender_result_field_ref(field),
-            ActiveField::TermsFundingProgramCode => &mut self.terms_funding_program_code,
-            ActiveField::TermsAwardCriteriaTypeCode => &mut self.terms_award_criteria_type_code,
+            ActiveField::TermsFundingProgramCode => &mut self.terms_funding_program.code,
             ActiveField::ProcessEndDate => &mut self.process_end_date,
             ActiveField::ProcessProcedureCode => &mut self.process_procedure_code,
             ActiveField::ProcessUrgencyCode => &mut self.process_urgency_code,
@@ -724,8 +707,7 @@ impl ContractFolderStatusScope {
             .map_err(|e| AppError::ParseError(format!("Invalid UTF-8 in XML: {e}")))?;
 
         Ok(ScopeResult {
-            status_code: self.status_code,
-            status_code_list_uri: self.status_code_list_uri,
+            status: self.status,
             contract_id: self.contract_id,
             contracting_party_name: self.contracting_party_name,
             contracting_party_website: self.contracting_party_website,
@@ -752,10 +734,7 @@ impl ContractFolderStatusScope {
             project_country_code_list_uri: self.project_country_code_list_uri,
             project_lots: self.project_lots,
             tender_results: self.tender_results,
-            terms_funding_program_code: self.terms_funding_program_code,
-            terms_funding_program_code_list_uri: self.terms_funding_program_code_list_uri,
-            terms_award_criteria_type_code: self.terms_award_criteria_type_code,
-            terms_award_criteria_type_code_list_uri: self.terms_award_criteria_type_code_list_uri,
+            terms_funding_program: self.terms_funding_program,
             process_end_date: self.process_end_date,
             process_procedure_code: self.process_procedure_code,
             process_procedure_code_list_uri: self.process_procedure_code_list_uri,
@@ -895,16 +874,8 @@ impl ContractFolderStatusScope {
             }
         }
 
-        if self.in_tendering_terms {
-            if matches_local_name(name, b"FundingProgramCode") {
-                return Some(ActiveField::TermsFundingProgramCode);
-            }
-            if self.in_awarding_terms
-                && self.in_awarding_criteria
-                && matches_local_name(name, b"AwardingCriteriaTypeCode")
-            {
-                return Some(ActiveField::TermsAwardCriteriaTypeCode);
-            }
+        if self.in_tendering_terms && matches_local_name(name, b"FundingProgramCode") {
+            return Some(ActiveField::TermsFundingProgramCode);
         }
 
         None
