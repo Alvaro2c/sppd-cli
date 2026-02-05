@@ -147,17 +147,13 @@ Cada registro Parquet refleja un `<entry>` de Atom más los datos extraídos de 
 | `link` | URL del enlace |
 | `summary` | Resumen |
 | `updated` | Fecha de última actualización |
-| `status_code` | `<cbc-place-ext:ContractFolderStatusCode>` |
-| `status_code_list_uri` | Atributo `listURI` de `status_code` |
+| `status` | Struct que agrupa `<cbc-place-ext:ContractFolderStatusCode>` con los campos `code` y `list_uri`. |
 | `contract_id` | `<cbc:ContractFolderID>` |
 | `contracting_party` | Struct que agrupa la metadata de la entidad adjudicadora. Contiene `name`, `website`, `type_code`, `type_code_list_uri`, `activity_code`, `activity_code_list_uri`, `city`, `zip`, `country_code` y `country_code_list_uri`. |
 | `project` | Struct que reúne los campos del proyecto sin lotes (`name`, `type_code`, `type_code_list_uri`, `sub_type_code`, `sub_type_code_list_uri`, `total_amount`, `total_currency`, `tax_exclusive_amount`, `tax_exclusive_currency`, `cpv_code`, `cpv_code_list_uri`, `country_code`, `country_code_list_uri`). `project.cpv_code` sigue concatenando varios `<cbc:ItemClassificationCode>` con `_`. |
 | `project_lots` | Lista de structs `<cac:ProcurementProjectLot>`, cada una con `id`, `name`, importes presupuestarios con sus monedas, `cpv_code`/`cpv_code_list_uri` concatenados, y código de país con su `country_code_list_uri`. |
 | `tender_results` | Lista de structs generadas a partir de `<cac:TenderResult>`. Cada entrada tiene `result_id` (contador artificial por TenderResult en orden de documento), `result_lot_id` (identificador del lote o `0` si no hay lotes) y los campos: `result_code`, `result_code_list_uri`, `result_description`, `result_winning_party`, `result_sme_awarded_indicator`, `result_award_date`, `result_tax_exclusive_amount`, `result_tax_exclusive_currency`, `result_payable_amount` y `result_payable_currency`. |
-| `terms_funding_program_code` | `<cac:TenderingTerms>/<cbc:FundingProgramCode>` |
-| `terms_funding_program_code_list_uri` | Atributo `listURI` del código del programa de financiación |
-| `terms_award_criteria_type_code` | `<cac:TenderingTerms>/<cac:AwardingTerms>/<cac:AwardingCriteria>/<cbc:AwardingCriteriaTypeCode>` |
-| `terms_award_criteria_type_code_list_uri` | Atributo `listURI` del código del criterio de adjudicación |
+| `terms_funding_program` | Struct que agrupa `<cac:TenderingTerms>/<cbc:FundingProgramCode>` con los campos `code` y `list_uri`. |
 | `process` | Struct con los valores de `<cac:TenderingProcess>` (`end_date`, `procedure_code`, `procedure_code_list_uri`, `urgency_code`, `urgency_code_list_uri`). |
 | `cfs_raw_xml` | XML completo de `<cac-place-ext:ContractFolderStatus>` |
 

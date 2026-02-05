@@ -16,6 +16,18 @@ pub struct ProcurementProjectLot {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct StatusCode {
+    pub code: Option<String>,
+    pub list_uri: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct TermsFundingProgram {
+    pub code: Option<String>,
+    pub list_uri: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 /// Represents one output row derived from a `<cac:TenderResult>` plus an optional lot.
 pub struct TenderResultRow {
     /// Artificial ID assigned per TenderResult in document order.
@@ -61,9 +73,7 @@ pub struct Entry {
     /// Last updated timestamp
     pub updated: Option<String>,
     /// `<cbc-place-ext:ContractFolderStatusCode>`
-    pub status_code: Option<String>,
-    /// listURI attribute for status_code
-    pub status_code_list_uri: Option<String>,
+    pub status: StatusCode,
     /// `<cbc:ContractFolderID>`
     pub contract_id: Option<String>,
     /// `<cac:LocatedContractingParty>/<cac:Party>/<cac:PartyName>/<cbc:Name>`
@@ -117,13 +127,7 @@ pub struct Entry {
     /// Tender result rows expanded per lot; each row carries the previous `result_*` metadata plus `result_id`/`result_lot_id`.
     pub tender_results: Vec<TenderResultRow>,
     /// `<cac:TenderingTerms>/<cbc:FundingProgramCode>`
-    pub terms_funding_program_code: Option<String>,
-    /// listURI attribute for terms_funding_program_code
-    pub terms_funding_program_code_list_uri: Option<String>,
-    /// `<cac:TenderingTerms>/<cac:AwardingTerms>/<cac:AwardingCriteria>/<cbc:AwardingCriteriaTypeCode>`
-    pub terms_award_criteria_type_code: Option<String>,
-    /// listURI attribute for terms_award_criteria_type_code
-    pub terms_award_criteria_type_code_list_uri: Option<String>,
+    pub terms_funding_program: TermsFundingProgram,
     /// `<cac:TenderingProcess>/<cac:TenderSubmissionDeadlinePeriod>/<cbc:EndDate>`
     pub process_end_date: Option<String>,
     /// `<cac:TenderingProcess>/<cbc:ProcedureCode>`

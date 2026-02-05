@@ -132,7 +132,7 @@ mod tests {
             .unwrap()
             .expect("expected captured data");
 
-        assert_eq!(captured.status_code, Some("200".to_string()));
+        assert_eq!(captured.status.code, Some("200".to_string()));
     }
 
     #[test]
