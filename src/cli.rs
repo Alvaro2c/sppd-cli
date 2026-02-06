@@ -51,7 +51,7 @@ pub async fn cli(
         .subcommand(
             Command::new("cli")
                 .about("Download, extract, parse, and clean a period range")
-                .after_help("Uses batch_size=150, concat disabled by default.\nExample:\n  sppd-cli cli -t public-tenders -s 2023 -e 2023 --concat-batches")
+                .after_help("Uses batch_size=150, concat disabled by default.\nCleanup enabled by default (use --no-cleanup to skip).\nRaw XML not included by default (use --keep-cfs-raw-xml to include).\nExample:\n  sppd-cli cli -t public-tenders -s 2023 -e 2023 --concat-batches")
                 .arg(
                     Arg::new("type")
                         .short('t')
@@ -90,6 +90,18 @@ pub async fn cli(
                         .alias("cb")
                         .help("Merge the per-batch parquet files after parsing")
                         .action(ArgAction::SetTrue),
+                )
+                .arg(
+                    Arg::new("no_cleanup")
+                        .long("no-cleanup")
+                        .help("Skip cleanup of downloaded ZIP and extracted files")
+                        .action(ArgAction::SetTrue),
+                )
+                .arg(
+                    Arg::new("keep_cfs_raw_xml")
+                        .long("keep-cfs-raw-xml")
+                        .help("Include the raw ContractFolderStatus XML in parquet output")
+                        .action(ArgAction::SetTrue),
                 ),
         )
         .subcommand(
@@ -122,6 +134,11 @@ pub async fn cli(
             if sub.get_flag("concat_batches") {
                 resolved_config.concat_batches = true;
             }
+            if sub.get_flag("keep_cfs_raw_xml") {
+                resolved_config.keep_cfs_raw_xml = true;
+            }
+
+            let should_cleanup = !sub.get_flag("no_cleanup");
 
             run_workflow(
                 minor_contracts_links,
@@ -129,7 +146,7 @@ pub async fn cli(
                 proc_type,
                 start_period,
                 end_period,
-                true,
+                should_cleanup,
                 &resolved_config,
             )
             .await?;
