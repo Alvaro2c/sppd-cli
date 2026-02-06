@@ -39,7 +39,7 @@ pub struct ScopeResult {
     pub process_procedure_code_list_uri: Option<String>,
     pub process_urgency_code: Option<String>,
     pub process_urgency_code_list_uri: Option<String>,
-    pub cfs_raw_xml: String,
+    pub cfs_raw_xml: Option<String>,
 }
 
 /// Which text-capturing element is currently active.
@@ -157,17 +157,22 @@ pub struct ContractFolderStatusScope {
 
     // Raw XML capture
     depth: u32,
-    writer: Writer<Cursor<Vec<u8>>>,
+    writer: Option<Writer<Cursor<Vec<u8>>>>,
 }
 
 impl ContractFolderStatusScope {
     /// Creates a new scope initialized with the `<ContractFolderStatus>` start event.
-    pub fn start(event: Event) -> AppResult<Self> {
-        let cursor = Cursor::new(Vec::with_capacity(16 * 1024));
-        let mut writer = Writer::new(cursor);
-        writer.write_event(event).map_err(|e| {
-            AppError::ParseError(format!("Failed to buffer ContractFolderStatus: {e}"))
-        })?;
+    pub fn start(event: Event, keep_raw_xml: bool) -> AppResult<Self> {
+        let writer = if keep_raw_xml {
+            let cursor = Cursor::new(Vec::with_capacity(16 * 1024));
+            let mut w = Writer::new(cursor);
+            w.write_event(event.clone()).map_err(|e| {
+                AppError::ParseError(format!("Failed to buffer ContractFolderStatus: {e}"))
+            })?;
+            Some(w)
+        } else {
+            None
+        };
 
         Ok(Self {
             status: StatusCode::default(),
@@ -687,24 +692,33 @@ impl ContractFolderStatusScope {
 
     /// Writes an event to the main XML writer.
     fn write_main_event(&mut self, event: Event) -> AppResult<()> {
-        self.writer
-            .write_event(event)
-            .map_err(|e| AppError::ParseError(format!("Failed to capture XML: {e}")))
+        if let Some(writer) = &mut self.writer {
+            writer
+                .write_event(event)
+                .map_err(|e| AppError::ParseError(format!("Failed to capture XML: {e}")))?;
+        }
+        Ok(())
     }
 
     /// Completes the scope and returns all extracted data.
     pub fn finish(mut self, event: Event) -> AppResult<ScopeResult> {
-        self.writer
-            .write_event(event)
-            .map_err(|e| AppError::ParseError(format!("Failed to write closing tag: {e}")))?;
-
         self.push_current_lot();
         self.push_current_tender_result();
 
-        let cursor = self.writer.into_inner();
-        let buffer = cursor.into_inner();
-        let raw_xml = String::from_utf8(buffer)
-            .map_err(|e| AppError::ParseError(format!("Invalid UTF-8 in XML: {e}")))?;
+        let cfs_raw_xml = if let Some(mut writer) = self.writer {
+            writer
+                .write_event(event)
+                .map_err(|e| AppError::ParseError(format!("Failed to write closing tag: {e}")))?;
+
+            let cursor = writer.into_inner();
+            let buffer = cursor.into_inner();
+            Some(
+                String::from_utf8(buffer)
+                    .map_err(|e| AppError::ParseError(format!("Invalid UTF-8 in XML: {e}")))?,
+            )
+        } else {
+            None
+        };
 
         Ok(ScopeResult {
             status: self.status,
@@ -740,7 +754,7 @@ impl ContractFolderStatusScope {
             process_procedure_code_list_uri: self.process_procedure_code_list_uri,
             process_urgency_code: self.process_urgency_code,
             process_urgency_code_list_uri: self.process_urgency_code_list_uri,
-            cfs_raw_xml: raw_xml,
+            cfs_raw_xml,
         })
     }
 

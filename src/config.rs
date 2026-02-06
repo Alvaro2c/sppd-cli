@@ -24,6 +24,8 @@ pub struct ResolvedConfig {
     pub read_concurrency: usize,
     /// Whether to concatenate per-batch parquet files into a single period file.
     pub concat_batches: bool,
+    /// Whether to include the raw ContractFolderStatus XML in the parquet output.
+    pub keep_cfs_raw_xml: bool,
     pub max_retries: u32,
     pub retry_initial_delay_ms: u64,
     pub retry_max_delay_ms: u64,
@@ -42,6 +44,7 @@ impl Default for ResolvedConfig {
             batch_size: 150,
             read_concurrency: 16,
             concat_batches: false,
+            keep_cfs_raw_xml: false,
             max_retries: 3,
             retry_initial_delay_ms: 1000,
             retry_max_delay_ms: 10000,
@@ -101,6 +104,7 @@ mod tests {
         assert_eq!(config.batch_size, 150);
         assert_eq!(config.read_concurrency, 16);
         assert!(!config.concat_batches);
+        assert!(!config.keep_cfs_raw_xml);
         assert_eq!(config.concurrent_downloads, 4);
     }
 
@@ -122,6 +126,7 @@ mod tests {
         assert_eq!(config.start, "202301");
         assert_eq!(config.end, "202312");
         assert!(config.cleanup);
+        assert!(!config.resolved.keep_cfs_raw_xml);
         assert_eq!(config.resolved.max_retries, 3);
         assert_eq!(config.resolved.concurrent_downloads, 4);
     }

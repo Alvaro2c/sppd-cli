@@ -268,7 +268,7 @@ fn process_to_struct(entries: &[Entry]) -> AppResult<Series> {
 /// This helper function creates a DataFrame from a slice of Entry structs,
 /// ensuring consistent schema across all DataFrame creations.
 /// Optimized to pre-allocate vectors and use take() instead of clone() where possible.
-fn entries_to_dataframe(entries: Vec<Entry>) -> AppResult<DataFrame> {
+fn entries_to_dataframe(entries: Vec<Entry>, keep_cfs_raw_xml: bool) -> AppResult<DataFrame> {
     let empty: Vec<Option<String>> = Vec::new();
     if entries.is_empty() {
         let empty_list = Series::new("project_lots", Vec::<Series>::new());
@@ -280,7 +280,7 @@ fn entries_to_dataframe(entries: Vec<Entry>) -> AppResult<DataFrame> {
         let status_struct = status_to_struct(empty_entries)?;
         let terms_struct = terms_funding_program_to_struct(empty_entries)?;
 
-        return DataFrame::new(vec![
+        let mut columns = vec![
             Series::new("id", empty.clone()),
             Series::new("title", empty.clone()),
             Series::new("link", empty.clone()),
@@ -294,9 +294,14 @@ fn entries_to_dataframe(entries: Vec<Entry>) -> AppResult<DataFrame> {
             empty_tender_results,
             terms_struct,
             process_struct,
-            Series::new("cfs_raw_xml", empty),
-        ])
-        .map_err(|e| AppError::ParseError(format!("Failed to create DataFrame: {e}")));
+        ];
+
+        if keep_cfs_raw_xml {
+            columns.push(Series::new("cfs_raw_xml", empty));
+        }
+
+        return DataFrame::new(columns)
+            .map_err(|e| AppError::ParseError(format!("Failed to create DataFrame: {e}")));
     }
 
     let len = entries.len();
@@ -307,7 +312,11 @@ fn entries_to_dataframe(entries: Vec<Entry>) -> AppResult<DataFrame> {
     let mut updateds = Vec::with_capacity(len);
     let mut contract_ids = Vec::with_capacity(len);
     let mut project_lots_structs: Vec<Series> = Vec::with_capacity(len);
-    let mut cfs_raw_xmls = Vec::with_capacity(len);
+    let mut cfs_raw_xmls = if keep_cfs_raw_xml {
+        Vec::with_capacity(len)
+    } else {
+        Vec::new()
+    };
 
     for entry in &entries {
         ids.push(entry.id.clone());
@@ -318,7 +327,9 @@ fn entries_to_dataframe(entries: Vec<Entry>) -> AppResult<DataFrame> {
         contract_ids.push(entry.contract_id.clone());
         let lot_struct = lots_to_struct_series(&entry.project_lots)?;
         project_lots_structs.push(lot_struct);
-        cfs_raw_xmls.push(entry.cfs_raw_xml.clone());
+        if keep_cfs_raw_xml {
+            cfs_raw_xmls.push(entry.cfs_raw_xml.clone());
+        }
     }
 
     let contracting_party_struct = contracting_party_to_struct(&entries)?;
@@ -333,7 +344,7 @@ fn entries_to_dataframe(entries: Vec<Entry>) -> AppResult<DataFrame> {
         .collect::<AppResult<Vec<_>>>()?;
     let tender_results_series = Series::new("tender_results", tender_results_structs);
 
-    DataFrame::new(vec![
+    let mut columns = vec![
         Series::new("id", ids),
         Series::new("title", titles),
         Series::new("link", links),
@@ -347,9 +358,14 @@ fn entries_to_dataframe(entries: Vec<Entry>) -> AppResult<DataFrame> {
         tender_results_series,
         terms_struct,
         process_struct,
-        Series::new("cfs_raw_xml", cfs_raw_xmls),
-    ])
-    .map_err(|e| AppError::ParseError(format!("Failed to create DataFrame: {e}")))
+    ];
+
+    if keep_cfs_raw_xml {
+        columns.push(Series::new("cfs_raw_xml", cfs_raw_xmls));
+    }
+
+    DataFrame::new(columns)
+        .map_err(|e| AppError::ParseError(format!("Failed to create DataFrame: {e}")))
 }
 
 async fn read_xml_contents(paths: &[PathBuf], concurrency: usize) -> AppResult<Vec<Vec<u8>>> {
@@ -461,7 +477,7 @@ pub async fn parse_xmls(
             let xml_contents = read_xml_contents(xml_chunk, config.read_concurrency).await?;
             let parsed_entry_batches: Vec<Vec<Entry>> = xml_contents
                 .par_iter()
-                .map(|content| parse_xml_bytes(content))
+                .map(|content| parse_xml_bytes(content, config.keep_cfs_raw_xml))
                 .collect::<AppResult<Vec<_>>>()?;
 
             let mut chunk_entries = Vec::new();
@@ -493,7 +509,7 @@ pub async fn parse_xmls(
             }
 
             has_entries = true;
-            let mut chunk_df = entries_to_dataframe(chunk_entries)?;
+            let mut chunk_df = entries_to_dataframe(chunk_entries, config.keep_cfs_raw_xml)?;
             let batch_path = period_dir.join(format!("batch_{batch_index}.parquet"));
             let mut file = File::create(&batch_path).map_err(|e| {
                 AppError::IoError(format!(
@@ -605,9 +621,9 @@ mod tests {
 
     #[test]
     fn entries_to_dataframe_empty_yields_zero_rows() {
-        let df = entries_to_dataframe(vec![]).unwrap();
+        let df = entries_to_dataframe(vec![], false).unwrap();
         assert_eq!(df.height(), 0);
-        assert_eq!(df.width(), 14);
+        assert_eq!(df.width(), 13);
     }
 
     #[test]
@@ -658,7 +674,7 @@ mod tests {
             cfs_raw_xml: Some("<xml/>".to_string()),
         };
 
-        let df = entries_to_dataframe(vec![entry]).unwrap();
+        let df = entries_to_dataframe(vec![entry], true).unwrap();
         assert_eq!(df.height(), 1);
         let tender_results_series = df.column("tender_results").unwrap();
         assert_eq!(tender_results_series.len(), 1);
@@ -673,5 +689,106 @@ mod tests {
         assert!(matches!(process_col.dtype(), DataType::Struct(_)));
         let value = df.column("id").unwrap().get(0).unwrap();
         assert_eq!(value, AnyValue::String("id"));
+    }
+
+    #[test]
+    fn entries_to_dataframe_excludes_cfs_raw_xml_when_disabled() {
+        let entry = Entry {
+            id: Some("id".to_string()),
+            title: Some("title".to_string()),
+            link: Some("link".to_string()),
+            summary: Some("summary".to_string()),
+            updated: Some("2023-01-01".to_string()),
+            status: StatusCode::default(),
+            contract_id: None,
+            contracting_party_name: None,
+            contracting_party_website: None,
+            contracting_party_type_code: None,
+            contracting_party_type_code_list_uri: None,
+            contracting_party_activity_code: None,
+            contracting_party_activity_code_list_uri: None,
+            contracting_party_city: None,
+            contracting_party_zip: None,
+            contracting_party_country_code: None,
+            contracting_party_country_code_list_uri: None,
+            project_name: None,
+            project_type_code: None,
+            project_type_code_list_uri: None,
+            project_sub_type_code: None,
+            project_sub_type_code_list_uri: None,
+            project_total_amount: None,
+            project_total_currency: None,
+            project_tax_exclusive_amount: None,
+            project_tax_exclusive_currency: None,
+            project_cpv_code: None,
+            project_cpv_code_list_uri: None,
+            project_country_code: None,
+            project_country_code_list_uri: None,
+            project_lots: Vec::new(),
+            tender_results: Vec::new(),
+            terms_funding_program: TermsFundingProgram::default(),
+            process_end_date: None,
+            process_procedure_code: None,
+            process_procedure_code_list_uri: None,
+            process_urgency_code: None,
+            process_urgency_code_list_uri: None,
+            cfs_raw_xml: Some("<xml/>".to_string()),
+        };
+
+        let df = entries_to_dataframe(vec![entry], false).unwrap();
+        assert_eq!(df.height(), 1);
+        assert_eq!(df.width(), 13);
+        assert!(df.column("cfs_raw_xml").is_err());
+    }
+
+    #[test]
+    fn entries_to_dataframe_includes_cfs_raw_xml_when_enabled() {
+        let entry = Entry {
+            id: Some("id".to_string()),
+            title: Some("title".to_string()),
+            link: Some("link".to_string()),
+            summary: Some("summary".to_string()),
+            updated: Some("2023-01-01".to_string()),
+            status: StatusCode::default(),
+            contract_id: None,
+            contracting_party_name: None,
+            contracting_party_website: None,
+            contracting_party_type_code: None,
+            contracting_party_type_code_list_uri: None,
+            contracting_party_activity_code: None,
+            contracting_party_activity_code_list_uri: None,
+            contracting_party_city: None,
+            contracting_party_zip: None,
+            contracting_party_country_code: None,
+            contracting_party_country_code_list_uri: None,
+            project_name: None,
+            project_type_code: None,
+            project_type_code_list_uri: None,
+            project_sub_type_code: None,
+            project_sub_type_code_list_uri: None,
+            project_total_amount: None,
+            project_total_currency: None,
+            project_tax_exclusive_amount: None,
+            project_tax_exclusive_currency: None,
+            project_cpv_code: None,
+            project_cpv_code_list_uri: None,
+            project_country_code: None,
+            project_country_code_list_uri: None,
+            project_lots: Vec::new(),
+            tender_results: Vec::new(),
+            terms_funding_program: TermsFundingProgram::default(),
+            process_end_date: None,
+            process_procedure_code: None,
+            process_procedure_code_list_uri: None,
+            process_urgency_code: None,
+            process_urgency_code_list_uri: None,
+            cfs_raw_xml: Some("<xml/>".to_string()),
+        };
+
+        let df = entries_to_dataframe(vec![entry], true).unwrap();
+        assert_eq!(df.height(), 1);
+        assert_eq!(df.width(), 14);
+        let cfs_xml_col = df.column("cfs_raw_xml").unwrap();
+        assert_eq!(cfs_xml_col.get(0).unwrap(), AnyValue::String("<xml/>"));
     }
 }
