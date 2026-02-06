@@ -60,8 +60,8 @@ cargo run -- cli [OPTIONS]
 - `-e, --end <PERIOD>`: End period (format: `YYYY` or `YYYYMM`)
 - `-r, --read-concurrency <N>` (alias `--rc`): Number of XML files read concurrently during parsing (default: `16`)
 - `-c, --concat-batches` (alias `--cb`): Merge per-batch Parquet files back into a single file per period
-
-Cleanup is always enabled for the manual CLI invocation. Use a TOML configuration file to change that behavior.
+- `--no-cleanup`: Skip cleanup of downloaded ZIP and extracted files (cleanup is enabled by default)
+- `--keep-cfs-raw-xml`: Include the raw ContractFolderStatus XML in parquet output (disabled by default for memory efficiency)
 
 **Available periods:**
 - Previous years: full years only (`YYYY`)
@@ -84,6 +84,7 @@ Required keys:
 Optional overrides:
 
 - `cleanup` (bool, defaults to `true`)
+- `keep_cfs_raw_xml` (bool, defaults to `false`)
 - Pipeline defaults:
   - `batch_size` (files per batch when parsing; default `150`; bounds the peak in-memory DataFrame)
   - `read_concurrency` (number of XML files read in parallel; default `16`)
@@ -102,6 +103,7 @@ type = "public-tenders"
 start = "202501"
 end = "202502"
 cleanup = false
+keep_cfs_raw_xml = false
 
 batch_size = 150
 read_concurrency = 16
@@ -155,9 +157,11 @@ Each Parquet record mirrors an Atom `<entry>` plus the extracted `ContractFolder
 | `tender_results` | List of structs derived from `<cac:TenderResult>`. Each struct contains `result_id` (artificial counter per TenderResult in document order), `result_lot_id` (lot identifier or `0` when no lot IDs are present), and the fields: `result_code`, `result_code_list_uri`, `result_description`, `result_winning_party`, `result_sme_awarded_indicator`, `result_award_date`, `result_tax_exclusive_amount`, `result_tax_exclusive_currency`, `result_payable_amount`, `result_payable_currency`. |
 | `terms_funding_program` | Struct wrapping `<cac:TenderingTerms>/<cbc:FundingProgramCode>` with fields `code` and `list_uri`. |
 | `process` | Struct aggregating `<cac:TenderingProcess>` values (`end_date`, `procedure_code`, `procedure_code_list_uri`, `urgency_code`, `urgency_code_list_uri`). |
-| `cfs_raw_xml` | Entire `<cac-place-ext:ContractFolderStatus>` payload |
+| `cfs_raw_xml` | Entire `<cac-place-ext:ContractFolderStatus>` payload. Only populated when `--keep-cfs-raw-xml` is set (disabled by default for memory efficiency). |
 
 Multiple values for the same field are concatenated with `_` (e.g., `project.cpv_code` and each lot's `cpv_code`).
+
+> **XML Format Specification**: For detailed information about the XML structure, field definitions, and to request or propose new fields for the parser, see the official [Formato de sindicación y reutilización de datos](https://contrataciondelsectorpublico.gob.es/datosabiertos/especificacion-sindicacion.pdf) specification from the Plataforma de Contratación del Sector Público.
 
 ### Memory Tuning
 
