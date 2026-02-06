@@ -9,11 +9,15 @@ pub type ParsedContractFolderStatus = ScopeResult;
 /// Handles events inside `<ContractFolderStatus>`.
 pub struct ContractFolderStatusHandler {
     scope: Option<ContractFolderStatusScope>,
+    keep_raw_xml: bool,
 }
 
 impl ContractFolderStatusHandler {
-    pub fn new() -> Self {
-        Self { scope: None }
+    pub fn new(keep_raw_xml: bool) -> Self {
+        Self {
+            scope: None,
+            keep_raw_xml,
+        }
     }
 
     pub fn reset(&mut self) {
@@ -25,7 +29,7 @@ impl ContractFolderStatusHandler {
     }
 
     pub fn start(&mut self, event: Event) -> AppResult<()> {
-        self.scope = Some(ContractFolderStatusScope::start(event)?);
+        self.scope = Some(ContractFolderStatusScope::start(event, self.keep_raw_xml)?);
         Ok(())
     }
 
@@ -55,14 +59,14 @@ mod tests {
 
     #[test]
     fn start_marks_handler_active() {
-        let mut handler = ContractFolderStatusHandler::new();
+        let mut handler = ContractFolderStatusHandler::new(true);
         handler.start(start_event()).unwrap();
         assert!(handler.is_active());
     }
 
     #[test]
     fn reset_marks_handler_inactive() {
-        let mut handler = ContractFolderStatusHandler::new();
+        let mut handler = ContractFolderStatusHandler::new(true);
         handler.start(start_event()).unwrap();
         handler.reset();
         assert!(!handler.is_active());
@@ -70,7 +74,7 @@ mod tests {
 
     #[test]
     fn captures_project_name() {
-        let mut handler = ContractFolderStatusHandler::new();
+        let mut handler = ContractFolderStatusHandler::new(true);
         handler.start(start_event()).unwrap();
         handler
             .handle_event(Event::Start(quick_xml::events::BytesStart::new(
@@ -104,12 +108,14 @@ mod tests {
         assert_eq!(captured.project_name, Some("Project Alpha".to_string()));
         assert!(captured
             .cfs_raw_xml
+            .as_ref()
+            .unwrap()
             .contains("<cbc:Name>Project Alpha</cbc:Name>"));
     }
 
     #[test]
     fn captures_status_code() {
-        let mut handler = ContractFolderStatusHandler::new();
+        let mut handler = ContractFolderStatusHandler::new(true);
         handler.start(start_event()).unwrap();
         handler
             .handle_event(Event::Start(quick_xml::events::BytesStart::new(
@@ -137,7 +143,7 @@ mod tests {
 
     #[test]
     fn captures_id() {
-        let mut handler = ContractFolderStatusHandler::new();
+        let mut handler = ContractFolderStatusHandler::new(true);
         handler.start(start_event()).unwrap();
         handler
             .handle_event(Event::Start(quick_xml::events::BytesStart::new(
@@ -164,8 +170,37 @@ mod tests {
     }
 
     #[test]
+    fn skip_raw_xml_when_disabled() {
+        let mut handler = ContractFolderStatusHandler::new(false);
+        handler.start(start_event()).unwrap();
+        handler
+            .handle_event(Event::Start(quick_xml::events::BytesStart::new(
+                "cbc:ContractFolderID",
+            )))
+            .unwrap();
+        handler
+            .handle_event(Event::Text(quick_xml::events::BytesText::new("ID-42")))
+            .unwrap();
+        handler
+            .handle_event(Event::End(quick_xml::events::BytesEnd::new(
+                "cbc:ContractFolderID",
+            )))
+            .unwrap();
+
+        let captured = handler
+            .handle_end(Event::End(quick_xml::events::BytesEnd::new(
+                "ContractFolderStatus",
+            )))
+            .unwrap()
+            .expect("expected captured data");
+
+        assert_eq!(captured.contract_id, Some("ID-42".to_string()));
+        assert_eq!(captured.cfs_raw_xml, None);
+    }
+
+    #[test]
     fn captures_multiple_procurement_project_lots() {
-        let mut handler = ContractFolderStatusHandler::new();
+        let mut handler = ContractFolderStatusHandler::new(true);
         handler.start(start_event()).unwrap();
 
         handler

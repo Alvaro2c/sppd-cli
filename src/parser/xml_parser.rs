@@ -65,7 +65,7 @@ struct EntryBuilder {
 }
 
 impl EntryBuilder {
-    fn new() -> Self {
+    fn new(keep_raw_xml: bool) -> Self {
         Self {
             id: None,
             title: None,
@@ -107,7 +107,7 @@ impl EntryBuilder {
             process_urgency_code_list_uri: None,
             cfs_raw_xml: None,
             current_field: None,
-            contract_folder_status_handler: ContractFolderStatusHandler::new(),
+            contract_folder_status_handler: ContractFolderStatusHandler::new(keep_raw_xml),
         }
     }
 
@@ -234,7 +234,7 @@ impl EntryBuilder {
             self.process_procedure_code_list_uri = p.process_procedure_code_list_uri;
             self.process_urgency_code = p.process_urgency_code;
             self.process_urgency_code_list_uri = p.process_urgency_code_list_uri;
-            self.cfs_raw_xml = Some(p.cfs_raw_xml);
+            self.cfs_raw_xml = p.cfs_raw_xml;
         }
         Ok(())
     }
@@ -295,7 +295,7 @@ impl EntryBuilder {
 }
 
 /// Parses XML content provided as bytes.
-pub fn parse_xml_bytes(content: &[u8]) -> AppResult<Vec<Entry>> {
+pub fn parse_xml_bytes(content: &[u8], keep_raw_xml: bool) -> AppResult<Vec<Entry>> {
     let cursor = Cursor::new(content);
     let mut reader = Reader::from_reader(cursor);
     reader.config_mut().trim_text(true);
@@ -306,7 +306,7 @@ pub fn parse_xml_bytes(content: &[u8]) -> AppResult<Vec<Entry>> {
     let mut result = Vec::with_capacity(estimated_capacity);
 
     let mut inside_entry = false;
-    let mut builder = EntryBuilder::new();
+    let mut builder = EntryBuilder::new(keep_raw_xml);
 
     loop {
         match reader.read_event_into(&mut buf)? {
@@ -424,7 +424,7 @@ pub fn parse_xml_bytes(content: &[u8]) -> AppResult<Vec<Entry>> {
 #[cfg(test)]
 pub(crate) fn parse_xml(path: &Path) -> AppResult<Vec<Entry>> {
     let content = fs::read(path)?;
-    parse_xml_bytes(&content)
+    parse_xml_bytes(&content, true)
 }
 
 #[cfg(test)]
