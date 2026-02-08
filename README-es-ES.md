@@ -20,7 +20,7 @@ El binario estará disponible en `target/release/sppd-cli`.
 
 ## Documentación
 
-Documentación : https://alvaro2c.github.io/sppd-cli/sppd_cli/
+La documentación se publica en GitHub Pages: https://alvaro2c.github.io/sppd-cli/sppd_cli/
 
 ## Uso como Librería
 
@@ -58,8 +58,10 @@ cargo run -- cli [OPCIONES]
   - `minor-contracts` (alias: `mc`, `min`)
 - `-s, --start <PERIODO>`: Período inicial (formato: `YYYY` o `YYYYMM`)
 - `-e, --end <PERIODO>`: Período final (formato: `YYYY` o `YYYYMM`)
+- `-b, --batch-size <N>` (alias `--bs`): Número de archivos XML a procesar por lote (por defecto: `150`; afecta a la memoria máxima)
 - `-r, --read-concurrency <N>` (alias `--rc`): Número de archivos XML leídos en paralelo durante el parsing (por defecto: `16`)
-- `-c, --concat-batches` (alias `--cb`): Fusiona los archivos Parquet por lotes en un único archivo por período
+- `--parser-threads <N>` (alias `--pt`): Número de hilos del pool rayon para el parsing XML (por defecto: 0 = auto; útil en Docker para igualar el límite de CPU del contenedor)
+- `-c, --concat-batches` (alias `--cb`): Fusiona los archivos Parquet por lotes en un único archivo por período (precaución: alto uso de memoria en períodos grandes)
 - `--no-cleanup`: Salta la limpieza de archivos ZIP descargados y directorios extraídos (limpieza habilitada por defecto)
 - `--keep-cfs-raw-xml`: Incluye el XML bruto de ContractFolderStatus en la salida de Parquet (deshabilitado por defecto para eficiencia de memoria)
 
@@ -86,9 +88,10 @@ Overrides opcionales:
 - `cleanup` (bool, por defecto `true`)
 - `keep_cfs_raw_xml` (bool, por defecto `false`)
 - Valores por defecto de la canalización:
--  - `batch_size` (número de archivos por lote al parsear; por defecto `150`; controla la memoria máxima)
--  - `read_concurrency` (número de archivos XML leídos en paralelo; por defecto `16`)
--  - `concat_batches` (bool, por defecto `false`; fusiona los archivos Parquet por lotes en uno solo)
+  - `batch_size` (archivos XML por lote al parsear; por defecto `150`; limita la memoria máxima del DataFrame)
+  - `read_concurrency` (archivos XML leídos en paralelo; por defecto `16`)
+  - `parser_threads` (tamaño del pool rayon para parsing XML; por defecto `0` = auto vía available_parallelism(); en Docker, igualar al límite de CPU del contenedor)
+  - `concat_batches` (bool, por defecto `false`; fusiona los Parquet por lotes en un único archivo por período; precaución: alto uso de memoria en períodos grandes)
   - `max_retries` (por defecto `3`)
   - `retry_initial_delay_ms` (por defecto `1000`)
   - `retry_max_delay_ms` (por defecto `10000`)
@@ -107,6 +110,7 @@ keep_cfs_raw_xml = false
 
 batch_size = 150
 read_concurrency = 16
+parser_threads = 0
 concat_batches = false
 max_retries = 5
 retry_initial_delay_ms = 1000
@@ -167,15 +171,46 @@ Los valores múltiples para el mismo campo se concatenan con `_` (p. ej., `proje
 
 El parser escribe archivos Parquet por lotes para que cada período solo tenga en memoria `batch_size` entradas a la vez. Configura los siguientes parámetros según los recursos disponibles:
 
-| Parámetro | Por defecto | Efecto |
-|-----------|-------------|--------|
-| `batch_size` | 150 | Control principal. Valores más bajos reducen la memoria a costa de más archivos Parquet. |
-| `read_concurrency` | 16 | Cuántos archivos XML se leen simultáneamente. Reduce este valor si el almacenamiento es lento o la RAM escasa. |
-| `concat_batches` | false | Fusiona los archivos por lotes y genera `data/parquet/{mc,pt}/{period}.parquet`. Úsalo solo si el período entero cabe en RAM. |
+| Parámetro | Por defecto | Recomendado Docker/Airflow | Efecto |
+|-----------|-------------|----------------------------|--------|
+| `batch_size` | 150 | 50-100 | Control principal de memoria. Valores más bajos reducen la memoria a costa de más archivos Parquet. Cada lote = O(batch_size × tamaño_medio_entrada) en memoria. |
+| `read_concurrency` | 16 | 4-8 | Controla la I/O simultánea de archivos XML. Valores más bajos reducen la presión sobre el almacenamiento. |
+| `parser_threads` | 0 (auto) | 2-4 | Tamaño del pool de hilos rayon para el parsing XML en paralelo. En Docker, iguala este valor al límite de CPU del contenedor (p. ej. 2 para 2 núcleos). El valor 0 auto-detecta con available_parallelism(), que puede devolver los núcleos del host en lugar del contenedor y provocar sobresuscripción. |
+| `concat_batches` | false | false | Si está activo, los archivos por lotes se fusionan en uno por período en memoria. Úsalo solo si el período entero cabe en RAM. Desactívalo en Docker con límites de memoria ajustados. |
+
+#### Ejemplo: contenedor Docker con 2 GB RAM y 2 núcleos CPU
+
+```bash
+cargo run -- cli -t pt -s 2024 -e 2024 -b 50 -r 4 --parser-threads 2
+```
+
+O vía TOML:
+
+```toml
+type = "pt"
+start = "2024"
+end = "2024"
+batch_size = 50
+read_concurrency = 4
+parser_threads = 2
+concat_batches = false
+```
+
+Esta configuración:
+- Procesa 50 archivos XML por lote, limitando el DataFrame en memoria a ~500-1000 MB
+- Lee 4 archivos en paralelo, reduciendo la contención de I/O
+- Usa exactamente 2 hilos de parser (igual que el límite de CPU del contenedor)
+- Genera varios archivos por lote por período en lugar de concatenar (ahorra memoria)
 
 Estructura de salida:
 - Por defecto: `data/parquet/{mc,pt}/{period}/batch_*.parquet`
 - Con `concat_batches`: `data/parquet/{mc,pt}/{period}.parquet`
+
+#### Notas de rendimiento
+
+- **Pool Rayon acotado**: El parser usa un pool de hilos que respeta `parser_threads`, evitando la sobresuscripción del pool global en contenedores.
+- **Streaming eficiente en memoria**: El parsing XML es por streaming (estilo SAX), no basado en DOM, minimizando el uso de memoria por archivo.
+- **Liberación temprana de memoria**: Los bytes XML en bruto se descartan tras el parsing, antes de construir el DataFrame, minimizando las asignaciones simultáneas.
 
 ### Registro
 
