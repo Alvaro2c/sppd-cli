@@ -419,8 +419,6 @@ async fn read_xml_contents(paths: &[PathBuf], concurrency: usize) -> AppResult<V
 ///
 /// - **Scoped rayon thread pool**: Uses config.parser_threads (or auto-detect) to limit parallelism,
 ///   reducing context switching and memory overhead in resource-constrained environments.
-/// - **Snappy compression**: Parquet files are compressed with Snappy, reducing disk usage and I/O,
-///   with minimal CPU overhead.
 /// - **Batch processing**: Files are processed in chunks bounded by batch_size, limiting peak DataFrame
 ///   memory usage.
 /// - **Early memory release**: Raw XML bytes are dropped before DataFrame construction to minimize
@@ -585,10 +583,7 @@ pub async fn parse_xmls(
                 ))
             })?;
 
-            // Write with Snappy compression for smaller files and reduced I/O pressure.
-            // Snappy has minimal CPU overhead while typically achieving 40-60% compression.
             ParquetWriter::new(&mut file)
-                .with_compression(ParquetCompression::Snappy)
                 .finish(&mut chunk_df)
                 .map_err(|e| AppError::ParseError(format!("Failed to write Parquet batch: {e}")))?;
 
@@ -632,9 +627,7 @@ pub async fn parse_xmls(
                 ))
             })?;
 
-            // Write final concatenated result with Snappy compression.
             ParquetWriter::new(&mut final_file)
-                .with_compression(ParquetCompression::Snappy)
                 .finish(&mut combined)
                 .map_err(|e| {
                     AppError::ParseError(format!("Failed to write final Parquet file: {e}"))
