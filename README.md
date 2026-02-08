@@ -208,7 +208,6 @@ Output structure:
 
 #### Performance Notes
 
-- **Parquet Compression**: Files are automatically compressed with Snappy, reducing disk usage by 40-60% with minimal CPU overhead.
 - **Scoped Rayon Pool**: The parser uses a scoped thread pool respecting `parser_threads`, avoiding global thread pool oversubscription in containers.
 - **Memory-Efficient Streaming**: XML parsing is streaming (SAX-style), not DOM-based, minimizing memory footprint per file.
 - **Early Memory Release**: Raw XML bytes are dropped after parsing, before DataFrame construction, minimizing simultaneous memory allocations.
