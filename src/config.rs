@@ -22,6 +22,10 @@ pub struct ResolvedConfig {
     pub batch_size: usize,
     /// Number of concurrent XML file reads during parsing.
     pub read_concurrency: usize,
+    /// Number of threads for the XML parsing rayon pool.
+    /// When set to 0 (default), automatically uses available_parallelism().
+    /// In Docker/constrained environments, set to the container's CPU limit.
+    pub parser_threads: usize,
     /// Whether to concatenate per-batch parquet files into a single period file.
     pub concat_batches: bool,
     /// Whether to include the raw ContractFolderStatus XML in the parquet output.
@@ -43,6 +47,7 @@ impl Default for ResolvedConfig {
             parquet_dir_pt: PathBuf::from("data/parquet/pt"),
             batch_size: 150,
             read_concurrency: 16,
+            parser_threads: 0, // 0 means auto-detect via available_parallelism()
             concat_batches: false,
             keep_cfs_raw_xml: false,
             max_retries: 3,

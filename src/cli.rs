@@ -51,7 +51,7 @@ pub async fn cli(
         .subcommand(
             Command::new("cli")
                 .about("Download, extract, parse, and clean a period range")
-                .after_help("Uses batch_size=150, concat disabled by default.\nCleanup enabled by default (use --no-cleanup to skip).\nRaw XML not included by default (use --keep-cfs-raw-xml to include).\nExample:\n  sppd-cli cli -t public-tenders -s 2023 -e 2023 --concat-batches")
+                .after_help("Uses defaults for batch_size, concat disabled, raw XML not included.\nCleanup enabled by default (use --no-cleanup to skip).\nExample:\n  sppd-cli cli -t public-tenders -s 2023 -e 2023 --concat-batches\n  sppd-cli cli -t pt -s 2024 -e 2024 -b 50 -r 4 --parser-threads 2 (for Docker/Airflow)")
                 .arg(
                     Arg::new("type")
                         .short('t')
@@ -79,22 +79,39 @@ pub async fn cli(
                         .short('r')
                         .long("read-concurrency")
                         .alias("rc")
-                        .help("Files read in parallel while parsing XML")
+                        .help("Files read in parallel while parsing XML (default: 16)")
                         .value_parser(clap::value_parser!(usize))
                         .action(ArgAction::Set),
+                )
+                .arg(
+                    Arg::new("batch_size")
+                        .short('b')
+                        .long("batch-size")
+                        .alias("bs")
+                        .help("Number of XML files to parse per batch (affects peak memory usage)")
+                        .value_parser(clap::value_parser!(usize))
+                        .action(ArgAction::Set),
+                )
+                .arg(
+                    Arg::new("parser_threads")
+                        .long("parser-threads")
+                        .alias("pt")
+                        .help("Number of threads for XML parsing rayon pool (0 = auto-detect, useful in Docker)")
+                        .value_parser(clap::value_parser!(usize))
+                        .action(ArgAction::Set),
+                )
+                .arg(
+                    Arg::new("no_cleanup")
+                        .long("no-cleanup")
+                        .help("Skip cleanup of downloaded ZIP and extracted files")
+                        .action(ArgAction::SetTrue),
                 )
                 .arg(
                     Arg::new("concat_batches")
                         .short('c')
                         .long("concat-batches")
                         .alias("cb")
-                        .help("Merge the per-batch parquet files after parsing")
-                        .action(ArgAction::SetTrue),
-                )
-                .arg(
-                    Arg::new("no_cleanup")
-                        .long("no-cleanup")
-                        .help("Skip cleanup of downloaded ZIP and extracted files")
+                        .help("Merge the per-batch parquet files after parsing (caution: high memory for large periods)")
                         .action(ArgAction::SetTrue),
                 )
                 .arg(
@@ -128,8 +145,14 @@ pub async fn cli(
             let start_period = sub.get_one::<String>("start").map(|s| s.as_str());
             let end_period = sub.get_one::<String>("end").map(|s| s.as_str());
             let mut resolved_config = ResolvedConfig::default();
+            if let Some(&batch_size) = sub.get_one::<usize>("batch_size") {
+                resolved_config.batch_size = batch_size;
+            }
             if let Some(&concurrency) = sub.get_one::<usize>("read_concurrency") {
                 resolved_config.read_concurrency = concurrency;
+            }
+            if let Some(&threads) = sub.get_one::<usize>("parser_threads") {
+                resolved_config.parser_threads = threads;
             }
             if sub.get_flag("concat_batches") {
                 resolved_config.concat_batches = true;

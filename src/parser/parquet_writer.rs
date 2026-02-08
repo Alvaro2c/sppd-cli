@@ -5,12 +5,13 @@ use futures::stream::{self, StreamExt, TryStreamExt};
 use polars::lazy::prelude::{LazyFrame, ScanArgsParquet};
 use polars::prelude::*;
 use rayon::prelude::*;
+use rayon::ThreadPoolBuilder;
 use std::collections::BTreeMap;
 use std::fs::{self as std_fs, File};
 use std::path::PathBuf;
 use std::time::Instant;
 use tokio::fs as tokio_fs;
-use tracing::info;
+use tracing::{info, warn};
 
 use super::file_finder::find_xmls;
 use super::xml_parser::parse_xml_bytes;
@@ -265,9 +266,24 @@ fn process_to_struct(entries: &[Entry]) -> AppResult<Series> {
 
 /// Converts a vector of Entry structs into a Polars DataFrame.
 ///
-/// This helper function creates a DataFrame from a slice of Entry structs,
-/// ensuring consistent schema across all DataFrame creations.
-/// Optimized to pre-allocate vectors and use take() instead of clone() where possible.
+/// This function creates a DataFrame from Entry structs, ensuring consistent schema
+/// across all DataFrame creations. It uses pre-allocated vectors to minimize allocations.
+///
+/// # Schema
+///
+/// Creates 13-14 columns:
+/// - `id`, `title`, `link`, `summary`, `updated`, `contract_id`: string columns
+/// - `status`: struct(code, list_uri)
+/// - `contracting_party`: struct(name, website, type_code, type_code_list_uri, activity_code,
+///   activity_code_list_uri, city, zip, country_code, country_code_list_uri)
+/// - `project`: struct(name, type_code, type_code_list_uri, sub_type_code, sub_type_code_list_uri,
+///   total_amount, total_currency, tax_exclusive_amount, tax_exclusive_currency,
+///   cpv_code, cpv_code_list_uri, country_code, country_code_list_uri)
+/// - `project_lots`: list(struct(...)) - nested procurement lots with 10 fields each
+/// - `tender_results`: list(struct(...)) - nested tender results with 12 fields each
+/// - `terms_funding_program`: struct(code, list_uri)
+/// - `process`: struct(end_date, procedure_code, procedure_code_list_uri, urgency_code, urgency_code_list_uri)
+/// - `cfs_raw_xml` (optional): raw ContractFolderStatus XML when keep_cfs_raw_xml=true
 fn entries_to_dataframe(entries: Vec<Entry>, keep_cfs_raw_xml: bool) -> AppResult<DataFrame> {
     let empty: Vec<Option<String>> = Vec::new();
     if entries.is_empty() {
@@ -397,21 +413,31 @@ async fn read_xml_contents(paths: &[PathBuf], concurrency: usize) -> AppResult<V
 ///
 /// The function expects the following structure:
 /// - Input: `{extract_dir}/{period}/` (contains XML/Atom files)
-/// - Output: `{parquet_dir}/{period}.parquet`
+/// - Output: `{parquet_dir}/{period}.parquet` (or `{parquet_dir}/{period}/batch_*.parquet` if not concat)
+///
+/// # Optimizations
+///
+/// - **Scoped rayon thread pool**: Uses config.parser_threads (or auto-detect) to limit parallelism,
+///   reducing context switching and memory overhead in resource-constrained environments.
+/// - **Batch processing**: Files are processed in chunks bounded by batch_size, limiting peak DataFrame
+///   memory usage.
+/// - **Early memory release**: Raw XML bytes are dropped before DataFrame construction to minimize
+///   simultaneous memory allocations.
 ///
 /// # Arguments
 ///
 /// * `target_links` - Map of period strings to URLs (used to filter which periods to process)
 /// * `procurement_type` - Procurement type determining the extract and parquet directories
 /// * `batch_size` - Number of XML files to process per chunk (affects memory usage)
-/// * `config` - Resolved configuration containing directory paths
+/// * `config` - Resolved configuration containing directory paths and concurrency settings
 ///
 /// # Behavior
 ///
 /// - **Filtering**: Only processes subdirectories whose names match keys in `target_links`
 /// - **Skip empty**: Subdirectories with no entries are skipped (logged but not an error)
-/// - **Batch output**: Each chunk results in `data/parquet/{period}/batch_<n>.parquet`, `concat_batches` merges them afterwards
-/// - **Memory controls**: `batch_size` bounds the in-flight DataFrame and `read_concurrency` limits parallel reads
+/// - **Batch output**: Each chunk results in a batch_N.parquet file per period
+/// - **Memory controls**: `batch_size` bounds the in-flight DataFrame and `read_concurrency` limits
+///   parallel file reads. `parser_threads` limits the rayon thread pool for XML parsing parallelism.
 /// - **Progress tracking**: Elapsed time and throughput are logged after parsing completes
 ///
 /// # Errors
@@ -461,6 +487,36 @@ pub async fn parse_xmls(
 
     info!(total = total_subdirs, "Starting XML parsing");
 
+    // Configure rayon thread pool for XML parsing.
+    // This is critical in Docker environments where available_parallelism() may return the host's CPU count,
+    // not the container's limit. By default (parser_threads=0), we auto-detect. Otherwise, use the configured value.
+    let num_threads = if config.parser_threads > 0 {
+        config.parser_threads
+    } else {
+        std::thread::available_parallelism()
+            .map(|p| p.get())
+            .unwrap_or(1)
+    };
+
+    let rayon_pool = ThreadPoolBuilder::new()
+        .num_threads(num_threads)
+        .build()
+        .map_err(|e| {
+            AppError::IoError(format!(
+                "Failed to configure rayon thread pool for XML parsing: {e}"
+            ))
+        })?;
+
+    info!(
+        "XML parsing thread pool configured with {} threads",
+        num_threads
+    );
+
+    // Warn about concat_batches memory usage if enabled.
+    if config.concat_batches {
+        warn!("concat_batches is enabled: entire periods will be loaded into memory before concatenation. Ensure sufficient RAM is available.");
+    }
+
     let mut processed_count = 0;
     let mut skipped_count = 0;
 
@@ -475,10 +531,20 @@ pub async fn parse_xmls(
 
         for xml_chunk in xml_files.chunks(chunk_size) {
             let xml_contents = read_xml_contents(xml_chunk, config.read_concurrency).await?;
-            let parsed_entry_batches: Vec<Vec<Entry>> = xml_contents
-                .par_iter()
-                .map(|content| parse_xml_bytes(content, config.keep_cfs_raw_xml))
-                .collect::<AppResult<Vec<_>>>()?;
+
+            // Use scoped rayon pool for parallel XML parsing.
+            // This respects the configured thread count instead of using the global pool.
+            let parsed_entry_batches: Vec<Vec<Entry>> = rayon_pool.install(|| {
+                xml_contents
+                    .par_iter()
+                    .map(|content| parse_xml_bytes(content, config.keep_cfs_raw_xml))
+                    .collect::<AppResult<Vec<_>>>()
+            })?;
+
+            // Drop raw XML bytes here to free memory before DataFrame construction.
+            // This is important for peak memory management: raw XML + parsed entries
+            // would otherwise both exist in memory simultaneously.
+            drop(xml_contents);
 
             let mut chunk_entries = Vec::new();
             for mut entries in parsed_entry_batches {
@@ -608,6 +674,7 @@ pub async fn parse_xmls(
         elapsed = elapsed_str,
         output_size_mb = size_mb,
         throughput_mb_s = throughput_mb_s,
+        parser_threads = num_threads,
         "Parsing completed"
     );
 

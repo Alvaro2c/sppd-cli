@@ -58,8 +58,10 @@ cargo run -- cli [OPTIONS]
   - `minor-contracts` (aliases: `mc`, `min`)
 - `-s, --start <PERIOD>`: Start period (format: `YYYY` or `YYYYMM`)
 - `-e, --end <PERIOD>`: End period (format: `YYYY` or `YYYYMM`)
+- `-b, --batch-size <N>` (alias `--bs`): Number of XML files to process per batch (default: `150`; affects peak memory)
 - `-r, --read-concurrency <N>` (alias `--rc`): Number of XML files read concurrently during parsing (default: `16`)
-- `-c, --concat-batches` (alias `--cb`): Merge per-batch Parquet files back into a single file per period
+- `--parser-threads <N>` (alias `--pt`): Number of threads for the XML parsing rayon pool (default: 0 = auto-detect; useful in Docker to match container CPU limit)
+- `-c, --concat-batches` (alias `--cb`): Merge per-batch Parquet files back into a single file per period (caution: high memory for large periods)
 - `--no-cleanup`: Skip cleanup of downloaded ZIP and extracted files (cleanup is enabled by default)
 - `--keep-cfs-raw-xml`: Include the raw ContractFolderStatus XML in parquet output (disabled by default for memory efficiency)
 
@@ -86,9 +88,10 @@ Optional overrides:
 - `cleanup` (bool, defaults to `true`)
 - `keep_cfs_raw_xml` (bool, defaults to `false`)
 - Pipeline defaults:
-  - `batch_size` (files per batch when parsing; default `150`; bounds the peak in-memory DataFrame)
+  - `batch_size` (XML files per batch when parsing; default `150`; bounds the peak in-memory DataFrame)
   - `read_concurrency` (number of XML files read in parallel; default `16`)
-  - `concat_batches` (bool, default `false`; merge per-batch parquet files into a single period file)
+  - `parser_threads` (rayon thread pool size for XML parsing; default `0` = auto-detect via available_parallelism(); set to container CPU limit in Docker)
+  - `concat_batches` (bool, default `false`; merge per-batch parquet files into a single period file; caution: high memory for large periods)
   - `max_retries` (default `3`)
   - `retry_initial_delay_ms` (default `1000`)
   - `retry_max_delay_ms` (default `10000`)
@@ -107,6 +110,7 @@ keep_cfs_raw_xml = false
 
 batch_size = 150
 read_concurrency = 16
+parser_threads = 0
 concat_batches = false
 max_retries = 5
 retry_initial_delay_ms = 1000
@@ -167,15 +171,46 @@ Multiple values for the same field are concatenated with `_` (e.g., `project.cpv
 
 The parser writes Parquet files in batches so each period only keeps `batch_size` worth of entries in memory. Configure the following parameters depending on your available resources:
 
-| Parameter | Default | Effect |
-|-----------|---------|--------|
-| `batch_size` | 150 | Primary control. Lower values reduce peak memory at the cost of more parquet files. |
-| `read_concurrency` | 16 | Controls how many XML files are read simultaneously. Lower values reduce I/O pressure. |
-| `concat_batches` | false | When enabled, batch files are merged back into `data/parquet/{mc,pt}/{period}.parquet`. Use only if the period fits comfortably in RAM. |
+| Parameter | Default | Docker/Airflow Recommended | Effect |
+|-----------|---------|---------------------------|--------|
+| `batch_size` | 150 | 50-100 | Primary memory control. Lower values reduce peak memory at the cost of more parquet files. Each batch = O(batch_size × avg_entry_size) in memory. |
+| `read_concurrency` | 16 | 4-8 | Controls simultaneous XML file I/O. Lower values reduce I/O pressure on constrained storage. |
+| `parser_threads` | 0 (auto-detect) | 2-4 | Rayon thread pool size for parallel XML parsing. In Docker, set this to match the container's CPU limit (e.g., 2 for a 2-core container). The default (0) auto-detects via available_parallelism(), which may return the host's CPU count instead of the container limit, causing thread oversubscription. |
+| `concat_batches` | false | false | When enabled, batch files are merged into one per-period file in memory. Only use if the entire period fits comfortably in RAM. Disable in Docker with tight memory limits. |
+
+#### Example: Docker Container with 2 GB RAM and 2 CPU cores
+
+```bash
+cargo run -- cli -t pt -s 2024 -e 2024 -b 50 -r 4 --parser-threads 2
+```
+
+Or via TOML:
+
+```toml
+type = "pt"
+start = "2024"
+end = "2024"
+batch_size = 50
+read_concurrency = 4
+parser_threads = 2
+concat_batches = false
+```
+
+This configuration:
+- Processes 50 XML files per batch, limiting peak DataFrame to ~500-1000 MB
+- Reads 4 files in parallel, reducing I/O contention
+- Uses exactly 2 parser threads (matching the container's CPU limit)
+- Produces multiple batch files per period instead of concatenating (saves memory)
 
 Output structure:
 - Default: `data/parquet/{mc,pt}/{period}/batch_*.parquet`
 - With `concat_batches`: `data/parquet/{mc,pt}/{period}.parquet`
+
+#### Performance Notes
+
+- **Scoped Rayon Pool**: The parser uses a scoped thread pool respecting `parser_threads`, avoiding global thread pool oversubscription in containers.
+- **Memory-Efficient Streaming**: XML parsing is streaming (SAX-style), not DOM-based, minimizing memory footprint per file.
+- **Early Memory Release**: Raw XML bytes are dropped after parsing, before DataFrame construction, minimizing simultaneous memory allocations.
 
 ### Logging
 
