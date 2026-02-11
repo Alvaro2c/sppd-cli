@@ -1,6 +1,6 @@
 [package]
 name = "sppd-cli"
-version = "1.2.1"
+version = "1.2.2"
 edition = "2021"
 description = "A command-line tool for fetching and managing data from public tenders and minor contracts in Spain"
 authors = ["Alvaro Carranza <108229582+Alvaro2c@users.noreply.github.com>"]
