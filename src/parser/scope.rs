@@ -667,12 +667,14 @@ impl ContractFolderStatusScope {
 
     fn current_tender_result_mut(&mut self) -> &mut TenderResultRow {
         if self.current_tender_result.is_none() {
+            let counter = self.tender_result_counter;
             let row = TenderResultRow {
-                result_id: Some(self.tender_result_counter.to_string()),
+                result_id: Some(counter.to_string()),
                 ..Default::default()
             };
             self.current_tender_result = Some(row);
         }
+        // Safety: we just ensured current_tender_result is Some above.
         self.current_tender_result.as_mut().unwrap()
     }
 
