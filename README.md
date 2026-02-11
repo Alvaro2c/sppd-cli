@@ -53,7 +53,7 @@ cargo run -- cli [OPTIONS]
 
 ### Options
 
-- `-t, --type <TYPE>`: Procurement type (default: `public-tenders`)
+- `-t, --type <TYPE>`: Procurement type (default: `public-tenders`). Unknown values default to `public-tenders` and a warning is logged.
   - `public-tenders` (aliases: `pt`, `pub`)
   - `minor-contracts` (aliases: `mc`, `min`)
 - `-s, --start <PERIOD>`: Start period (format: `YYYY` or `YYYYMM`)
