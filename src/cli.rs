@@ -1,5 +1,5 @@
 use crate::config::{ResolvedConfig, ResolvedConfigFile};
-use crate::downloader::{download_files, filter_periods_by_range};
+use crate::downloader::{download_files, fetch_all_links, filter_periods_by_range};
 use crate::errors::{AppError, AppResult};
 use crate::extractor::extract_all_zips;
 use crate::models::ProcurementType;
@@ -19,18 +19,13 @@ const APP_ABOUT: &str = env!("CARGO_PKG_DESCRIPTION");
 /// - `cli`: Manual CLI with default configuration (cleanup always enabled)
 /// - `toml`: Run using a TOML configuration file (cleanup configurable)
 ///
-/// Both subcommands execute the same workflow for downloading and processing procurement data:
+/// Both subcommands fetch available download links (if running the workflow), then execute:
 /// 1. Parses CLI arguments (procurement type, period range, cleanup options)
 /// 2. Filters available links by the specified period range
 /// 3. Downloads ZIP files from the filtered URLs
 /// 4. Extracts ZIP archives to access XML/Atom files
 /// 5. Parses XML/Atom content and converts to Parquet format
 /// 6. Performs cleanup if requested
-///
-/// # Arguments
-///
-/// * `minor_contracts_links` - Map of period strings (e.g., "202301") to minor contracts download URLs
-/// * `public_tenders_links` - Map of period strings (e.g., "202301") to public tenders download URLs
 ///
 /// # Returns
 ///
@@ -40,10 +35,7 @@ const APP_ABOUT: &str = env!("CARGO_PKG_DESCRIPTION");
 /// - File I/O operations fail
 /// - XML parsing fails
 ///
-pub async fn cli(
-    minor_contracts_links: &BTreeMap<String, String>,
-    public_tenders_links: &BTreeMap<String, String>,
-) -> AppResult<()> {
+pub async fn cli() -> AppResult<()> {
     let cmd = Command::new("sppd-cli")
         .version(APP_VERSION)
         .author(APP_AUTHOR)
@@ -137,11 +129,28 @@ pub async fn cli(
 
     match matches.subcommand() {
         Some(("cli", sub)) => {
-            let proc_type = ProcurementType::from(
-                sub.get_one::<String>("type")
-                    .expect("type has default_value")
-                    .as_str(),
+            let (minor_contracts_links, public_tenders_links) = fetch_all_links().await?;
+
+            info!(
+                minor_contracts_periods = minor_contracts_links.len(),
+                public_tenders_periods = public_tenders_links.len(),
+                "Link fetching completed"
             );
+
+            let type_arg = sub
+                .get_one::<String>("type")
+                .expect("type has default_value")
+                .as_str();
+
+            // Warn if procurement type is unknown (will default to public-tenders)
+            if !ProcurementType::is_known_type(type_arg) {
+                tracing::warn!(
+                    type_arg = %type_arg,
+                    "Unknown procurement type, defaulting to public-tenders"
+                );
+            }
+
+            let proc_type = ProcurementType::from(type_arg);
             let start_period = sub.get_one::<String>("start").map(|s| s.as_str());
             let end_period = sub.get_one::<String>("end").map(|s| s.as_str());
             let mut resolved_config = ResolvedConfig::default();
@@ -164,8 +173,8 @@ pub async fn cli(
             let should_cleanup = !sub.get_flag("no_cleanup");
 
             run_workflow(
-                minor_contracts_links,
-                public_tenders_links,
+                &minor_contracts_links,
+                &public_tenders_links,
                 proc_type,
                 start_period,
                 end_period,
@@ -175,6 +184,14 @@ pub async fn cli(
             .await?;
         }
         Some(("toml", sub)) => {
+            let (minor_contracts_links, public_tenders_links) = fetch_all_links().await?;
+
+            info!(
+                minor_contracts_periods = minor_contracts_links.len(),
+                public_tenders_periods = public_tenders_links.len(),
+                "Link fetching completed"
+            );
+
             let config_path = sub
                 .get_one::<PathBuf>("config")
                 .expect("config is required");
@@ -185,8 +202,8 @@ pub async fn cli(
             let end_period = Some(file_config.end.as_str());
 
             run_workflow(
-                minor_contracts_links,
-                public_tenders_links,
+                &minor_contracts_links,
+                &public_tenders_links,
                 proc_type,
                 start_period,
                 end_period,
