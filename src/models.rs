@@ -2,28 +2,52 @@ use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
+/// Represents a procurement project lot with budget, classification, and location.
+///
+/// Corresponds to a `<cac:ProcurementProjectLot>` element. All fields are optional to handle
+/// variations in the source XML format.
 pub struct ProcurementProjectLot {
+    /// Lot identifier
     pub id: Option<String>,
+    /// Lot name
     pub name: Option<String>,
+    /// Total budget amount
     pub total_amount: Option<String>,
+    /// Currency of total_amount (currencyID attribute)
     pub total_currency: Option<String>,
+    /// Tax-exclusive budget amount
     pub tax_exclusive_amount: Option<String>,
+    /// Currency of tax_exclusive_amount (currencyID attribute)
     pub tax_exclusive_currency: Option<String>,
+    /// CPV (Common Procurement Vocabulary) code(s), concatenated with `_`
     pub cpv_code: Option<String>,
+    /// List URI for CPV code classification
     pub cpv_code_list_uri: Option<String>,
+    /// Country code
     pub country_code: Option<String>,
+    /// List URI for country code
     pub country_code_list_uri: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
+/// Contract folder status code with list URI.
+///
+/// Represents the `<cbc-place-ext:ContractFolderStatusCode>` element.
 pub struct StatusCode {
+    /// Status code value
     pub code: Option<String>,
+    /// List URI for the status code classification
     pub list_uri: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
+/// Funding program code with list URI.
+///
+/// Represents the `<cac:TenderingTerms>/<cbc:FundingProgramCode>` element.
 pub struct TermsFundingProgram {
+    /// Funding program code value
     pub code: Option<String>,
+    /// List URI for the funding program code classification
     pub list_uri: Option<String>,
 }
 
@@ -191,6 +215,20 @@ impl ProcurementType {
             Self::PublicTenders => config.parquet_dir_pt.clone(),
         }
     }
+
+    /// Checks if a string is a known procurement type alias.
+    ///
+    /// Returns `true` if the trimmed, lowercased string is in the list of known aliases.
+    /// Returns `false` otherwise.
+    ///
+    /// Known aliases:
+    /// - Minor Contracts: `"mc"`, `"minor-contracts"`, `"min"`
+    /// - Public Tenders: `"pt"`, `"pub"`, `"public-tenders"`
+    pub fn is_known_type(value: &str) -> bool {
+        let lower = value.trim().to_lowercase();
+        MINOR_CONTRACTS_ALIASES.contains(&lower.as_str())
+            || PUBLIC_TENDERS_ALIASES.contains(&lower.as_str())
+    }
 }
 
 impl From<&str> for ProcurementType {
@@ -202,7 +240,8 @@ impl From<&str> for ProcurementType {
     ///
     /// **Public Tenders aliases:** `"pt"`, `"pub"`, `"public-tenders"`
     ///
-    /// Unknown values default to `PublicTenders`.
+    /// Unknown values default to `PublicTenders` (a warning is logged by the CLI).
+    /// Use `is_known_type()` to check if a value is recognized before converting.
     fn from(value: &str) -> Self {
         // Trim whitespace and compare case-insensitively
         let lower = value.trim().to_lowercase();
@@ -292,5 +331,33 @@ mod tests {
     fn test_procurement_type_whitespace() {
         let proc_type = ProcurementType::from("   ");
         assert_eq!(proc_type, ProcurementType::PublicTenders);
+    }
+
+    #[test]
+    fn test_procurement_type_is_known_type_minor_contracts() {
+        assert!(ProcurementType::is_known_type("mc"));
+        assert!(ProcurementType::is_known_type("minor-contracts"));
+        assert!(ProcurementType::is_known_type("min"));
+        assert!(ProcurementType::is_known_type("MC"));
+        assert!(ProcurementType::is_known_type("MINOR-CONTRACTS"));
+        assert!(ProcurementType::is_known_type("  mc  "));
+    }
+
+    #[test]
+    fn test_procurement_type_is_known_type_public_tenders() {
+        assert!(ProcurementType::is_known_type("pt"));
+        assert!(ProcurementType::is_known_type("pub"));
+        assert!(ProcurementType::is_known_type("public-tenders"));
+        assert!(ProcurementType::is_known_type("PT"));
+        assert!(ProcurementType::is_known_type("PUBLIC-TENDERS"));
+        assert!(ProcurementType::is_known_type("  pub  "));
+    }
+
+    #[test]
+    fn test_procurement_type_is_known_type_unknown() {
+        assert!(!ProcurementType::is_known_type("unknown"));
+        assert!(!ProcurementType::is_known_type("invalid-type"));
+        assert!(!ProcurementType::is_known_type(""));
+        assert!(!ProcurementType::is_known_type("   "));
     }
 }
