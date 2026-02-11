@@ -1,3 +1,8 @@
+//! Download and fetch operations for procurement data.
+//!
+//! This module provides functions to fetch ZIP file links from Spanish procurement data sources
+//! and download the archives for processing. The main entry points are [`fetch_all_links`] and [`download_files`].
+
 mod file_downloader;
 mod link_fetcher;
 mod period_filter;
