@@ -27,6 +27,8 @@ jobs:
 
       - name: Generate docs
         run: cargo doc --no-deps
+        env:
+          RUSTDOCFLAGS: -D warnings
 
       - uses: actions/configure-pages@v4
 

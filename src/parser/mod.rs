@@ -1,3 +1,9 @@
+//! XML parsing and Parquet output operations.
+//!
+//! This module extracts, parses, and transforms XML/Atom files into Parquet format. It handles
+//! ZIP extraction, XML parsing into `Entry` structures, and writing to Parquet files.
+//! Main entry points are [`find_xmls`] and [`parse_xmls`].
+
 mod cleanup;
 mod contract_folder_status;
 mod file_finder;

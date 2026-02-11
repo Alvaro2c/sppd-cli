@@ -53,7 +53,7 @@ cargo run -- cli [OPCIONES]
 
 ### Opciones
 
-- `-t, --type <TIPO>`: Tipo de contratación (por defecto: `public-tenders`)
+- `-t, --type <TIPO>`: Tipo de contratación (por defecto `public-tenders` junto con una advertencia)
   - `public-tenders` (alias: `pt`, `pub`)
   - `minor-contracts` (alias: `mc`, `min`)
 - `-s, --start <PERIODO>`: Período inicial (formato: `YYYY` o `YYYYMM`)
