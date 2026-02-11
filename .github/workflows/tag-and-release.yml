@@ -1,0 +1,199 @@
+name: Tag and Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_type:
+        description: 'Version bump type (patch, minor, or major)'
+        required: true
+        default: 'patch'
+        type: choice
+        options:
+          - patch
+          - minor
+          - major
+
+permissions:
+  contents: write
+
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - name: Checkout master
+        uses: actions/checkout@v4
+        with:
+          ref: master
+
+      - name: Verify on master branch
+        run: |
+          if [[ "$(git rev-parse --abbrev-ref HEAD)" != "master" ]]; then
+            echo "Error: Release must be from master branch"
+            exit 1
+          fi
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: stable
+
+      - name: Install cargo-edit
+        run: cargo install cargo-edit
+
+      - name: Bump version in Cargo.toml
+        run: cargo set-version --bump ${{ inputs.release_type }}
+
+      - name: Read new version
+        id: version
+        run: |
+          VERSION=$(grep '^version' Cargo.toml | head -1 | sed 's/version = "\(.*\)"/\1/')
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "Version bumped to: $VERSION"
+
+      - name: Install git-cliff
+        run: cargo install git-cliff
+
+      - name: Generate changelog
+        run: |
+          git cliff --output CHANGELOG.md
+
+      - name: Configure git
+        run: |
+          git config user.name "Alvaro Carranza"
+          git config user.email "108229582+Alvaro2c@users.noreply.github.com"
+
+      - name: Commit version bump and changelog
+        run: |
+          git add Cargo.toml Cargo.lock CHANGELOG.md
+          git commit -m "release: v${{ steps.version.outputs.version }}"
+
+      - name: Create and push tag
+        run: |
+          git tag "v${{ steps.version.outputs.version }}"
+          git push origin master
+          git push origin "v${{ steps.version.outputs.version }}"
+
+  build:
+    needs: prepare
+    strategy:
+      matrix:
+        include:
+          - runner: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            binary: sppd-cli
+            artifact_name: sppd-cli-linux-x86_64
+            extension: ''
+
+          - runner: ubuntu-latest
+            target: aarch64-unknown-linux-gnu
+            binary: sppd-cli
+            artifact_name: sppd-cli-linux-aarch64
+            extension: ''
+
+          - runner: macos-latest
+            target: x86_64-apple-darwin
+            binary: sppd-cli
+            artifact_name: sppd-cli-macos-x86_64
+            extension: ''
+
+          - runner: macos-latest
+            target: aarch64-apple-darwin
+            binary: sppd-cli
+            artifact_name: sppd-cli-macos-aarch64
+            extension: ''
+
+          - runner: windows-latest
+            target: x86_64-pc-windows-msvc
+            binary: sppd-cli.exe
+            artifact_name: sppd-cli-windows-x86_64
+            extension: .exe
+
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: "v${{ needs.prepare.outputs.version }}"
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: stable
+          targets: ${{ matrix.target }}
+
+      - name: Cache cargo registry
+        uses: actions/cache@v4
+        with:
+          path: ~/.cargo/registry
+          key: ${{ runner.os }}-cargo-registry-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-registry-
+
+      - name: Cache cargo index
+        uses: actions/cache@v4
+        with:
+          path: ~/.cargo/git
+          key: ${{ runner.os }}-cargo-index-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-index-
+
+      - name: Cache cargo build
+        uses: actions/cache@v4
+        with:
+          path: target
+          key: ${{ runner.os }}-cargo-build-${{ matrix.target }}-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-build-${{ matrix.target }}-
+
+      - name: Build release binary
+        run: cargo build --release --target ${{ matrix.target }}
+
+      - name: Create tarball (Unix)
+        if: runner.os != 'Windows'
+        run: |
+          mkdir -p release-artifacts
+          tar czf "release-artifacts/${{ matrix.artifact_name }}-v${{ needs.prepare.outputs.version }}.tar.gz" \
+            -C "target/${{ matrix.target }}/release" ${{ matrix.binary }}
+
+      - name: Create zip (Windows)
+        if: runner.os == 'Windows'
+        run: |
+          mkdir release-artifacts
+          cd "target/${{ matrix.target }}/release"
+          powershell Compress-Archive -Path ${{ matrix.binary }} -DestinationPath "${{ github.workspace }}/release-artifacts/${{ matrix.artifact_name }}-v${{ needs.prepare.outputs.version }}.zip"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-${{ matrix.artifact_name }}
+          path: release-artifacts/
+          retention-days: 1
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: all-artifacts
+
+      - name: Prepare release files
+        run: |
+          mkdir -p final-release
+          find all-artifacts -type f \( -name "*.tar.gz" -o -name "*.zip" \) -exec cp {} final-release/ \;
+          ls -lh final-release/
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: "v${{ needs.build.outputs.version }}"
+          generate_release_notes: true
+          files: final-release/*
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
