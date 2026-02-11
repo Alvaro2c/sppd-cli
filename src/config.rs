@@ -10,10 +10,13 @@ use std::path::{Path, PathBuf};
 #[derive(Debug, Clone, Deserialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct ResolvedConfig {
-    // Paths
+    /// Directory for downloaded minor contracts ZIP files
     pub download_dir_mc: PathBuf,
+    /// Directory for downloaded public tenders ZIP files
     pub download_dir_pt: PathBuf,
+    /// Directory for processed minor contracts Parquet files
     pub parquet_dir_mc: PathBuf,
+    /// Directory for processed public tenders Parquet files
     pub parquet_dir_pt: PathBuf,
 
     // Processing
@@ -30,11 +33,15 @@ pub struct ResolvedConfig {
     pub concat_batches: bool,
     /// Whether to include the raw ContractFolderStatus XML in the parquet output.
     pub keep_cfs_raw_xml: bool,
+    /// Maximum number of retry attempts for failed downloads
     pub max_retries: u32,
+    /// Initial delay in milliseconds before the first retry
     pub retry_initial_delay_ms: u64,
+    /// Maximum delay in milliseconds between retries
     pub retry_max_delay_ms: u64,
 
     // Downloads
+    /// Number of concurrent download tasks
     pub concurrent_downloads: usize,
 }
 
@@ -59,20 +66,47 @@ impl Default for ResolvedConfig {
 }
 
 /// Configuration that can be loaded from a TOML file.
+///
+/// Deserializes required fields (type, start, end) and optional pipeline configuration.
+/// The parser rejects unknown keys to catch typos, and validates that batch_size and
+/// read_concurrency are greater than 0.
 #[derive(Debug, Clone, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct ResolvedConfigFile {
+    /// Procurement type: `"public-tenders"`, `"pt"`, `"pub"`, `"minor-contracts"`, `"mc"`, or `"min"`
     #[serde(rename = "type")]
     pub procurement_type: String,
+    /// Start period in `YYYY` or `YYYYMM` format
     pub start: String,
+    /// End period in `YYYY` or `YYYYMM` format
     pub end: String,
+    /// Whether to clean up temporary ZIP and extracted files (defaults to `true`)
     #[serde(default = "default_cleanup")]
     pub cleanup: bool,
+    /// Flattened resolved configuration with pipeline defaults
     #[serde(flatten)]
     pub resolved: ResolvedConfig,
 }
 
 impl ResolvedConfigFile {
+    /// Loads and validates configuration from a TOML file.
+    ///
+    /// Deserializes the TOML file and ensures all required fields are present.
+    /// Validates that batch_size and read_concurrency are greater than 0.
+    /// Rejects unknown keys to prevent typos from being silently ignored.
+    ///
+    /// # Arguments
+    ///
+    /// * `path` - Path to the TOML configuration file
+    ///
+    /// # Returns
+    ///
+    /// Returns the loaded configuration if all validations pass.
+    ///
+    /// # Errors
+    ///
+    /// Returns `InvalidInput` if the TOML is malformed, required fields are missing,
+    /// unknown keys are present, or batch_size/read_concurrency are not positive.
     pub fn from_toml_file(path: &Path) -> AppResult<Self> {
         let contents = fs::read_to_string(path)?;
         let config: ResolvedConfigFile = toml::from_str(&contents)
