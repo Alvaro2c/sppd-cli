@@ -4,11 +4,22 @@ Una herramienta de línea de comandos para descargar, extraer y convertir datos 
 
 ## Instalación
 
-### Requisitos previos
+### Descargar desde Releases
 
-- Rust 1.56 o superior
+Hay binarios precompilados en la página de [Releases](https://github.com/Alvaro2c/sppd-cli/releases).
+
+1. Descarga el archivo para tu plataforma:
+   - **Linux** (x86_64): `sppd-cli-linux-x86_64-v*.tar.gz`
+   - **macOS** (Apple Silicon): `sppd-cli-macos-aarch64-v*.tar.gz`
+   - **Windows** (x86_64): `sppd-cli-windows-x86_64-v*.zip`
+2. Extrae y ejecuta:
+   - Linux/macOS: `tar xzf sppd-cli-*.tar.gz` y luego `./sppd-cli --help`
+   - Windows: descomprime el archivo y ejecuta `.\sppd-cli.exe --help`
+3. (Opcional) Añade el binario a tu PATH para usarlo globalmente.
 
 ### Compilar desde el código fuente
+
+**Requisitos previos:** Rust 1.56 o superior
 
 ```bash
 git clone https://github.com/Alvaro2c/sppd-cli.git
@@ -48,8 +59,10 @@ Downloader -> Extractor -> Parser -> Parquet
 ### CLI Manual
 
 ```bash
-cargo run -- cli [OPCIONES]
+sppd-cli cli [OPCIONES]
 ```
+
+*(Al compilar desde el código fuente, usa `cargo run -- cli [OPCIONES]` en su lugar.)*
 
 ### Opciones
 
@@ -72,8 +85,10 @@ cargo run -- cli [OPCIONES]
 ### Configuración TOML
 
 ```bash
-cargo run -- toml config/prod.toml
+sppd-cli toml config/prod.toml
 ```
+
+*(Al compilar desde el código fuente, usa `cargo run -- toml config/prod.toml` en su lugar.)*
 
 El archivo TOML te permite declarar los parámetros de ejecución de la CLI y, opcionalmente, anular cualquiera de los valores predeterminados de la canalización. El parser falla si omites una clave **obligatoria** (`type`, `start` o `end`) o incluyes una clave desconocida (las erratas se rechazan). Todo lo demás usa los valores incorporados a menos que lo cambies.
 
@@ -131,11 +146,13 @@ parquet_dir_pt = "data/parquet/pt"
 
 ```bash
 # Descarga manual con limpieza activada y valores por defecto
-cargo run -- cli -t public-tenders -s 2023 -e 2023
+sppd-cli cli -t public-tenders -s 2023 -e 2023
 
 # Ejecuta con un archivo TOML (para orquestación)
-cargo run -- toml config/prod.toml
+sppd-cli toml config/prod.toml
 ```
+
+*(Al compilar desde el código fuente, usa `cargo run -- cli` o `cargo run -- toml` en lugar de `sppd-cli cli` o `sppd-cli toml`.)*
 
 ### Salida
 
@@ -181,8 +198,10 @@ El parser escribe archivos Parquet por lotes para que cada período solo tenga e
 #### Ejemplo: contenedor Docker con 2 GB RAM y 2 núcleos CPU
 
 ```bash
-cargo run -- cli -t pt -s 2024 -e 2024 -b 50 -r 4 --parser-threads 2
+sppd-cli cli -t pt -s 2024 -e 2024 -b 50 -r 4 --parser-threads 2
 ```
+
+*(Al compilar desde el código fuente: `cargo run -- cli ...`.)*
 
 O vía TOML:
 
@@ -217,9 +236,11 @@ Estructura de salida:
 Controla los niveles de registro con `RUST_LOG`:
 
 ```bash
-RUST_LOG=debug cargo run -- cli  # Salida detallada
-RUST_LOG=warn cargo run -- cli   # Solo advertencias y errores
+RUST_LOG=debug sppd-cli cli  # Salida detallada
+RUST_LOG=warn sppd-cli cli   # Solo advertencias y errores
 ```
+
+*(Al compilar desde el código fuente: `RUST_LOG=debug cargo run -- cli`.)*
 
 ## Contribuciones
 

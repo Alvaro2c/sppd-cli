@@ -4,11 +4,22 @@ A command-line tool for downloading, extracting, and converting Spanish public p
 
 ## Installation
 
-### Prerequisites
+### Download from Releases
 
-- Rust 1.56 or later
+Pre-built binaries are available on the [Releases](https://github.com/Alvaro2c/sppd-cli/releases) page.
+
+1. Download the archive for your platform:
+   - **Linux** (x86_64): `sppd-cli-linux-x86_64-v*.tar.gz`
+   - **macOS** (Apple Silicon): `sppd-cli-macos-aarch64-v*.tar.gz`
+   - **Windows** (x86_64): `sppd-cli-windows-x86_64-v*.zip`
+2. Extract and run:
+   - Linux/macOS: `tar xzf sppd-cli-*.tar.gz` then `./sppd-cli --help`
+   - Windows: unzip the archive, then run `.\sppd-cli.exe --help`
+3. (Optional) Add the binary to your PATH for global access.
 
 ### Build from Source
+
+**Prerequisites:** Rust 1.56 or later
 
 ```bash
 git clone https://github.com/Alvaro2c/sppd-cli.git
@@ -48,8 +59,10 @@ Downloader -> Extractor -> Parser -> Parquet
 ### Manual CLI
 
 ```bash
-cargo run -- cli [OPTIONS]
+sppd-cli cli [OPTIONS]
 ```
+
+*(When building from source, use `cargo run -- cli [OPTIONS]` instead.)*
 
 ### Options
 
@@ -72,8 +85,10 @@ cargo run -- cli [OPTIONS]
 ### TOML Configuration
 
 ```bash
-cargo run -- toml config/prod.toml
+sppd-cli toml config/prod.toml
 ```
+
+*(When building from source, use `cargo run -- toml config/prod.toml` instead.)*
 
 The TOML file lets you declare the CLI run parameters and, optionally, any of the pipeline defaults. The parser fails if you omit any **required** field (`type`, `start`, or `end`) or include an unknown key (typos get rejected). Everything else uses the built-in defaults unless you override it.
 
@@ -131,11 +146,13 @@ parquet_dir_pt = "data/parquet/pt"
 
 ```bash
 # Manual download (default cleanup, defaults for batch size, retries, etc.)
-cargo run -- cli -t public-tenders -s 2023 -e 2023
+sppd-cli cli -t public-tenders -s 2023 -e 2023
 
 # Run with a TOML configuration file (for automation/orchestration)
-cargo run -- toml config/prod.toml
+sppd-cli toml config/prod.toml
 ```
+
+*(When building from source, use `cargo run -- cli` or `cargo run -- toml` instead of `sppd-cli cli` or `sppd-cli toml`.)*
 
 ### Output
 
@@ -181,8 +198,10 @@ The parser writes Parquet files in batches so each period only keeps `batch_size
 #### Example: Docker Container with 2 GB RAM and 2 CPU cores
 
 ```bash
-cargo run -- cli -t pt -s 2024 -e 2024 -b 50 -r 4 --parser-threads 2
+sppd-cli cli -t pt -s 2024 -e 2024 -b 50 -r 4 --parser-threads 2
 ```
+
+*(When building from source: `cargo run -- cli ...`.)*
 
 Or via TOML:
 
@@ -217,9 +236,11 @@ Output structure:
 Control log levels with `RUST_LOG`:
 
 ```bash
-RUST_LOG=debug cargo run -- cli  # Detailed output
-RUST_LOG=warn cargo run -- cli   # Warnings and errors only
+RUST_LOG=debug sppd-cli cli  # Detailed output
+RUST_LOG=warn sppd-cli cli   # Warnings and errors only
 ```
+
+*(When building from source: `RUST_LOG=debug cargo run -- cli`.)*
 
 ## Contributing
 
